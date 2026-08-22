@@ -12,6 +12,19 @@ import { listExtensions } from "./core/registry";
 import type { Layout } from "./core/types";
 import "./extensions";
 
+async function copyText(text: string): Promise<void> {
+  try {
+    await import("@tauri-apps/plugin-clipboard-manager").then((m) =>
+      m.writeText(text),
+    );
+    return;
+  } catch {
+    // fall back to the Web Clipboard API for plain-browser dev
+  }
+  if (!navigator.clipboard) throw new Error("clipboard unavailable");
+  await navigator.clipboard.writeText(text);
+}
+
 function App() {
   const [activeId, setActiveId] = useState<string | null>(null); // null = home
   const [layout, setLayout] = useState<Layout>("withSidebar");
@@ -152,7 +165,7 @@ function Home() {
               <svg
                 className="text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 transition-colors cursor-pointer"
                 onClick={async () => {
-                  await navigator.clipboard.writeText(tempId);
+                  await copyText(tempId);
                   setCopied(true);
                   window.setTimeout(() => setCopied(false), 1500);
                 }}
