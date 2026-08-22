@@ -5,12 +5,11 @@ import type { Channel, ExtensionContext } from "../../core/types";
  */
 
 export interface PingState {
-  ownId: string;
   logs: string[];
   openTarget: string | null;
 }
 
-let state: PingState = { ownId: "", logs: [], openTarget: null };
+let state: PingState = { logs: [], openTarget: null };
 const listeners = new Set<() => void>();
 
 function set(patch: Partial<PingState>): void {
@@ -42,7 +41,6 @@ let lastPingAt = 0;
 /** Logic entry */
 export function initPing(ctx: ExtensionContext): void {
   ctxRef = ctx;
-  set({ ownId: ctx.deviceId });
 
   // A remote peer opening a "ping" channel lands here.
   ctx.onChannel((ch) => {

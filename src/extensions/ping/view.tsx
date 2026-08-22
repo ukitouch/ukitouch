@@ -14,15 +14,6 @@ export default function PingView() {
         </p>
       </div>
 
-      <div className="text-sm">
-        <div className="text-gray-500 dark:text-gray-400 mb-1">
-          This device
-        </div>
-        <code className="block bg-gray-100 dark:bg-gray-800 rounded-md px-3 py-2 select-all break-all tracking-widest">
-          {state.ownId.replace(/(\d{3})(?=\d)/g, "$1 ")}
-        </code>
-      </div>
-
       <div className="flex gap-2">
         <input
           value={target}

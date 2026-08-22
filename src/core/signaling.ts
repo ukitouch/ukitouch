@@ -19,6 +19,7 @@ export class Signaling {
   private forwardHandlers = new Set<ForwardHandler>();
   private noticeHandlers = new Set<NoticeHandler>();
   private pendingQueries = new Map<string, (registered: boolean) => void>();
+  private ready: (() => void)[] = [];
 
   connect(url: string, id: string): void {
     this.url = url;
@@ -34,6 +35,17 @@ export class Signaling {
 
   onForward(handler: ForwardHandler): void {
     this.forwardHandlers.add(handler);
+  }
+
+  /** Resolves once the signaling socket is open (immediately if already open). */
+  waitReady(): Promise<void> {
+    return new Promise((resolve) => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        resolve();
+        return;
+      }
+      this.ready.push(resolve);
+    });
   }
 
   onNotice(handler: NoticeHandler): void {
@@ -71,6 +83,9 @@ export class Signaling {
       ws.send(
         JSON.stringify({ register: this.id, force: this.reconnectAttempt > 0 })
       );
+      const r = this.ready;
+      this.ready = [];
+      r.forEach((f) => f());
     };
     ws.onmessage = (ev) => this.handleMessage(String(ev.data));
     ws.onclose = () => {
