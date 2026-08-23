@@ -12,3 +12,11 @@
     @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-50 h-full;
   }
 }
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
