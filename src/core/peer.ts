@@ -1,17 +1,6 @@
 import type { Signaling, ForwardedMessage } from "./signaling";
+import type { Transport, WebRtcOpenSpec } from "./transport";
 import type { Channel } from "./types";
-
-/** Available channel transports. */
-export type TransportKind = "webrtc" | "usb" | "ble";
-
-/** Option: reliable & ordered (default) or fire-and-forget. */
-export interface ChannelOptions {
-  reliable?: boolean;
-  /**
-   * Transports the extension is willing to use, in preference order.
-   */
-  transports?: TransportKind[];
-}
 
 interface PeerState {
   pc: RTCPeerConnection;
@@ -21,13 +10,11 @@ interface PeerState {
 }
 
 /**
- * Owns RTCPeerConnections (one per remote device) and routes DataChannels
- * to extensions by label. Payloads inside channels are never inspected here.
- *
- * Negotiation follows the MDN "perfect negotiation" pattern; politeness is
- * derived deterministically from device ids, so no extra signaling is needed.
+ * The WebRTC Transport backend.
  */
-export class PeerManager {
+export class PeerManager implements Transport {
+  readonly kind = "webrtc" as const;
+
   private peers = new Map<string, PeerState>();
   private channelHandlers = new Map<string, (channel: Channel) => void>();
 
@@ -44,22 +31,17 @@ export class PeerManager {
   }
 
   /** Route future incoming channels labelled `extId` to `handler`. */
-  onChannel(extId: string, handler: (channel: Channel) => void): void {
+  onIncoming(extId: string, handler: (channel: Channel) => void): void {
     this.channelHandlers.set(extId, handler);
   }
 
   /**
-   * Open a channel to a target device. Creating the first channel on a fresh
-   * peer connection triggers negotiation automatically — lazy by design.
+   * Open a channel to a target device.
    */
-  openChannel(
-    targetId: string,
-    extId: string,
-    options?: ChannelOptions
-  ): Promise<Channel> {
-    const peer = this.getPeer(targetId);
+  open(request: WebRtcOpenSpec, extId: string): Promise<Channel> {
+    const peer = this.getPeer(request.target);
     const init: RTCDataChannelInit | undefined =
-      options?.reliable === false
+      request.reliable === false
         ? { ordered: false, maxRetransmits: 0 }
         : undefined;
     const channel = peer.pc.createDataChannel(extId, init);

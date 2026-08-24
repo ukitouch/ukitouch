@@ -60,9 +60,12 @@ export function initPing(ctx: ExtensionContext): void {
 export async function openPingChannel(targetId: string): Promise<void> {
   targetId = targetId.replace(/\D/g, ""); // tolerate grouped input ("123 456 789")
   if (!ctxRef || !targetId) return;
-  log(`opening channel to ${targetId} …`);
+  log(`opening channel to ${targetId} ...`);
   try {
-    const ch = await ctxRef.openChannel(targetId);
+    const ch = await ctxRef.openChannel({
+      transport: "webrtc",
+      target: targetId,
+    });
     channel = ch;
     set({ openTarget: targetId });
     ch.onmessage = (e) => {

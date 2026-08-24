@@ -9,6 +9,7 @@ import {
 import { PeerManager } from "./peer";
 import { Signaling } from "./signaling";
 import type { ForwardedMessage } from "./signaling";
+import { dispatchOnIncoming, dispatchOpen, type OpenSpec, type Transport, type TransportKind, type WebRtcOpenSpec } from "./transport";
 import type { ExtensionContext } from "./types";
 
 /**
@@ -22,6 +23,22 @@ export const peers = new PeerManager(
   () => ({ urls: serverConfig.iceServers }),
   deviceUuid
 );
+
+const webrtcTransport: Transport = {
+  kind: "webrtc",
+  open: (request: OpenSpec, extId) => {
+    const w = request as WebRtcOpenSpec;
+    // 9-digit discoverable id -> uuid, then hand off to the webrtc backend.
+    return resolveTarget(w.target).then((uuid) =>
+      peers.open({ ...w, target: uuid }, extId)
+    );
+  },
+  onIncoming: (extId, handler) => peers.onIncoming(extId, handler),
+};
+
+export const transports: ReadonlyMap<TransportKind, Transport> = new Map([
+  ["webrtc", webrtcTransport],
+]);
 
 /** Registered with a short, user-visible temp id. */
 let signalingTemp: Signaling | null = null;
@@ -73,11 +90,8 @@ export function makeContext(extId: string): ExtensionContext {
   return {
     ...hostCapabilities,
     deviceId: deviceUuid,
-    openChannel: (targetId, options) =>
-      resolveTarget(targetId).then((uuid) =>
-        peers.openChannel(uuid, extId, options)
-      ),
-    onChannel: (handler) => peers.onChannel(extId, handler),
+    openChannel: (request) => dispatchOpen(transports, request, extId),
+    onChannel: (handler) => dispatchOnIncoming(transports, extId, handler),
   };
 }
 
