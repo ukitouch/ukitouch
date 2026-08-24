@@ -5,6 +5,7 @@ import { listExtensions } from "./core/registry";
 import type { Layout } from "./core/types";
 import "./extensions";
 import Home from "./Home";
+import SettingPage from "./Setting";
 
 function App() {
   const [activeId, setActiveId] = useState<string | null>(null); // null = home
@@ -15,7 +16,7 @@ function App() {
   const extensions = useMemo(listExtensions, []);
   const active = extensions.find((ext) => ext.id === activeId);
   const ActiveComponent = active?.component;
-
+ 
   return (
     <>
       {layout === "withSidebar" && (
@@ -81,7 +82,7 @@ function App() {
         </aside>
       )}
       <main className="flex-1 min-w-0 overflow-y-auto">
-        {ActiveComponent ? <ActiveComponent /> : <Home />}
+        {ActiveComponent==undefined ? activeId === "settings" ? <SettingPage /> : <Home /> : <ActiveComponent />}
       </main>
     </>
   );
