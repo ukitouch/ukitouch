@@ -1,8 +1,8 @@
 mod net;
 
 use net::bridge::{
-    net_configure, p2p_connect, p2p_open_channel, p2p_send, sig_connect, sig_disconnect, sig_query,
-    sig_send,
+    net_configure, p2p_close_channel, p2p_connect, p2p_open_channel, p2p_send, sig_connect,
+    sig_disconnect, sig_query, sig_send,
 };
 use net::state::NetState;
 use std::sync::Arc;
@@ -24,7 +24,8 @@ pub fn run() {
             sig_query,
             p2p_connect,
             p2p_open_channel,
-            p2p_send
+            p2p_send,
+            p2p_close_channel
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

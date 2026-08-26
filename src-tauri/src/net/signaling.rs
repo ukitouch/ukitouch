@@ -9,7 +9,9 @@
 use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::net::TcpStream;
 use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio_tungstenite::tungstenite::Message;
@@ -32,13 +34,15 @@ type WriteHalf = futures_util::stream::SplitSink<Ws, Message>;
 pub struct SignalingSender {
     /// Own registration id on the server.
     id: String,
-    /// Sink for sending messages to the server.
-    write: Arc<Mutex<WriteHalf>>,
+    /// Current write sink, `None` while the connection is down.
+    write: Arc<Mutex<Option<WriteHalf>>>,
     /// In-flight `query` calls keyed by the queried id.
     pending_queries: Arc<std::sync::Mutex<HashMap<String, oneshot::Sender<bool>>>>,
+    /// Set by `disconnect` to stop the reconnect loop.
+    closed: Arc<AtomicBool>,
 }
 
-/// Receive half of a signaling connection (owned by a reader task).
+/// Receive half of a signaling connection.
 pub struct SignalingReceiver {
     rx: mpsc::Receiver<Event>,
 }
@@ -53,36 +57,44 @@ impl SignalingSender {
             map.extend(rest);
         }
         let text = serde_json::Value::Object(map).to_string();
-        self.write
-            .lock()
-            .await
-            .send(Message::Text(text.into()))
+        let mut guard = self.write.lock().await;
+        let w = guard.as_mut().ok_or(Error::Other("not connected".into()))?;
+        w.send(Message::Text(text.into()))
             .await
             .map_err(Error::Send)
     }
 
-    /// Close the underlying websocket (also ends the reader task).
+    /// Close the connection and stop reconnecting.
     pub async fn disconnect(&self) -> Result<(), Error> {
-        self.write
-            .lock()
-            .await
-            .send(Message::Close(None))
-            .await
-            .map_err(Error::Send)
+        self.closed.store(true, Ordering::SeqCst);
+        let mut guard = self.write.lock().await;
+        if let Some(w) = guard.as_mut() {
+            let _ = w.send(Message::Close(None)).await;
+        }
+        Ok(())
     }
 
     /// Ask the server whether `id` is currently registered. Timeouts if the
     /// server never replies.
     pub async fn query(&self, id: &str) -> Result<bool, Error> {
         let (tx, rx) = oneshot::channel();
-        self.pending_queries.lock().unwrap().insert(id.to_string(), tx);
-        self.write
+        self.pending_queries
             .lock()
-            .await
-            .send(Message::Text(serde_json::json!({ "query": id }).to_string().into()))
+            .unwrap()
+            .insert(id.to_string(), tx);
+        {
+            let mut guard = self.write.lock().await;
+            let w = guard.as_mut().ok_or(Error::Other("not connected".into()))?;
+            w.send(Message::Text(
+                serde_json::json!({ "query": id }).to_string().into(),
+            ))
             .await
             .map_err(Error::Send)?;
-        rx.await.map_err(|_| Error::Other("query timed out".into()))
+        }
+        tokio::time::timeout(Duration::from_secs(3), rx)
+            .await
+            .map_err(|_| Error::Other("query timed out".into()))?
+            .map_err(|_| Error::Other("query timed out".into()))
     }
 }
 
@@ -93,69 +105,121 @@ impl SignalingReceiver {
     }
 }
 
-/// Connect and register `id` on the server, returning split send/receive halves
-/// Fails on transport error or if the id is taken and `force` is false
+async fn handle_text(
+    text: String,
+    tx: &mpsc::Sender<Event>,
+    pending_queries: &std::sync::Mutex<HashMap<String, oneshot::Sender<bool>>>,
+) {
+    if let Ok(v) = serde_json::from_str::<Value>(&text) {
+        // query reply: {"id": ..., "registered": bool}
+        if let (Some(id), Some(registered)) = (
+            v.get("id").and_then(Value::as_str),
+            v.get("registered").and_then(Value::as_bool),
+        ) {
+            if let Some(tx) = pending_queries.lock().unwrap().remove(id) {
+                let _ = tx.send(registered);
+            }
+            return;
+        }
+        // forwarded message carries from/to
+        if let Some(from) = v.get("from").and_then(Value::as_str) {
+            let ev = Event::Forward {
+                from: from.to_string(),
+                value: v,
+            };
+            let _ = tx.send(ev).await;
+            return;
+        }
+        // unknown JSON -> treat as notice
+        let _ = tx.send(Event::Notice(text)).await;
+    } else {
+        // bare-string errors/notices
+        let _ = tx.send(Event::Notice(text)).await;
+    }
+}
+
+/// Connect and register `id` on the server, returning split send/receive halves.
 pub async fn connect(
     url: &str,
     id: String,
     force: bool,
 ) -> Result<(SignalingSender, SignalingReceiver), Error> {
-    let (ws, _) = connect_async(url).await.map_err(Error::Connect)?;
+    let url = url.to_string();
+    let (ws, _) = connect_async(&url).await.map_err(Error::Connect)?;
     let (mut write, mut read) = ws.split();
 
     write
         .send(Message::Text(
-            serde_json::json!({ "register": id, "force": force }).to_string().into(),
+            serde_json::json!({ "register": id, "force": force })
+                .to_string()
+                .into(),
         ))
         .await
         .map_err(Error::Send)?;
 
     let (tx, rx) = mpsc::channel(64);
+    let write_shared: Arc<Mutex<Option<WriteHalf>>> = Arc::new(Mutex::new(Some(write)));
     let pending_queries: Arc<std::sync::Mutex<HashMap<String, oneshot::Sender<bool>>>> =
         Arc::new(std::sync::Mutex::new(HashMap::new()));
+    let closed = Arc::new(AtomicBool::new(false));
+
     let pq = pending_queries.clone();
-
+    let write_mgr = write_shared.clone();
+    let closed_mgr = closed.clone();
+    let tx_mgr = tx.clone();
+    let id_mgr = id.clone();
     tokio::spawn(async move {
+        // Drain the initial socket, reconnect in a loop.
         while let Some(msg) = read.next().await {
-            let text = match msg {
-                Ok(Message::Text(t)) => t.to_string(),
-                _ => continue, // ignore binary / pong / errors
-            };
+            if closed_mgr.load(Ordering::SeqCst) {
+                return;
+            }
+            match msg {
+                Ok(Message::Text(t)) => handle_text(t.to_string(), &tx_mgr, &pq).await,
+                _ => {}
+            }
+        }
 
-            if let Ok(v) = serde_json::from_str::<Value>(&text) {
-                // query reply: {"id": ..., "registered": bool}
-                if let (Some(id), Some(registered)) = (
-                    v.get("id").and_then(Value::as_str),
-                    v.get("registered").and_then(Value::as_bool),
-                ) {
-                    if let Some(tx) = pq.lock().unwrap().remove(id) {
-                        let _ = tx.send(registered);
-                    }
-                    continue;
+        // Initial connection dropped, reconnect forever (until closed).
+        loop {
+            if closed_mgr.load(Ordering::SeqCst) {
+                return;
+            }
+            *write_mgr.lock().await = None; // drop the stale write half
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            if closed_mgr.load(Ordering::SeqCst) {
+                return;
+            }
+            let (ws, _) = match connect_async(&url).await {
+                Ok(w) => w,
+                Err(_) => continue,
+            };
+            let (mut write, mut read) = ws.split();
+            let _ = write
+                .send(Message::Text(
+                    serde_json::json!({ "register": id_mgr, "force": true })
+                        .to_string()
+                        .into(),
+                ))
+                .await;
+            *write_mgr.lock().await = Some(write);
+            while let Some(msg) = read.next().await {
+                if closed_mgr.load(Ordering::SeqCst) {
+                    return;
                 }
-                // forwarded message carries from/to
-                if let Some(from) = v.get("from").and_then(Value::as_str) {
-                    let _ = tx
-                        .send(Event::Forward {
-                            from: from.to_string(),
-                            value: v,
-                        })
-                        .await;
-                    continue;
+                match msg {
+                    Ok(Message::Text(t)) => handle_text(t.to_string(), &tx_mgr, &pq).await,
+                    _ => {}
                 }
-                // unknown JSON -> treat as notice
-                let _ = tx.send(Event::Notice(text)).await;
-            } else {
-                // bare-string errors/notices
-                let _ = tx.send(Event::Notice(text)).await;
             }
         }
     });
 
     let sender = SignalingSender {
         id,
-        write: Arc::new(Mutex::new(write)),
+        write: write_shared,
         pending_queries,
+        closed,
     };
     let receiver = SignalingReceiver { rx };
     Ok((sender, receiver))
@@ -183,7 +247,6 @@ impl std::error::Error for Error {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
 
     /// Live smoke test against the configured signaling server.
     ///
@@ -195,16 +258,31 @@ mod tests {
             None => return, // not configured; skip
         };
 
-        let (a_sender, a_recv) = match connect(&url, "test-a".into(), true).await {
+        let suffix = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        let (a_sender, a_recv) = match connect(&url, format!("test-{suffix}-a"), true).await {
             Ok(c) => c,
             Err(_) => return, // server unreachable; skip
         };
-        let (b_sender, mut b_recv) =
-            connect(&url, "test-b".into(), true).await.expect("b connect");
+        let (b_sender, mut b_recv) = connect(&url, format!("test-{suffix}-b"), true)
+            .await
+            .expect("b connect");
+
+        let to = format!("test-{suffix}-b");
+        // The server processes connections concurrently; a's forward could race
+        // b's register. Wait until the server confirms b is registered first.
+        for _ in 0..30 {
+            if a_sender.query(&to).await.expect("query") {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
 
         // a -> b forward
         a_sender
-            .send("test-b", serde_json::json!({ "hello": "world" }))
+            .send(&to, serde_json::json!({ "hello": "world" }))
             .await
             .expect("a send");
         match tokio::time::timeout(Duration::from_secs(3), b_recv.recv())
@@ -213,14 +291,14 @@ mod tests {
             .expect("stream closed")
         {
             Event::Forward { from, value } => {
-                assert_eq!(from, "test-a");
+                assert_eq!(from, format!("test-{suffix}-a"));
                 assert_eq!(value["hello"], "world");
             }
             other => panic!("expected Forward, got {other:?}"),
         }
 
         // query registration
-        assert_eq!(a_sender.query("test-b").await.expect("query"), true);
+        assert_eq!(a_sender.query(&to).await.expect("query"), true);
         assert_eq!(a_sender.query("nope").await.expect("query"), false);
         drop(b_sender);
         drop(a_recv);

@@ -149,3 +149,13 @@ pub async fn p2p_send(
 ) -> Result<(), String> {
     webrtc::send(&state, token, channel_id, data, text).await
 }
+
+/// Close a data channel.
+#[tauri::command]
+pub async fn p2p_close_channel(
+    state: State<'_, Arc<NetState>>,
+    token: String,
+    channel_id: u64,
+) -> Result<(), String> {
+    webrtc::close_channel(&state, token, channel_id).await
+}

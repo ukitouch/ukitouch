@@ -185,10 +185,13 @@ function ensureListeners(): Promise<void> {
     }),
     listen<ChannelCloseEvent>("channel-close", (e) => {
       const k = key(e.payload.token, e.payload.channel_id);
-      channels.delete(k);
-      channels.get(k)?.handleClose();
+      const ch = channels.get(k);
+      if (ch) {
+        channels.delete(k);
+        ch.handleClose();
+      }
     }),
-  ]).then(() => {});
+  ]).then(() => { });
   return listenersReady;
 }
 
@@ -227,10 +230,19 @@ class P2PChannel implements Channel {
       channelId: this.channelId,
       data: bytes,
       text,
-    }).catch((e) => console.error("[p2p] send failed", e));
+    }).catch((e) => {
+      console.error("[p2p] send failed", e);
+      this.onerror?.(new Event("error"));
+    });
   }
 
-  close(): void {}
+  close(): void {
+    invoke("p2p_close_channel", {
+      token: this.token,
+      channelId: this.channelId,
+    }).catch((e) => console.error("[p2p] close failed", e));
+    this.readyState = "closed";
+  }
 
   /** Deliver an incoming message. */
   deliver(dataB64: string, text: boolean): void {

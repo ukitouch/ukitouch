@@ -138,15 +138,27 @@ async fn get_peer(state: &Arc<NetState>, target: String) -> Result<Arc<Peer>, St
 
     // Send connection state to frontend.
     let app = state.app.clone();
+    let net = state.clone();
     let target3 = target.clone();
     pc.on_peer_connection_state_change(Box::new(move |s: RTCPeerConnectionState| {
         let app = app.clone();
+        let net = net.clone();
         let target = target3.clone();
         Box::pin(async move {
+            let token = net
+                .webrtc
+                .lock()
+                .unwrap()
+                .peers
+                .get(&target)
+                .map(|p| p.token.clone());
             let _ = app.emit(
                 "conn-state",
-                json!({ "target": target, "state": s.to_string() }),
+                json!({ "target": target, "token": token, "state": s.to_string() }),
             );
+            if s == RTCPeerConnectionState::Failed || s == RTCPeerConnectionState::Closed {
+                close_peer_channels(&net, &target).await;
+            }
         })
     }));
 
@@ -176,8 +188,33 @@ fn find_by_token(state: &Arc<NetState>, token: &str) -> Result<Arc<Peer>, String
         .ok_or_else(|| format!("peer not found: {token}"))
 }
 
+fn remove_peer_by_token(state: &Arc<NetState>, token: &str) {
+    state
+        .webrtc
+        .lock()
+        .unwrap()
+        .peers
+        .retain(|_, p| p.token != token);
+}
+
+/// The peer connection failed/closed, notify the frontend and close every channel.
+async fn close_peer_channels(state: &Arc<NetState>, target: &str) {
+    let peer = state.webrtc.lock().unwrap().peers.get(target).cloned();
+    let Some(peer) = peer else { return };
+    let channels: Vec<(u64, Arc<ChannelHandle>)> = peer.channels.lock().unwrap().drain().collect();
+    for (channel_id, handle) in channels {
+        let _ = state.app.emit(
+            "channel-close",
+            json!({ "token": peer.token, "channel_id": channel_id }),
+        );
+        let _ = handle.dc.close().await;
+    }
+}
+
 /// Establish a peer connection to `target`. Returns the connection token.
 pub async fn connect(state: &Arc<NetState>, target: String) -> Result<String, String> {
+    // remove previous peers
+    state.webrtc.lock().unwrap().peers.remove(&target);
     let peer = get_peer(state, target).await?;
     Ok(peer.token.clone())
 }
@@ -193,7 +230,10 @@ pub async fn open_channel(
         .pc
         .create_data_channel(&label, None)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            remove_peer_by_token(state, &token);
+            e.to_string()
+        })?;
     let handle = Arc::new(ChannelHandle::new(dc));
 
     let channel_id = {
@@ -210,9 +250,13 @@ pub async fn open_channel(
 
     // Creating the channel.
     if !handle.open.load(std::sync::atomic::Ordering::SeqCst) {
-        tokio::time::timeout(Duration::from_secs(10), handle.opened.notified())
-            .await
-            .map_err(|_| "channel open timed out")?;
+        match tokio::time::timeout(Duration::from_secs(10), handle.opened.notified()).await {
+            Ok(_) => {}
+            Err(_) => {
+                remove_peer_by_token(state, &token);
+                return Err("channel open timed out".into());
+            }
+        }
     }
     Ok(channel_id)
 }
@@ -252,6 +296,25 @@ pub async fn send(
     send_now(&handle, data, text).await
 }
 
+/// Close a channel.
+pub async fn close_channel(
+    state: &Arc<NetState>,
+    token: String,
+    channel_id: u64,
+) -> Result<(), String> {
+    let peer = find_by_token(state, &token)?;
+    let handle = peer
+        .channels
+        .lock()
+        .unwrap()
+        .get(&channel_id)
+        .cloned()
+        .ok_or("channel not found")?;
+    handle.dc.close().await.map_err(|e| e.to_string())?;
+    remove_peer_by_token(state, &token);
+    Ok(())
+}
+
 /// Handle an incoming signaling message (SDP / ICE) from `from`.
 pub async fn handle_signal(
     state: &Arc<NetState>,
@@ -261,6 +324,10 @@ pub async fn handle_signal(
     if let Some(desc) = value.get("description") {
         let desc: RTCSessionDescription =
             serde_json::from_value(desc.clone()).map_err(|e| e.to_string())?;
+        if desc.sdp_type == RTCSdpType::Offer {
+            // remove previous peers
+            state.webrtc.lock().unwrap().peers.remove(&from);
+        }
         let peer = get_peer(state, from.clone()).await?;
         if desc.sdp_type == RTCSdpType::Offer {
             peer.pc
@@ -386,15 +453,18 @@ fn wire_channel(
         }));
 
     let app = state.app.clone();
+    let net = state.clone();
     let token = peer.token.clone();
     handle.dc.on_close(Box::new(move || {
         let app = app.clone();
+        let net = net.clone();
         let token = token.clone();
         Box::pin(async move {
             let _ = app.emit(
                 "channel-close",
                 json!({ "token": token, "channel_id": channel_id }),
             );
+            remove_peer_by_token(&net, &token);
         })
     }));
 }
