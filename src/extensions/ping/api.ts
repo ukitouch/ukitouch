@@ -1,4 +1,5 @@
 import type { Channel, ExtensionContext } from "../../core/types";
+import { createStore } from "../../core/store";
 
 /**
  * Ping extension logic layer.
@@ -9,30 +10,14 @@ export interface PingState {
   openTarget: string | null;
 }
 
-let state: PingState = { logs: [], openTarget: null };
-const listeners = new Set<() => void>();
-
-function set(patch: Partial<PingState>): void {
-  state = { ...state, ...patch };
-  listeners.forEach((l) => l());
-}
+export const pingStore = createStore<PingState>({ logs: [], openTarget: null });
 
 function log(line: string): void {
   const stamp = new Date().toLocaleTimeString("en-GB");
-  set({ logs: [...state.logs, `${stamp} ${line}`].slice(-100) });
+  pingStore.set({
+    logs: [...pingStore.get().logs, `${stamp} ${line}`].slice(-100),
+  });
 }
-
-export const pingStore = {
-  subscribe(cb: () => void): () => void {
-    listeners.add(cb);
-    return () => {
-      listeners.delete(cb);
-    };
-  },
-  getState(): PingState {
-    return state;
-  },
-};
 
 let ctxRef: ExtensionContext | null = null;
 let channel: Channel | null = null;
@@ -67,7 +52,7 @@ export async function openPingChannel(targetId: string): Promise<void> {
       target: targetId,
     });
     channel = ch;
-    set({ openTarget: targetId });
+    pingStore.set({ openTarget: targetId });
     ch.onmessage = (e) => {
       if (e.data === "pong") log(`pong (rtt ${Date.now() - lastPingAt}ms)`);
       else log(`recv "${String(e.data)}"`);
@@ -75,7 +60,7 @@ export async function openPingChannel(targetId: string): Promise<void> {
     ch.onclose = () => {
       log("channel closed");
       channel = null;
-      set({ openTarget: null });
+      pingStore.set({ openTarget: null });
     };
     log("channel open");
   } catch (err) {

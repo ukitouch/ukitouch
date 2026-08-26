@@ -2,7 +2,7 @@ import { useState, useSyncExternalStore } from "react";
 import { openPingChannel, pingStore, sendPing } from "./api";
 
 export default function PingView() {
-  const state = useSyncExternalStore(pingStore.subscribe, pingStore.getState);
+  const state = useSyncExternalStore(pingStore.subscribe, pingStore.get);
   const [target, setTarget] = useState("");
 
   return (

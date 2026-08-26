@@ -2,6 +2,7 @@ import { serverConfig } from "./config";
 import { hostCapabilities } from "./host";
 import { deviceUuid, genTempId } from "./identity";
 import { createSignaling, onChannel, openChannel, signaling } from "./p2p";
+import { createStore } from "./store";
 import type { OpenSpec } from "./transport";
 import type { ExtensionContext } from "./types";
 
@@ -21,10 +22,15 @@ export function makeContext(extId: string): ExtensionContext {
 
 // A second WS registered with a short, user-visible temp id.
 
+export const tempIdStore = createStore<{ enabled: boolean; id: string | null }>({
+  enabled: false,
+  id: null,
+});
+
 let signalingTemp: ReturnType<typeof createSignaling> | null = null;
 
 export function isTempIdOn(): boolean {
-  return signalingTemp !== null;
+  return tempIdStore.get().enabled;
 }
 
 export async function enableTempId(): Promise<string> {
@@ -48,10 +54,12 @@ export async function enableTempId(): Promise<string> {
     }
   });
   await signalingTemp.connect(serverConfig.signaling, tempId);
+  tempIdStore.set({ enabled: true, id: tempId });
   return tempId;
 }
 
 export async function disableTempId(): Promise<void> {
   await signalingTemp?.disconnect();
   signalingTemp = null;
+  tempIdStore.set({ enabled: false, id: null });
 }
