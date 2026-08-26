@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { bindHost } from "./core/host";
 import { listExtensions } from "./core/registry";
 import type { Layout } from "./core/types";
 import "./extensions";
 import Home from "./Home";
 import SettingPage from "./Setting";
+
+const BUILTIN_PAGES: Record<string, ComponentType> = {
+  settings: SettingPage,
+};
 
 function App() {
   const [activeId, setActiveId] = useState<string | null>(null); // null = home
@@ -16,7 +20,7 @@ function App() {
   const extensions = useMemo(listExtensions, []);
   const active = extensions.find((ext) => ext.id === activeId);
   const ActiveComponent = active?.component;
- 
+
   return (
     <>
       {layout === "withSidebar" && (
@@ -74,18 +78,25 @@ function App() {
                   strokeLinejoin="round"
                 >
                   <circle cx="12" cy="12" r="3" />
-                  <path d="M12,2 L12.68,5.53 L19.07,4.93 L18.47,9.32 L22,12 L18.47,14.68 L19.07,19.07 L14.68,18.47 L12,22 L9.32,18.47 L4.93,19.07 L5.53,14.68 L2,12 L5.53,9.32 L4.93,4.93 L9.32,5.53Z"/>
+                  <path d="M12,2 L12.68,5.53 L19.07,4.93 L18.47,9.32 L22,12 L18.47,14.68 L19.07,19.07 L14.68,18.47 L12,22 L9.32,18.47 L4.93,19.07 L5.53,14.68 L2,12 L5.53,9.32 L4.93,4.93 L9.32,5.53Z" />
                 </svg>
               }
             />
           </div>
         </aside>
       )}
-      <main className="flex-1 min-w-0 overflow-y-auto">
-        {ActiveComponent==undefined ? activeId === "settings" ? <SettingPage /> : <Home /> : <ActiveComponent />}
-      </main>
+      <MainPageContent />
     </>
   );
+  function MainPageContent() {
+    const Page =
+      (activeId ? BUILTIN_PAGES[activeId] : undefined) ?? ActiveComponent ?? Home;
+    return (
+      <main className="flex-1 min-w-0 overflow-y-auto">
+        <Page />
+      </main>
+    );
+  }
 }
 
 function SidebarButton(props: {
@@ -105,5 +116,6 @@ function SidebarButton(props: {
     </button>
   );
 }
+
 
 export default App;
