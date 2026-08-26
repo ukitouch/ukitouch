@@ -1,10 +1,6 @@
 import type { Channel, ExtensionContext } from "../../core/types";
 import { createStore } from "../../core/store";
 
-/**
- * Ping extension logic layer.
- */
-
 export interface PingState {
   logs: string[];
   peerId: string | null;
@@ -38,7 +34,7 @@ function bindChannel(ch: Channel, peerLabel: string): void {
   ch.onmessage = (e) => {
     if (e.data === "ping") {
       ch.send("pong");
-      log("recv ping → replied pong");
+      log("recv ping, replied pong");
     } else if (e.data === "pong") {
       log(`pong (rtt ${Date.now() - lastPingAt}ms)`);
     } else {
@@ -75,7 +71,7 @@ export async function openPingChannel(targetId: string): Promise<void> {
   if (channel) channel.close();
   cancelled = false;
   pingStore.set({ connecting: true, peerId: null });
-  log(`connecting to ${targetId} ...`);
+  log(`connecting...`);
   try {
     const ch = await ctxRef.openChannel({
       transport: "webrtc",

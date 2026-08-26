@@ -1,16 +1,19 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { serverConfig } from "./config";
-import { deviceUuid } from "./identity";
+import { deviceUuid, genTempId } from "./identity";
 import type { Channel } from "./types";
+import { createStore } from "./store";
 
-/**
+/*
  * The signaling WS (p2psig protocol) lives in Rust (`net::signaling`); this
  * module is the TS handle onto it, plus the WebRTC P2P facade backed by Rust
  * (`net::webrtc`). Each signaling connection is named (`"primary"` = uuid,
  * `"temp"` = temp-id discovery); events carry the name so each facade only
  * sees its own traffic.
  */
+
+//#region Signaling
 
 export interface Forwarded {
   from: string;
@@ -36,12 +39,16 @@ interface NoticeEvent {
   message: string;
 }
 
+/**
+ * @param name unique name for the signaling connection
+ */
 export function createSignaling(name: string): SignalingApi {
   const forwardHandlers = new Set<(f: Forwarded) => void>();
   const noticeHandlers = new Set<(message: string) => void>();
   let unlisten: Promise<UnlistenFn> | null = null;
 
-  async function ensureListening(): Promise<void> {
+  /** Listen event from backend. */
+  async function initSigListener(): Promise<void> {
     if (unlisten) return;
     const [f, n] = await Promise.all([
       listen<ForwardEvent>("sig-forward", (e) => {
@@ -65,7 +72,7 @@ export function createSignaling(name: string): SignalingApi {
 
   return {
     async connect(url, id, force = false) {
-      await ensureListening();
+      await initSigListener();
       await invoke("sig_connect", { name, url, id, force });
     },
     send(to, payload) {
@@ -98,14 +105,18 @@ export const signaling = createSignaling("primary");
 /** Set ICE servers and connect the permanent signaling connection. */
 export async function startSignaling(): Promise<void> {
   await invoke("net_configure", { iceServers: serverConfig.iceServers });
-  await ensureListeners();
+  await ensureChannelListeners();
   signaling.onNotice((m) => console.warn("[sig]", m));
   await signaling.connect(serverConfig.signaling, deviceUuid, true);
 }
 
 
+//#endregion
+//#region Temp-id
+
 /** Pending temp id map to be store as uuid for an actual device */
 const pendingResolves = new Map<string, (uuid: string) => void>();
+let signalingTemp: ReturnType<typeof createSignaling> | null = null;
 
 signaling.onForward((f) => {
   // A resolve reply carries the target device's uuid.
@@ -117,10 +128,6 @@ signaling.onForward((f) => {
     }
   }
 });
-
-function isTempId(s: string): boolean {
-  return /^\d{9}$/.test(s);
-}
 
 function resolveUuid(tempId: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -142,8 +149,51 @@ function resolveUuid(tempId: string): Promise<string> {
 
 /** Translate a dial target (temp-id or uuid) to a uuid. */
 async function resolveTarget(targetId: string): Promise<string> {
-  return isTempId(targetId) ? resolveUuid(targetId) : targetId;
+  return /^\d{9}$/.test(targetId) ? resolveUuid(targetId) : targetId;
 }
+
+export const tempIdStore = createStore<{ enabled: boolean; id: string | null }>({
+  enabled: false,
+  id: null,
+});
+
+export function isTempIdOn(): boolean {
+  return tempIdStore.get().enabled;
+}
+
+export async function enableTempId(): Promise<string> {
+  if (!serverConfig.signaling) throw new Error("no signaling configured");
+  if (signalingTemp) {
+    await signalingTemp.disconnect();
+    signalingTemp = null;
+  }
+
+  // Pick a temp id the server doesn't already hold.
+  let tempId = genTempId();
+  for (let i = 0; i < 20; i++) {
+    if (!(await signaling.query(tempId))) break;
+    tempId = genTempId();
+  }
+
+  signalingTemp = createSignaling("temp");
+  signalingTemp.onForward((f) => {
+    if (f.value.resolve === true) {
+      signalingTemp?.send(f.from, { uuid: deviceUuid }).catch(console.error);
+    }
+  });
+  await signalingTemp.connect(serverConfig.signaling, tempId);
+  tempIdStore.set({ enabled: true, id: tempId });
+  return tempId;
+}
+
+export async function disableTempId(): Promise<void> {
+  await signalingTemp?.disconnect();
+  signalingTemp = null;
+  tempIdStore.set({ enabled: false, id: null });
+}
+
+//#endregion
+//#region P2P data channels
 
 interface ChannelDataEvent {
   token: string;
@@ -164,10 +214,9 @@ interface ChannelCloseEvent {
 let listenersReady: Promise<void> | null = null;
 const channels = new Map<string, P2PChannel>();
 const incomingHandlers = new Set<(ch: Channel) => void>();
-
 const key = (token: string, id: number) => `${token}:${id}`;
 
-function ensureListeners(): Promise<void> {
+function ensureChannelListeners(): Promise<void> {
   if (listenersReady) return listenersReady;
   listenersReady = Promise.all([
     listen<ChannelOpenEvent>("channel-open", (e) => {
@@ -265,7 +314,7 @@ export async function openChannel(
   target: string,
   label: string
 ): Promise<Channel> {
-  await ensureListeners();
+  await ensureChannelListeners();
   const uuid = await resolveTarget(target);
   const token = await invoke<string>("p2p_connect", { target: uuid });
   const channelId = await invoke<number>("p2p_open_channel", { token, label });
@@ -276,6 +325,8 @@ export async function openChannel(
 
 /** Register a handler for incoming channels. */
 export function onChannel(handler: (ch: Channel) => void): void {
-  void ensureListeners();
+  void ensureChannelListeners();
   incomingHandlers.add(handler);
 }
+
+//#endregion

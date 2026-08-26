@@ -26,8 +26,6 @@ export interface Channel {
 /** API the host hands to an extension's logic layer (activate). */
 export interface ExtensionContext {
   setLayout(layout: Layout): void;
-  /** This device's persistent id (also its signaling address). */
-  readonly deviceId: string;
   /**
    * Open a channel labelled with this extension's ID.
    * 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useSyncExternalStore, useState } from "react";
 import type { ReactNode } from "react";
-import { disableTempId, enableTempId, tempIdStore } from "./core/net";
+import { disableTempId, enableTempId, tempIdStore } from "./core/p2p";
 import { bindHost } from "./core/host";
 import { listExtensions } from "./core/registry";
 import type { Layout } from "./core/types";
