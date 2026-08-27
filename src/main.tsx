@@ -3,10 +3,14 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { startNetworking } from "./core/net";
 import { activateExtensions } from "./core/registry";
+import { deviceStore } from "./core/devices";
 import "./index.css";
 
 startNetworking();
 activateExtensions();
+void deviceStore
+  .init()
+  .catch((err) => console.error("[devices] init failed:", err));
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
