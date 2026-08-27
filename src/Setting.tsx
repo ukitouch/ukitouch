@@ -132,7 +132,7 @@ function DeviceDetail({
   const name = displayNameOf(device);
 
   return (
-    <aside className="w-80 shrink-0 border-l-2 border-gray-800 dark:border-gray-600 p-4 overflow-y-auto">
+    <aside className="w-80 shrink-0 border-l-2 border-gray-800 dark:border-gray-600 p-4 overflow-y-auto max-md:w-full max-md:border-l-0 max-md:border-t-2">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate">{name}</h3>
@@ -360,8 +360,8 @@ function Devices() {
       {devices.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="flex gap-4 items-start">
-          <div className="flex-1 min-w-0 space-y-4">
+        <div className="flex gap-4 items-start max-md:flex-col">
+          <div className="flex-1 min-w-0 space-y-4 max-md:w-full">
             {/* Recent (≤5 items, collapsed by default) */}
             {!q && (
               <section>

@@ -8,8 +8,41 @@ import {
 } from "./identity";
 import { PeerManager } from "./peer";
 import { Signaling } from "./signaling";
+import { deviceStore } from "./devices";
+import { getHostInfo } from "./hostinfo";
+import type { CoreProtocol, HelloInfo } from "./db";
 import type { ForwardedMessage } from "./signaling";
 import type { ExtensionContext } from "./types";
+
+/** Core protocol of this build's transport (WebRTC P2P). USB / BLE transports will supply their own when landed. */
+const CORE_PROTOCOL: CoreProtocol = "p2p";
+
+/** Peer system info received via the hello handshake, keyed by peer uuid. */
+const helloCache = new Map<string, HelloInfo>();
+/** Peers we have already sent our hello to (reply-once guard, prevents echo loops). */
+const helloSent = new Set<string>();
+
+/** Send our host info to a peer (best-effort, non-blocking). */
+async function sendHello(to: string): Promise<void> {
+  if (helloSent.has(to)) return;
+  helloSent.add(to);
+  signaling.send(to, { hello: await getHostInfo() });
+}
+
+/** Handle a peer's hello: cache it, patch an existing device, reply once. */
+function handleHello(from: string, payload: ForwardedMessage): void {
+  if (typeof payload.hello !== "object" || payload.hello === null) return;
+  const hello = payload.hello as HelloInfo;
+  helloCache.set(from, hello);
+  // Late-arriving hello: patch an already-registered device. If the device is
+  // not registered yet, the cached hello is consumed at recordConnection time.
+  void deviceStore
+    .updateHello(from, hello)
+    .catch((err) => console.error("[devices] updateHello failed:", err));
+  void sendHello(from).catch((err) =>
+    console.error("[net] hello reply failed:", err)
+  );
+}
 
 /**
  * Primary signaling connection, registered with this device's uuid.
@@ -37,6 +70,10 @@ function handleForward(from: string, payload: ForwardedMessage): void {
       pendingResolves.delete(from);
       resolve(payload.uuid);
     }
+  }
+  // Hello handshake: peer reports its system info.
+  if (payload.hello !== undefined) {
+    handleHello(from, payload);
   }
 }
 
@@ -74,10 +111,38 @@ export function makeContext(extId: string): ExtensionContext {
     ...hostCapabilities,
     deviceId: deviceUuid,
     openChannel: (targetId, options) =>
-      resolveTarget(targetId).then((uuid) =>
-        peers.openChannel(uuid, extId, options)
-      ),
-    onChannel: (handler) => peers.onChannel(extId, handler),
+      resolveTarget(targetId).then(async (uuid) => {
+        // Best-effort hello exchange, non-blocking.
+        void sendHello(uuid).catch((err) =>
+          console.error("[net] hello failed:", err)
+        );
+        const channel = await peers.openChannel(uuid, extId, options);
+        // Successful dial → register the device and log the connection.
+        void deviceStore
+          .recordConnection({
+            uuid,
+            direction: "out",
+            protocol: CORE_PROTOCOL,
+            plugin: extId,
+            hello: helloCache.get(uuid),
+          })
+          .catch((err) => console.error("[devices] record outbound failed:", err));
+        return channel;
+      }),
+    onChannel: (handler) =>
+      peers.onChannel(extId, (channel) => {
+        // Inbound channel → register the device and log the connection.
+        void deviceStore
+          .recordConnection({
+            uuid: channel.peerId,
+            direction: "in",
+            protocol: CORE_PROTOCOL,
+            plugin: extId,
+            hello: helloCache.get(channel.peerId),
+          })
+          .catch((err) => console.error("[devices] record inbound failed:", err));
+        handler(channel);
+      }),
   };
 }
 

@@ -43,9 +43,15 @@ class DeviceStore {
   private listeners = new Set<() => void>();
   private initPromise: Promise<void> | null = null;
 
-  /** Idempotent initialization: load full data once (safe to call repeatedly). */
+  /**
+   * Idempotent initialization: load full data once (safe to call repeatedly).
+   * A failed load resets the promise so a later call can retry.
+   */
   init(): Promise<void> {
-    this.initPromise ??= this.load();
+    this.initPromise ??= this.load().catch((err) => {
+      this.initPromise = null;
+      throw err;
+    });
     return this.initPromise;
   }
 
@@ -60,12 +66,29 @@ class DeviceStore {
 
   /** Write a remark (null = clear it, falling back to hostname / "Unknown device"). */
   async setRemark(uuid: string, remark: string | null): Promise<void> {
+    await this.init();
     const next = await deviceRepo.patchDevice(uuid, { remark });
+    if (next) this.applyDevice(next);
+  }
+
+  /**
+   * Patch a device profile with peer-reported hello info (late-arriving or
+   * re-reported hello). Undefined fields keep the existing value.
+   */
+  async updateHello(uuid: string, hello: HelloInfo): Promise<void> {
+    await this.init();
+    const patch: Partial<Omit<StoredDevice, "uuid">> = {};
+    if (hello.name !== undefined) patch.name = hello.name;
+    if (hello.platform !== undefined) patch.platform = hello.platform;
+    if (hello.os !== undefined) patch.os = hello.os;
+    if (Object.keys(patch).length === 0) return;
+    const next = await deviceRepo.patchDevice(uuid, patch);
     if (next) this.applyDevice(next);
   }
 
   /** Delete a device profile and its associated event log. */
   async removeDevice(uuid: string): Promise<void> {
+    await this.init();
     await deviceRepo.removeDevice(uuid);
     this.snapshot = {
       devices: this.snapshot.devices.filter((d) => d.uuid !== uuid),
@@ -76,6 +99,7 @@ class DeviceStore {
 
   /** Record a connection: event (fact source) + device profile projection, atomically persisted. */
   async recordConnection(input: RecordConnectionInput): Promise<void> {
+    await this.init();
     const { device, event } = await eventRepo.recordConnection(
       {
         uuid: input.uuid,
@@ -94,6 +118,9 @@ class DeviceStore {
       .sort((a, b) => a.time - b.time)
       .slice(-MAX_CONNECTION_EVENTS);
     this.snapshot = { devices, events };
+    console.info(
+      `[devices] connection recorded: ${input.direction} via ${input.protocol} (${input.uuid})`
+    );
     this.emit();
   }
 
@@ -106,6 +133,9 @@ class DeviceStore {
       devices: devices.map((d) => ({ ...d, online: null })),
       events: events.sort((a, b) => a.time - b.time),
     };
+    console.info(
+      `[devices] store ready: ${devices.length} devices, ${events.length} events`
+    );
     this.emit();
   }
 

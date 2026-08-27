@@ -13,6 +13,53 @@ export interface ChannelOptions {
   transports?: TransportKind[];
 }
 
+/**
+ * Wrap an RTCDataChannel as the Channel contract, attaching the remote peer's
+ * uuid (Channel.peerId). A wrapper object (rather than
+ * an expando property on the WebIDL object) guarantees peerId on every engine.
+ */
+function asChannel(rtc: RTCDataChannel, peerId: string): Channel {
+  const send = rtc.send.bind(rtc) as (
+    data: string | ArrayBuffer | ArrayBufferView | Blob
+  ) => void;
+  return {
+    label: rtc.label,
+    peerId,
+    get readyState() {
+      return rtc.readyState;
+    },
+    get bufferedAmount() {
+      return rtc.bufferedAmount;
+    },
+    send,
+    close: () => rtc.close(),
+    get onmessage() {
+      return rtc.onmessage;
+    },
+    set onmessage(v) {
+      rtc.onmessage = v;
+    },
+    get onclose() {
+      return rtc.onclose;
+    },
+    set onclose(v) {
+      rtc.onclose = v;
+    },
+    get onopen() {
+      return rtc.onopen;
+    },
+    set onopen(v) {
+      rtc.onopen = v;
+    },
+    get onerror() {
+      return rtc.onerror as ((ev: Event) => void) | null;
+    },
+    set onerror(v) {
+      rtc.onerror = v as ((ev: RTCErrorEvent) => void) | null;
+    },
+  };
+}
+
 interface PeerState {
   pc: RTCPeerConnection;
   polite: boolean;
@@ -71,7 +118,7 @@ export class PeerManager {
       );
       channel.onopen = () => {
         clearTimeout(timer);
-        resolve(channel as unknown as Channel);
+        resolve(asChannel(channel, targetId));
       };
       channel.onerror = () => {
         clearTimeout(timer);
@@ -112,9 +159,9 @@ export class PeerManager {
     };
 
     pc.ondatachannel = ({ channel }) => {
-      // The channel label IS the extension id.
+      // The channel label IS the extension id; targetId is the remote peer's uuid.
       const handler = this.channelHandlers.get(channel.label);
-      if (handler) handler(channel as unknown as Channel);
+      if (handler) handler(asChannel(channel, targetId));
       else channel.close();
     };
 
