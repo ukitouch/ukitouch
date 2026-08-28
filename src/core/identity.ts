@@ -1,6 +1,4 @@
 const UUID_KEY = "yatouch.deviceUuid";
-const TEMP_ID_KEY = "yatouch.tempId";
-const TEMP_ID_STATUS = "yatouch.tempIdStatus";
 
 function genUuid(): string {
   if (typeof crypto.randomUUID === "function") {
@@ -16,7 +14,7 @@ function genUuid(): string {
     .join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
 }
 
-/** 9-digit discoverable id. */
+/** 9-digit temporary id. */
 export function genTempId(): string {
   const n = crypto.getRandomValues(new Uint32Array(1))[0];
   return String(100_000_000 + (n % 900_000_000));
@@ -41,26 +39,3 @@ export const deviceUuid: string = (() => {
   write(UUID_KEY, id);
   return id;
 })();
-
-/** Discoverable 9-digit id. Persisted, but rotated when it collides on the server. */
-export function getTempId(): string {
-  const existing = read(TEMP_ID_KEY);
-  if (existing) return existing;
-  const id = genTempId();
-  write(TEMP_ID_KEY, id);
-  return id;
-}
-
-export function rotateTempId(): string {
-  const id = genTempId();
-  write(TEMP_ID_KEY, id);
-  return id;
-}
-
-/** Whether discovery (the optional temp-id WS) is enabled. Persisted. */
-export function isTempIdEnabled(): boolean {
-  return read(TEMP_ID_STATUS) === "1";
-}
-export function setTempIdEnabled(on: boolean): void {
-  write(TEMP_ID_STATUS, on ? "1" : "0");
-}

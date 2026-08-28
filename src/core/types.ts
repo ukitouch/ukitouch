@@ -1,7 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
-import type { ChannelOptions } from "./peer";
-
-export type { ChannelOptions };
+import type { OpenSpec } from "./transport";
 
 /** Shell layout */
 export type Layout = "withSidebar" | "fullscreen";
@@ -28,10 +26,12 @@ export interface Channel {
 /** API the host hands to an extension's logic layer (activate). */
 export interface ExtensionContext {
   setLayout(layout: Layout): void;
-  /** This device's persistent id (also its signaling address). */
-  readonly deviceId: string;
-  /** Open a channel labelled with this extension's id to a target device. */
-  openChannel(targetId: string, options?: ChannelOptions): Promise<Channel>;
+  /**
+   * Open a channel labelled with this extension's ID.
+   * 
+   * @param request The transport specific.
+   */
+  openChannel(request: OpenSpec): Promise<Channel>;
   /** Called when a remote peer opens a channel labelled with this extension's id. */
   onChannel(handler: (channel: Channel) => void): void;
 }

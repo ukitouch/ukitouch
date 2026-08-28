@@ -1,12 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useSyncExternalStore, useState } from "react";
 import type { ReactNode } from "react";
-import { disableTempId, enableTempId } from "./core/net";
-import {
-  getTempId,
-  isTempIdEnabled,
-  rotateTempId,
-  setTempIdEnabled,
-} from "./core/identity";
+import { disableTempId, enableTempId, tempIdStore } from "./core/p2p";
 import { bindHost } from "./core/host";
 import { listExtensions } from "./core/registry";
 import type { Layout } from "./core/types";
@@ -97,8 +91,14 @@ function SidebarButton(props: {
 }
 
 function Home() {
-  const [tmpEnabled, setTempIdEnabledUI] = useState(isTempIdEnabled());
-  const [tempId, setTempIdUI] = useState(tmpEnabled ? getTempId() : "---------");
+  const tmpEnabled = useSyncExternalStore(
+    tempIdStore.subscribe,
+    () => tempIdStore.get().enabled
+  );
+  const tempId = useSyncExternalStore(
+    tempIdStore.subscribe,
+    () => tempIdStore.get().id ?? "---------"
+  );
   const [copied, setCopied] = useState(false);
   const [toggling, setToggling] = useState(false);
 
@@ -107,14 +107,8 @@ function Home() {
     setToggling(true);
     try {
       if (tmpEnabled) {
-        disableTempId();
-        setTempIdEnabled(false);
-        setTempIdEnabledUI(false);
-        setTempIdUI("---------");
+        await disableTempId();
       } else {
-        setTempIdEnabled(true);
-        setTempIdEnabledUI(true);
-        setTempIdUI(rotateTempId());
         await enableTempId();
       }
     } finally {
