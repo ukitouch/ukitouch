@@ -1,17 +1,9 @@
-import { serverConfig } from "./config";
 import { hostCapabilities } from "./host";
-import {
-  deviceUuid,
-  getTempId,
-  isTempIdEnabled,
-  rotateTempId,
-} from "./identity";
-import { PeerManager } from "./peer";
-import { Signaling } from "./signaling";
 import { deviceStore } from "./devices";
 import { getHostInfo } from "./hostinfo";
+import { onChannel, openChannel, signaling } from "./p2p";
 import type { CoreProtocol, HelloInfo } from "./db";
-import type { ForwardedMessage } from "./signaling";
+import type { OpenSpec } from "./transport";
 import type { ExtensionContext } from "./types";
 
 /** Core protocol of this build's transport (WebRTC P2P). USB / BLE transports will supply their own when landed. */
@@ -30,9 +22,9 @@ async function sendHello(to: string): Promise<void> {
 }
 
 /** Handle a peer's hello: cache it, patch an existing device, reply once. */
-function handleHello(from: string, payload: ForwardedMessage): void {
-  if (typeof payload.hello !== "object" || payload.hello === null) return;
-  const hello = payload.hello as HelloInfo;
+function handleHello(from: string, value: Record<string, unknown>): void {
+  if (typeof value.hello !== "object" || value.hello === null) return;
+  const hello = value.hello as HelloInfo;
   helloCache.set(from, hello);
   // Late-arriving hello: patch an already-registered device. If the device is
   // not registered yet, the cached hello is consumed at recordConnection time.
@@ -44,93 +36,38 @@ function handleHello(from: string, payload: ForwardedMessage): void {
   );
 }
 
-/**
- * Primary signaling connection, registered with this device's uuid.
- * All P2P (WebRTC) signaling flows through here. The uuid is the device's
- * permanent identity and is never shown to the user.
- */
-export const signaling = new Signaling();
-export const peers = new PeerManager(
-  signaling,
-  () => ({ urls: serverConfig.iceServers }),
-  deviceUuid
-);
-
-/** Registered with a short, user-visible temp id. */
-let signalingTemp: Signaling | null = null;
-
-/** Dialer-side pending tempId -> uuid resolutions. */
-const pendingResolves = new Map<string, (uuid: string) => void>();
-
-function handleForward(from: string, payload: ForwardedMessage): void {
-  // A resolve reply carries the target device's uuid.
-  if (typeof payload.uuid === "string") {
-    const resolve = pendingResolves.get(from);
-    if (resolve) {
-      pendingResolves.delete(from);
-      resolve(payload.uuid);
-    }
-  }
-  // Hello handshake: peer reports its system info.
-  if (payload.hello !== undefined) {
-    handleHello(from, payload);
-  }
-}
-
-/** 9-digit discoverable id, as opposed to a uuid. */
-function isTempId(s: string): boolean {
-  return /^\d{9}$/.test(s);
-}
-
-/**
- * Resolve a target the extension wants to reach. If it's a 9-digit temp id,
- * ask the server to translate it into the device's uuid first; uuids pass
- * through unchanged. All P2P connections are uuid-based.
- */
-async function resolveTarget(targetId: string): Promise<string> {
-  if (!isTempId(targetId)) return targetId;
-  return resolveUuid(targetId);
-}
-
-function resolveUuid(tempId: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      pendingResolves.delete(tempId);
-      reject(new Error(`could not resolve id \`${tempId}\``));
-    }, 5000);
-    pendingResolves.set(tempId, (uuid) => {
-      clearTimeout(timer);
-      resolve(uuid);
-    });
-    signaling.send(tempId, { resolve: true });
-  });
-}
+// Hello handshake: peer reports its system info on its own signaling connection.
+signaling.onForward((f) => {
+  if (f.value.hello !== undefined) handleHello(f.from, f.value);
+});
 
 export function makeContext(extId: string): ExtensionContext {
   return {
     ...hostCapabilities,
-    deviceId: deviceUuid,
-    openChannel: (targetId, options) =>
-      resolveTarget(targetId).then(async (uuid) => {
-        // Best-effort hello exchange, non-blocking.
-        void sendHello(uuid).catch((err) =>
+    openChannel: (request: OpenSpec) => {
+      if (request.transport !== "webrtc") {
+        return Promise.reject(new Error(`transport not implemented: ${request.transport}`));
+      }
+      const { target } = request;
+      return openChannel(target, extId).then((channel) => {
+        void sendHello(channel.peerId).catch((err) =>
           console.error("[net] hello failed:", err)
         );
-        const channel = await peers.openChannel(uuid, extId, options);
         // Successful dial → register the device and log the connection.
         void deviceStore
           .recordConnection({
-            uuid,
+            uuid: channel.peerId,
             direction: "out",
             protocol: CORE_PROTOCOL,
             plugin: extId,
-            hello: helloCache.get(uuid),
+            hello: helloCache.get(channel.peerId),
           })
           .catch((err) => console.error("[devices] record outbound failed:", err));
         return channel;
-      }),
+      });
+    },
     onChannel: (handler) =>
-      peers.onChannel(extId, (channel) => {
+      onChannel((channel) => {
         // Inbound channel → register the device and log the connection.
         void deviceStore
           .recordConnection({
@@ -144,57 +81,4 @@ export function makeContext(extId: string): ExtensionContext {
         handler(channel);
       }),
   };
-}
-
-/** Bring the uuid signaling connection up. Called once at app startup. */
-export function startNetworking(): void {
-  if (!serverConfig.signaling) {
-    console.warn(
-      "[net] no signaling server configured (VITE_SIGNALING); p2p disabled"
-    );
-    return;
-  }
-  signaling.onNotice((msg) => console.warn(`[signaling] ${msg}`));
-  signaling.onForward(handleForward);
-  signaling.connect(serverConfig.signaling, deviceUuid);
-  if (isTempIdEnabled()) {
-    void enableTempId();
-  }
-}
-
-// Optional discovery: a second WS registered with a short, user-visible temp id.
-// A stranger dials the temp id; this device replies with its uuid, after which
-// the P2P connection proceeds on the uuid channel (transparent to the user).
-
-export function isTempIdOn(): boolean {
-  return signalingTemp !== null;
-}
-
-export async function enableTempId(): Promise<void> {
-  if (!serverConfig.signaling) return;
-  if (signalingTemp) {
-    signalingTemp.disconnect();
-    signalingTemp = null;
-  }
-  await signaling.waitReady();
-
-  // Pick a temp id the server doesn't already hold; rotate until unique.
-  let tempId = getTempId();
-  for (let i = 0; i < 20; i++) {
-    if (!(await signaling.query(tempId))) break;
-    tempId = rotateTempId();
-  }
-
-  signalingTemp = new Signaling();
-  signalingTemp.onForward((from, payload) => {
-    if (payload.resolve === true) {
-      signalingTemp?.send(from, { uuid: deviceUuid });
-    }
-  });
-  signalingTemp.connect(serverConfig.signaling, tempId);
-}
-
-export function disableTempId(): void {
-  signalingTemp?.disconnect();
-  signalingTemp = null;
 }

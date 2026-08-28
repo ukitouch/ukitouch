@@ -1,9 +1,26 @@
 import { useState, useSyncExternalStore } from "react";
-import { openPingChannel, pingStore, sendPing } from "./api";
+import {
+  cancelConnect,
+  disconnect,
+  openPingChannel,
+  pingStore,
+  sendPing,
+} from "./api";
 
 export default function PingView() {
-  const state = useSyncExternalStore(pingStore.subscribe, pingStore.getState);
+  const state = useSyncExternalStore(pingStore.subscribe, pingStore.get);
   const [target, setTarget] = useState("");
+  const status = state.connecting
+    ? "connecting"
+    : state.peerId
+      ? "connected"
+      : "idle";
+
+  function onConnectClick() {
+    if (status === "connecting") cancelConnect();
+    else if (status === "connected") disconnect();
+    else void openPingChannel(target.trim());
+  }
 
   return (
     <div className="p-6 max-w-lg flex flex-col gap-4">
@@ -22,14 +39,18 @@ export default function PingView() {
           className="flex-1 min-w-0 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md px-3 py-1.5 font-mono text-sm"
         />
         <button
-          onClick={() => void openPingChannel(target.trim())}
+          onClick={onConnectClick}
           className="bg-gray-700 text-gray-100 rounded-md px-3 py-1.5 hover:bg-gray-600 transition-colors"
         >
-          Connect
+          {status === "connecting"
+            ? "Cancel"
+            : status === "connected"
+              ? "Disconnect"
+              : "Connect"}
         </button>
         <button
           onClick={sendPing}
-          disabled={!state.openTarget}
+          disabled={status !== "connected"}
           className="bg-gray-700 text-gray-100 rounded-md px-3 py-1.5 hover:bg-gray-600 disabled:opacity-40 transition-colors"
         >
           Ping

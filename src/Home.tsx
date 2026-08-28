@@ -1,11 +1,5 @@
-import { disableTempId, enableTempId } from "./core/net";
-import {
-  getTempId,
-  isTempIdEnabled,
-  rotateTempId,
-  setTempIdEnabled,
-} from "./core/identity";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
+import { disableTempId, enableTempId, tempIdStore } from "./core/p2p";
 
 async function copyText(text: string): Promise<void> {
   try {
@@ -21,8 +15,14 @@ async function copyText(text: string): Promise<void> {
 }
 
 function Home() {
-  const [tmpEnabled, setTempIdEnabledUI] = useState(isTempIdEnabled());
-  const [tempId, setTempIdUI] = useState(tmpEnabled ? getTempId() : "---------");
+  const tmpEnabled = useSyncExternalStore(
+    tempIdStore.subscribe,
+    () => tempIdStore.get().enabled
+  );
+  const tempId = useSyncExternalStore(
+    tempIdStore.subscribe,
+    () => tempIdStore.get().id ?? "---------"
+  );
   const [copied, setCopied] = useState(false);
   const [toggling, setToggling] = useState(false);
 
@@ -31,14 +31,8 @@ function Home() {
     setToggling(true);
     try {
       if (tmpEnabled) {
-        disableTempId();
-        setTempIdEnabled(false);
-        setTempIdEnabledUI(false);
-        setTempIdUI("---------");
+        await disableTempId();
       } else {
-        setTempIdEnabled(true);
-        setTempIdEnabledUI(true);
-        setTempIdUI(rotateTempId());
         await enableTempId();
       }
     } finally {
@@ -123,4 +117,5 @@ function Home() {
     </div>
   );
 }
+
 export default Home;

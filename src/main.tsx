@@ -1,12 +1,12 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
-import { startNetworking } from "./core/net";
+import { startSignaling } from "./core/p2p";
 import { activateExtensions } from "./core/registry";
 import { deviceStore } from "./core/devices";
 import "./index.css";
 
-startNetworking();
+startSignaling().catch((e) => console.error("[sig] start failed", e));
 activateExtensions();
 void deviceStore
   .init()
