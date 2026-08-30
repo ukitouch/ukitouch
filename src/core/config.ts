@@ -10,8 +10,8 @@ export interface ServerConfig {
  * Local dev defaults come from .env.local
  */
 export const serverConfig: ServerConfig = {
-  signaling: import.meta.env.SIGNALING_SERVER ?? "",
-  iceServers: (import.meta.env.ICE_SERVERS ?? "")
+  signaling: import.meta.env.VITE_SIGNALING ?? "",
+  iceServers: (import.meta.env.VITE_ICE_SERVERS ?? "")
     .split(",")
     .map((s: string) => s.trim())
     .filter(Boolean),
