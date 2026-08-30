@@ -8,17 +8,14 @@ import type {
   Platform,
 } from "./core/db/types";
 
-// ─────────────────────────────────────────────────────────────
-// Time helpers (relative timestamps)
-// ─────────────────────────────────────────────────────────────
+//#region Time helpers (relative timestamps)
 
 const MIN = 60_000;
 const HOUR = 3_600_000;
 const DAY = 86_400_000;
+//#endregion
 
-// ─────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────
+//#region Helpers
 
 /** Display name: remark > hostname > "Unknown device". */
 function displayNameOf(d: DeviceRecord): string {
@@ -52,10 +49,9 @@ const PLATFORM_LABEL: Record<Platform, string> = {
 function systemOf(d: DeviceRecord): string {
   return d.os ?? (d.platform ? PLATFORM_LABEL[d.platform] : "unknown");
 }
+//#endregion
 
-// ─────────────────────────────────────────────────────────────
-// Small components
-// ─────────────────────────────────────────────────────────────
+//#region Small components
 
 function OnlineDot({ online }: { online: boolean | null }) {
   if (online === null) {
@@ -75,8 +71,6 @@ function OnlineDot({ online }: { online: boolean | null }) {
   );
 }
 
-type SortKey = "firstSeen" | "lastSeen" | "name";
-
 // Empty state
 function EmptyState() {
   return (
@@ -93,10 +87,9 @@ function EmptyState() {
 
 // Module-level toast bridge (mock; replace with the real notification layer later)
 let notify: (msg: string) => void = () => {};
+//#endregion
 
-// ─────────────────────────────────────────────────────────────
-// Device details
-// ─────────────────────────────────────────────────────────────
+//#region Device details
 
 function DeviceDetail({
   device,
@@ -240,10 +233,21 @@ function DeviceDetail({
     </aside>
   );
 }
+//#endregion
 
-// ─────────────────────────────────────────────────────────────
-// Device Management main view
-// ─────────────────────────────────────────────────────────────
+//#region Device Management main view
+
+/** Sort modes for the device list; single source of truth for labels, values and ordering. */
+const SORT_OPTIONS = [
+  { id: "firstSeen-desc", label: "Newest first", key: "firstSeen", dir: -1 },
+  { id: "firstSeen-asc", label: "Oldest first", key: "firstSeen", dir: 1 },
+  { id: "lastSeen-desc", label: "Last connected", key: "lastSeen", dir: -1 },
+  { id: "name-asc", label: "Name A–Z", key: "name", dir: 1 },
+  { id: "name-desc", label: "Name Z–A", key: "name", dir: -1 },
+] as const;
+
+type SortOption = (typeof SORT_OPTIONS)[number];
+type SortId = SortOption["id"];
 
 function Devices() {
   const { devices, events } = useSyncExternalStore(
@@ -251,8 +255,7 @@ function Devices() {
     deviceStore.getSnapshot
   );
   const [query, setQuery] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("firstSeen");
-  const [sortDir, setSortDir] = useState<1 | -1>(-1); // default: newest registration first
+  const [sortId, setSortId] = useState<SortId>("firstSeen-desc"); // default: newest registration first
   const [selectedUuid, setSelectedUuid] = useState<string | null>(null);
   const [focusRemark, setFocusRemark] = useState(false);
   const [recentOpen, setRecentOpen] = useState(false); // Recent collapsed by default
@@ -276,17 +279,20 @@ function Devices() {
     });
   }, [devices, q]);
 
+  const sortOption =
+    SORT_OPTIONS.find((o) => o.id === sortId) ?? SORT_OPTIONS[0];
+
   const sorted = useMemo(() => {
     const arr = [...filtered];
     arr.sort((a, b) => {
       let cmp: number;
-      if (sortKey === "name") cmp = displayNameOf(a).localeCompare(displayNameOf(b));
-      else if (sortKey === "lastSeen") cmp = (a.lastSeen ?? 0) - (b.lastSeen ?? 0);
+      if (sortOption.key === "name") cmp = displayNameOf(a).localeCompare(displayNameOf(b));
+      else if (sortOption.key === "lastSeen") cmp = (a.lastSeen ?? 0) - (b.lastSeen ?? 0);
       else cmp = a.firstSeen - b.firstSeen;
-      return cmp * sortDir;
+      return cmp * sortOption.dir;
     });
     return arr;
-  }, [filtered, sortKey, sortDir]);
+  }, [filtered, sortOption]);
 
   const recent = useMemo(
     () => [...events].sort((a, b) => b.time - a.time).slice(0, 5),
@@ -419,19 +425,18 @@ function Devices() {
                   Devices ({devices.length} total)
                 </div>
                 <select
-                  value={`${sortKey}:${sortDir}`}
+                  value={sortId}
                   onChange={(e) => {
-                    const [k, dir] = e.target.value.split(":") as [SortKey, string];
-                    setSortKey(k);
-                    setSortDir(dir === "1" ? 1 : -1);
+                    const next = SORT_OPTIONS.find((o) => o.id === e.target.value);
+                    if (next) setSortId(next.id); // ignore unknown values defensively
                   }}
                   className="px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-800 text-sm text-gray-700 dark:text-gray-300 outline-none focus:ring-1 focus:ring-gray-400"
                 >
-                  <option value="firstSeen:-1">Newest first</option>
-                  <option value="firstSeen:1">Oldest first</option>
-                  <option value="lastSeen:-1">Last connected</option>
-                  <option value="name:1">Name A–Z</option>
-                  <option value="name:-1">Name Z–A</option>
+                  {SORT_OPTIONS.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
                 </select>
               </div>
               {sorted.length === 0 ? (
@@ -534,10 +539,9 @@ function Devices() {
     </div>
   );
 }
+//#endregion
 
-// ─────────────────────────────────────────────────────────────
-// Page shell
-// ─────────────────────────────────────────────────────────────
+//#region Page shell
 
 function SettingsPage() {
   return (
@@ -555,5 +559,6 @@ function SettingsPage() {
     </div>
   );
 }
+//#endregion
 
 export default SettingsPage;
