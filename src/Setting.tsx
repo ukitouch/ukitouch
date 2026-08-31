@@ -2,6 +2,7 @@
 // Data is persisted in IndexedDB via the DeviceStore (src/core/devices.ts).
 import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { deviceStore } from "./core/devices";
+import { Select } from "./components/Select";
 import type {
   ConnectionEvent,
   DeviceRecord,
@@ -207,7 +208,7 @@ function DeviceDetail({
 
       <div className="mt-4">
         <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
-          Plugin info (read-only · reportMeta)
+          extension info (read-only · reportMeta)
         </div>
         {Object.keys(device.meta).length === 0 ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">None</p>
@@ -424,20 +425,31 @@ function Devices() {
                 <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                   Devices ({devices.length} total)
                 </div>
-                <select
+                <Select
                   value={sortId}
-                  onChange={(e) => {
-                    const next = SORT_OPTIONS.find((o) => o.id === e.target.value);
-                    if (next) setSortId(next.id); // ignore unknown values defensively
-                  }}
-                  className="px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-800 text-sm text-gray-700 dark:text-gray-300 outline-none focus:ring-1 focus:ring-gray-400"
-                >
-                  {SORT_OPTIONS.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+                  options={SORT_OPTIONS.map((o) => ({ value: o.id, label: o.label }))}
+                  onChange={setSortId}
+                  ariaLabel="Sort devices"
+                  className="max-md:hidden"
+                />
+              </div>
+              {/* Narrow screens: horizontally scrollable sort chips — one tap, no popups. */}
+              <div className="md:hidden flex gap-2 overflow-x-auto scrollbar-hide pb-1 mb-1">
+                {SORT_OPTIONS.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    aria-pressed={o.id === sortId}
+                    onClick={() => setSortId(o.id)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+                      o.id === sortId
+                        ? "bg-gray-700 text-gray-100"
+                        : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
               </div>
               {sorted.length === 0 ? (
                 <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
