@@ -76,7 +76,6 @@ function OnlineDot({ online }: { online: boolean | null }) {
 function EmptyState() {
   return (
     <div className="flex flex-col items-center gap-3 py-16 text-center">
-      <div className="text-4xl">🖥️</div>
       <p className="text-sm text-gray-600 dark:text-gray-300">
         No connections yet
         <br />
@@ -86,8 +85,6 @@ function EmptyState() {
   );
 }
 
-// Module-level toast bridge (mock; replace with the real notification layer later)
-let notify: (msg: string) => void = () => {};
 //#endregion
 
 //#region Device details
@@ -237,20 +234,16 @@ function DeviceDetail({
 //#endregion
 
 //#region Device Management main view
-
-/** Sort modes for the device list; single source of truth for labels, values and ordering. */
-const SORT_OPTIONS = [
-  { id: "firstSeen-desc", label: "Newest first", key: "firstSeen", dir: -1 },
-  { id: "firstSeen-asc", label: "Oldest first", key: "firstSeen", dir: 1 },
-  { id: "lastSeen-desc", label: "Last connected", key: "lastSeen", dir: -1 },
-  { id: "name-asc", label: "Name A–Z", key: "name", dir: 1 },
-  { id: "name-desc", label: "Name Z–A", key: "name", dir: -1 },
-] as const;
-
-type SortOption = (typeof SORT_OPTIONS)[number];
-type SortId = SortOption["id"];
-
 function Devices() {
+  const SORT_OPTIONS = [
+    { id: "firstSeen-desc", label: "Newest first", key: "firstSeen", dir: -1 },
+    { id: "firstSeen-asc", label: "Oldest first", key: "firstSeen", dir: 1 },
+    { id: "lastSeen-desc", label: "Last connected", key: "lastSeen", dir: -1 },
+    { id: "name-asc", label: "Name A–Z", key: "name", dir: 1 },
+    { id: "name-desc", label: "Name Z–A", key: "name", dir: -1 },
+  ] as const;
+  type SortOption = (typeof SORT_OPTIONS)[number];
+  type SortId = SortOption["id"];
   const { devices, events } = useSyncExternalStore(
     deviceStore.subscribe,
     deviceStore.getSnapshot
@@ -264,7 +257,7 @@ function Devices() {
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<number | null>(null);
 
-  notify = (msg: string) => {
+  const notify = (msg: string) => {
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
     setToast(msg);
     toastTimer.current = window.setTimeout(() => setToast(null), 2200);
@@ -345,10 +338,10 @@ function Devices() {
 
   const menuActions: MenuAction[] | null = menu
     ? [
-        { label: "Connect (last plugin)", fn: () => connectTo(menu.uuid) },
-        { label: "Rename", fn: () => openDetail(menu.uuid, true) },
-        { label: "Delete record", danger: true, fn: () => removeDevice(menu.uuid) },
-      ]
+      { label: "Connect (last plugin)", fn: () => connectTo(menu.uuid) },
+      { label: "Rename", fn: () => openDetail(menu.uuid, true) },
+      { label: "Delete record", danger: true, fn: () => removeDevice(menu.uuid) },
+    ]
     : null;
 
   return (
@@ -360,7 +353,7 @@ function Devices() {
         onKeyDown={(e) => {
           if (e.key === "Escape") setQuery("");
         }}
-        placeholder="🔍 Search: remark / name / system"
+        placeholder="Search: remark / name / system"
         className="w-full px-3 py-2 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm outline-none focus:ring-1 focus:ring-gray-400"
       />
 
@@ -380,41 +373,41 @@ function Devices() {
                   Recent ({recent.length})
                 </button>
                 {recentOpen && (
-                <ul className="space-y-1">
-                  {recent.map((e) => {
-                    const d = devices.find((x) => x.uuid === e.uuid);
-                    if (!d) return null;
-                    return (
-                      <li
-                        key={e.id}
-                        className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 cursor-pointer transition-colors"
-                        onClick={() =>
-                          e.direction === "out" ? connectTo(e.uuid) : openDetail(e.uuid)
-                        }
-                      >
-                        <span className="text-gray-500 dark:text-gray-400 text-xs">
-                          {e.direction === "out" ? "▶" : "◀"}
-                        </span>
-                        <span className="flex-1 min-w-0 truncate text-sm text-gray-900 dark:text-gray-100">
-                          {displayNameOf(d)}
-                          <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-                            {systemOf(d)} · {relTime(e.time)} · {e.plugin ?? "core"}
-                          </span>
-                        </span>
-                        <button
-                          onClick={(ev) => {
-                            ev.stopPropagation();
-                            openDetail(e.uuid);
-                          }}
-                          className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 text-sm px-1"
-                          title="View details"
+                  <ul className="space-y-1">
+                    {recent.map((e) => {
+                      const d = devices.find((x) => x.uuid === e.uuid);
+                      if (!d) return null;
+                      return (
+                        <li
+                          key={e.id}
+                          className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 cursor-pointer transition-colors"
+                          onClick={() =>
+                            e.direction === "out" ? connectTo(e.uuid) : openDetail(e.uuid)
+                          }
                         >
-                          ⋯
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
+                          <span className="text-gray-500 dark:text-gray-400 text-xs">
+                            {e.direction === "out" ? "▶" : "◀"}
+                          </span>
+                          <span className="flex-1 min-w-0 truncate text-sm text-gray-900 dark:text-gray-100">
+                            {displayNameOf(d)}
+                            <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                              {systemOf(d)} · {relTime(e.time)} · {e.plugin ?? "core"}
+                            </span>
+                          </span>
+                          <button
+                            onClick={(ev) => {
+                              ev.stopPropagation();
+                              openDetail(e.uuid);
+                            }}
+                            className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 text-sm px-1"
+                            title="View details"
+                          >
+                            ⋯
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
                 )}
               </section>
             )}
@@ -441,11 +434,10 @@ function Devices() {
                     type="button"
                     aria-pressed={o.id === sortId}
                     onClick={() => setSortId(o.id)}
-                    className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
-                      o.id === sortId
-                        ? "bg-gray-700 text-gray-100"
-                        : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
-                    }`}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${o.id === sortId
+                      ? "bg-gray-700 text-gray-100"
+                      : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+                      }`}
                   >
                     {o.label}
                   </button>
@@ -466,11 +458,10 @@ function Devices() {
                         e.preventDefault();
                         setMenu({ x: e.clientX, y: e.clientY, uuid: d.uuid });
                       }}
-                      className={`p-3 rounded-lg border cursor-pointer transition-colors hover:bg-gray-200 dark:hover:bg-gray-700 ${
-                        selectedUuid === d.uuid
-                          ? "bg-gray-200 dark:bg-gray-700 border-gray-400 dark:border-gray-500"
-                          : "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700"
-                      }`}
+                      className={`p-3 rounded-lg border cursor-pointer transition-colors hover:bg-gray-200 dark:hover:bg-gray-700 ${selectedUuid === d.uuid
+                        ? "bg-gray-200 dark:bg-gray-700 border-gray-400 dark:border-gray-500"
+                        : "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700"
+                        }`}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <OnlineDot online={d.online} />
@@ -531,9 +522,8 @@ function Devices() {
                   setMenu(null);
                   a.fn();
                 }}
-                className={`block w-full text-left px-3 py-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
-                  a.danger ? "text-red-500" : "text-gray-800 dark:text-gray-200"
-                }`}
+                className={`block w-full text-left px-3 py-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${a.danger ? "text-red-500" : "text-gray-800 dark:text-gray-200"
+                  }`}
               >
                 {a.label}
               </button>
