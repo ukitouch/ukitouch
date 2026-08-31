@@ -19,6 +19,13 @@ export function registerExtension(
   return def;
 }
 
+export function unregisterExtension(id: string): void {
+  if (registry.delete(id)) {
+    dirty = true;
+    listeners.forEach((l) => l());
+  }
+}
+
 export function listExtensions(): ExtensionDefinition[] {
   if (dirty) {
     cached = [...registry.values()];
