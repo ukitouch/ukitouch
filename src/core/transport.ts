@@ -24,7 +24,7 @@ export interface WebRtcOpenSpec {
  */
 export interface UsbOpenSpec {
   transport: "usb";
-  // reserved: serial?, port?, ...
+  serial?: string;
 }
 
 /**

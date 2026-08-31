@@ -5,7 +5,7 @@ import type { OpenSpec } from "./transport";
 export type Layout = "withSidebar" | "fullscreen";
 
 /** Host platforms, matched against an extension's platform matrix. */
-export type HostPlatform = "windows" | "macos" | "linux" | "android" | "ios";
+export type HostPlatform = "windows" | "linux" | "android";
 
 /**
  * TODO: Current implementation is a WebRTC DataChannel, USB / Bluetooth transports will implement

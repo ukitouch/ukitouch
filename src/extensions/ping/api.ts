@@ -32,13 +32,17 @@ function bindChannel(ch: Channel, peerLabel: string): void {
   pingStore.set({ peerId: peerLabel, connecting: false });
 
   ch.onmessage = (e) => {
-    if (e.data === "ping") {
+    const text =
+      typeof e.data === "string"
+        ? e.data
+        : new TextDecoder().decode(e.data instanceof Uint8Array ? e.data : new Uint8Array(e.data));
+    if (text === "ping") {
       ch.send("pong");
       log("recv ping, replied pong");
-    } else if (e.data === "pong") {
+    } else if (text === "pong") {
       log(`pong (rtt ${Date.now() - lastPingAt}ms)`);
     } else {
-      log(`recv "${String(e.data)}"`);
+      log(`recv "${text}"`);
     }
   };
 
@@ -84,6 +88,28 @@ export async function openPingChannel(targetId: string): Promise<void> {
     }
     bindChannel(ch, targetId);
     log("connected");
+  } catch (err) {
+    if (!cancelled) log(`connect failed: ${String(err)}`);
+    pingStore.set({ connecting: false });
+  }
+}
+
+/** Dial a USB device by serial. */
+export async function openUsbPingChannel(serial: string): Promise<void> {
+  if (!ctxRef || !serial) return;
+  if (channel) channel.close();
+  cancelled = false;
+  pingStore.set({ connecting: true, peerId: null });
+  log(`connecting to ${serial} (usb)...`);
+  try {
+    const ch = await ctxRef.openChannel({ transport: "usb", serial });
+    if (cancelled) {
+      ch.close();
+      log("connect cancelled");
+      return;
+    }
+    bindChannel(ch, serial);
+    log("connected (usb)");
   } catch (err) {
     if (!cancelled) log(`connect failed: ${String(err)}`);
     pingStore.set({ connecting: false });
