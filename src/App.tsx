@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useSyncExternalStore, useState } from "react";
+import { useEffect, useSyncExternalStore, useState } from "react";
 import type { ReactNode } from "react";
 import { disableTempId, enableTempId, tempIdStore } from "./core/p2p";
 import { bindHost } from "./core/host";
-import { listExtensions } from "./core/registry";
+import { listExtensions, subscribeExtensions } from "./core/registry";
 import type { Layout } from "./core/types";
 import "./extensions";
 
@@ -25,7 +25,7 @@ function App() {
 
   useEffect(() => bindHost({ setLayout }), [setLayout]);
 
-  const extensions = useMemo(listExtensions, []);
+  const extensions = useSyncExternalStore(subscribeExtensions, listExtensions);
   const active = extensions.find((ext) => ext.id === activeId);
   const ActiveComponent = active?.component;
 

@@ -1,5 +1,7 @@
+mod extensions;
 mod net;
 
+use extensions::{list_installed_extensions, read_extension_file};
 use net::bridge::{
     net_configure, p2p_close_channel, p2p_connect, p2p_open_channel, p2p_send, sig_connect,
     sig_disconnect, sig_query, sig_send,
@@ -25,7 +27,9 @@ pub fn run() {
             p2p_connect,
             p2p_open_channel,
             p2p_send,
-            p2p_close_channel
+            p2p_close_channel,
+            list_installed_extensions,
+            read_extension_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
