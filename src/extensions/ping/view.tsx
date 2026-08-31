@@ -103,8 +103,8 @@ function DesktopListener() {
         </button>
       </div>
       {usbDevices.length === 0 ? (
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          No USB devices (plug in and refresh)
+        <p className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-md px-2.5 py-1.5">
+          No USB devices (plug in with USB debugging on, then refresh)
         </p>
       ) : (
         <ul className="space-y-1">
@@ -134,28 +134,31 @@ function AndroidListener() {
     () => usbListenerStore.get().enabled
   );
   return (
-    <section className="flex items-center justify-between border-t border-gray-200 dark:border-gray-700 pt-4">
-      <div>
+    <section className="flex flex-col gap-2 border-t border-gray-200 dark:border-gray-700 pt-4">
+      <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
           USB Listener
         </h2>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          {enabled
-            ? "Will accept USB connections from a desktop"
-            : "Connection request from desktop will be rejected"}
-        </p>
+        <button
+          onClick={() =>
+            void (enabled ? disableUsbListener() : enableUsbListener())
+          }
+          className={`px-3 py-1.5 rounded-md text-sm ${enabled
+            ? "bg-gray-700 text-gray-100"
+            : "bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200"
+            }`}
+        >
+          {enabled ? "Disable" : "Enable"}
+        </button>
       </div>
-      <button
-        onClick={() =>
-          void (enabled ? disableUsbListener() : enableUsbListener())
-        }
-        className={`px-3 py-1.5 rounded-md text-sm ${enabled
-          ? "bg-gray-700 text-gray-100"
-          : "bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200"
-          }`}
-      >
-        {enabled ? "Disable" : "Enable"}
-      </button>
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        {enabled
+          ? "Will accept USB connections from a desktop"
+          : "Connection request from desktop will be rejected"}
+      </p>
+      <p className="text-xs text-gray-600 dark:text-gray-500 rounded-md">
+        USB debugging must be enabled for a desktop to find this device
+      </p>
     </section>
   );
 }
