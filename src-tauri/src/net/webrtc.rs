@@ -403,7 +403,7 @@ async fn register_incoming(
             .insert(channel_id, handle.clone());
         let _ = state.app.emit(
             "channel-open",
-            json!({ "token": peer.token, "channel_id": channel_id, "label": label }),
+            json!({ "token": peer.token, "channel_id": channel_id, "label": label, "target": target }),
         );
         (peer, channel_id, handle)
     };

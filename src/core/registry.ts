@@ -3,6 +3,9 @@ import type { ExtensionDefinition } from "./types";
 
 const registry = new Map<string, ExtensionDefinition>();
 let activated = false;
+let cached: ExtensionDefinition[] = [];
+let dirty = true;
+const listeners = new Set<() => void>();
 
 export function registerExtension(
   def: ExtensionDefinition
@@ -11,11 +14,31 @@ export function registerExtension(
     throw new Error(`duplicate extension id: ${def.id}`);
   }
   registry.set(def.id, def);
+  dirty = true;
+  listeners.forEach((l) => l());
   return def;
 }
 
+export function unregisterExtension(id: string): void {
+  if (registry.delete(id)) {
+    dirty = true;
+    listeners.forEach((l) => l());
+  }
+}
+
 export function listExtensions(): ExtensionDefinition[] {
-  return [...registry.values()];
+  if (dirty) {
+    cached = [...registry.values()];
+    dirty = false;
+  }
+  return cached;
+}
+
+export function subscribeExtensions(cb: () => void): () => void {
+  listeners.add(cb);
+  return () => {
+    listeners.delete(cb);
+  };
 }
 
 /** Identity helper for extension modules. */

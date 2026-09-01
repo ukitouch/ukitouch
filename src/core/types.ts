@@ -13,6 +13,8 @@ export type HostPlatform = "windows" | "linux" | "android";
  */
 export interface Channel {
   readonly label: string;
+  /** The remote device's uuid this channel is connected to (inbound channels need the peer id for device registration). */
+  readonly peerId: string;
   readonly readyState: string;
   readonly bufferedAmount: number;
   send(data: string | ArrayBuffer | ArrayBufferView | Blob): void;

@@ -1,14 +1,25 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin, type PluginOption, type ViteDevServer } from "vite";
 import react from "@vitejs/plugin-react";
+import { fileURLToPath } from "node:url";
 
-// @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
+const r = (p: string) => fileURLToPath(new URL(p, import.meta.url));
+
+const devRedirect = (): Plugin => ({
+  name: "ext-dev-redirect",
+  configureServer(server: ViteDevServer) {
+    server.middlewares.use((req, res, next) => {
+      if (req.url === "/api.js") req.url = "/src/api/index.ts";
+      else if (req.url === "/react.js") req.url = "/src/api/react.ts";
+      next();
+    });
+  },
+});
+
 // https://vite.dev/config/
-export default defineConfig(async () => ({
-  plugins: [
-    react(),
-  ],
+export default defineConfig({
+  plugins: [react(), devRedirect()] as PluginOption[],
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
@@ -31,4 +42,15 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
-}));
+  build: {
+    rollupOptions: {
+      preserveEntrySignatures: "strict",
+      input: {
+        main: r("index.html"),
+        "api": r("src/api/index.ts"),
+        "react": r("src/api/react.ts"),
+      },
+      output: { entryFileNames: "[name].js" },
+    },
+  },
+});
