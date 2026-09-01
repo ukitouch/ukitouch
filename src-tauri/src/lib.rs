@@ -1,6 +1,10 @@
+mod extensions;
 mod net;
 mod host;
 
+use extensions::{
+    install_extension, list_installed_extensions, read_extension_file, uninstall_extension,
+};
 use net::bridge::{
     net_configure, p2p_close_channel, p2p_connect, p2p_open_channel, p2p_send, sig_connect,
     sig_disconnect, sig_query, sig_send,
@@ -14,6 +18,8 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             app.manage(Arc::new(NetState::new(app.handle().clone())));
             Ok(())
@@ -28,7 +34,11 @@ pub fn run() {
             p2p_open_channel,
             p2p_send,
             p2p_close_channel,
-            get_host_info
+            get_host_info,
+            list_installed_extensions,
+            read_extension_file,
+            install_extension,
+            uninstall_extension
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
