@@ -59,7 +59,7 @@ export function makeContext(extId: string): ExtensionContext {
             uuid: channel.peerId,
             direction: "out",
             protocol: CORE_PROTOCOL,
-            plugin: extId,
+            extension: extId,
             hello: helloCache.get(channel.peerId),
           })
           .catch((err) => console.error("[devices] record outbound failed:", err));
@@ -74,7 +74,7 @@ export function makeContext(extId: string): ExtensionContext {
             uuid: channel.peerId,
             direction: "in",
             protocol: CORE_PROTOCOL,
-            plugin: extId,
+            extension: extId,
             hello: helloCache.get(channel.peerId),
           })
           .catch((err) => console.error("[devices] record inbound failed:", err));

@@ -25,8 +25,8 @@ export interface RecordConnectionInput {
   uuid: string;
   direction: "in" | "out";
   protocol: CoreProtocol;
-  /** Initiating plugin id; omit for core (handshake) connections. */
-  plugin?: string | null;
+  /** Initiating extension id; omit for core (handshake) connections. */
+  extension?: string | null;
   /** Connection time (epoch ms), defaults to now. */
   time?: number;
   /** System info reported by the peer's hello handshake, optional. */
@@ -104,7 +104,7 @@ class DeviceStore {
       {
         uuid: input.uuid,
         direction: input.direction,
-        plugin: input.plugin ?? null,
+        extension: input.extension ?? null,
         time: input.time ?? Date.now(),
         protocol: input.protocol,
       },

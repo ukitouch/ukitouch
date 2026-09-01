@@ -45,7 +45,7 @@ export interface DeviceRecord {
   protocol: CoreProtocol | null;
   /** Online status (derived, not persisted): true / false / null(Unknown). */
   online: boolean | null;
-  /** Per-plugin namespaced metadata: { "<extId>": {...} }. */
+  /** Per-extension namespaced metadata: { "<extId>": {...} }. */
   meta: Record<string, unknown>;
 }
 
@@ -59,8 +59,8 @@ export interface ConnectionEvent {
   uuid: string;
   /** 'in' (inbound) / 'out' (outbound). */
   direction: "in" | "out";
-  /** Initiating plugin id; core (handshake) connections are null. */
-  plugin: string | null;
+  /** Initiating extension id; core (handshake) connections are null. */
+  extension: string | null;
   /** Epoch ms. */
   time: number;
   /** Core protocol used by this connection. */

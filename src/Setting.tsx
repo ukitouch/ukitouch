@@ -1,22 +1,34 @@
-// Device Management panel (Settings page)
-// Data is persisted in IndexedDB via the DeviceStore (src/core/devices.ts).
-import { useMemo, useRef, useState, useSyncExternalStore } from "react";
+/* 
+  Device Management panel (Settings page)
+  Data is persisted in IndexedDB via the DeviceStore (src/core/devices.ts).
+*/
+
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { deviceStore } from "./core/devices";
 import { Select } from "./components/Select";
+import { useToast } from "./toast";
 import type {
   ConnectionEvent,
   DeviceRecord,
   Platform,
 } from "./core/db/types";
 
-//#region Time helpers (relative timestamps)
+//#region Utils
 
 const MIN = 60_000;
 const HOUR = 3_600_000;
 const DAY = 86_400_000;
-//#endregion
+const RECENT_WINDOW = 24 * HOUR;
 
-//#region Helpers
+const SORT_OPTIONS = [
+  { id: "firstSeen-desc", label: "Newest first", key: "firstSeen", dir: -1 },
+  { id: "firstSeen-asc", label: "Oldest first", key: "firstSeen", dir: 1 },
+  { id: "lastSeen-desc", label: "Last connected", key: "lastSeen", dir: -1 },
+  { id: "name-asc", label: "Name A–Z", key: "name", dir: 1 },
+  { id: "name-desc", label: "Name Z–A", key: "name", dir: -1 },
+] as const;
+type SortOption = (typeof SORT_OPTIONS)[number];
+type SortId = SortOption["id"];
 
 /** Display name: remark > hostname > "Unknown device". */
 function displayNameOf(d: DeviceRecord): string {
@@ -50,29 +62,10 @@ const PLATFORM_LABEL: Record<Platform, string> = {
 function systemOf(d: DeviceRecord): string {
   return d.os ?? (d.platform ? PLATFORM_LABEL[d.platform] : "unknown");
 }
+
 //#endregion
+//#region Components
 
-//#region Small components
-
-function OnlineDot({ online }: { online: boolean | null }) {
-  if (online === null) {
-    return (
-      <span className="text-gray-500 dark:text-gray-500" title="Unknown (signaling unreachable)">
-        ?
-      </span>
-    );
-  }
-  return (
-    <span
-      className={online ? "text-green-500" : "text-gray-400"}
-      title={online ? "Online" : "Offline"}
-    >
-      {online ? "●" : "○"}
-    </span>
-  );
-}
-
-// Empty state
 function EmptyState() {
   return (
     <div className="flex flex-col items-center gap-3 py-16 text-center">
@@ -86,26 +79,24 @@ function EmptyState() {
 }
 
 //#endregion
-
 //#region Device details
 
 function DeviceDetail({
   device,
   events,
-  focusRemark,
   onSetRemark,
   onDelete,
   onClose,
 }: {
   device: DeviceRecord;
   events: ConnectionEvent[];
-  focusRemark: boolean;
   onSetRemark: (uuid: string, value: string) => void;
   onDelete: (uuid: string) => void;
   onClose: () => void;
 }) {
   const [remark, setRemark] = useState(device.remark ?? device.name ?? "");
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [deleteArmed, setDeleteArmed] = useState(false);
   const history = useMemo(
     () =>
       events
@@ -128,7 +119,7 @@ function DeviceDetail({
         <div className="min-w-0">
           <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate">{name}</h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            <OnlineDot online={device.online} /> {systemOf(device)}
+            {systemOf(device)}
           </p>
         </div>
         <button
@@ -136,7 +127,20 @@ function DeviceDetail({
           className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 text-sm px-1"
           title="Close"
         >
-          ✕
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
         </button>
       </div>
 
@@ -155,7 +159,6 @@ function DeviceDetail({
           <dt className="text-gray-500 dark:text-gray-400">Remark</dt>
           <input
             value={remark}
-            autoFocus={focusRemark}
             onChange={(e) => setRemark(e.target.value)}
             onBlur={commitRemark}
             onKeyDown={(e) => {
@@ -186,15 +189,39 @@ function DeviceDetail({
                   className="w-full text-left px-2 py-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                 >
                   <span className="text-gray-900 dark:text-gray-100">
-                    {e.direction === "out" ? "▶" : "◀"} {relTime(e.time)}
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className={`inline-block align-middle ${e.direction === "out" ? "text-green-500" : "text-amber-500"}`}
+                    >
+                      {e.direction === "out" ? (
+                        <>
+                          <path d="M5 12h14" />
+                          <path d="m13 6 6 6-6 6" />
+                        </>
+                      ) : (
+                        <>
+                          <path d="M19 12H5" />
+                          <path d="m11 6-6 6 6 6" />
+                        </>
+                      )}
+                    </svg>{" "}
+                    {relTime(e.time)}
                   </span>
                   <span className="ml-2 text-gray-500 dark:text-gray-400 text-xs">
-                    {e.direction === "out" ? "out" : "in"} · {e.plugin ?? "core"}
+                    {e.direction === "out" ? "out" : "in"} · {e.extension ?? "core"}
                   </span>
                 </button>
                 {expanded === e.id && (
                   <div className="ml-2 px-2 pb-1 text-xs text-gray-500 dark:text-gray-400">
-                    Time: {fmtDateTime(e.time)} · Protocol: {e.protocol} · Plugin: {e.plugin ?? "core (handshake)"}
+                    Time: {fmtDateTime(e.time)} · Protocol: {e.protocol} · Extension: {e.extension ?? "core (handshake)"}
                   </div>
                 )}
               </li>
@@ -203,47 +230,30 @@ function DeviceDetail({
         )}
       </div>
 
-      <div className="mt-4">
-        <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
-          extension info (read-only · reportMeta)
-        </div>
-        {Object.keys(device.meta).length === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400">None</p>
-        ) : (
-          <ul className="text-xs space-y-1 text-gray-700 dark:text-gray-300">
-            {Object.entries(device.meta).map(([ns, data]) => (
-              <li key={ns}>
-                <code>
-                  {ns}: {JSON.stringify(data)}
-                </code>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
       <button
-        onClick={() => onDelete(device.uuid)}
-        className="mt-4 w-full px-3 py-1.5 rounded-md text-sm text-red-500 hover:bg-red-500/10 border border-red-500/40 transition-colors"
+        onClick={() => {
+          if (deleteArmed) {
+            setDeleteArmed(false);
+            onDelete(device.uuid);
+          } else {
+            setDeleteArmed(true);
+          }
+        }}
+        className={`mt-4 w-full px-3 py-1.5 rounded-md text-sm transition-colors border ${deleteArmed
+            ? "text-red-500 font-semibold border-red-500/40 bg-red-500/10"
+            : "text-red-500 hover:bg-red-500/10 border-red-500/40"
+          }`}
       >
-        Delete device record
+        {deleteArmed ? "Confirm?" : "Delete device record"}
       </button>
     </aside>
   );
 }
-//#endregion
 
+//#endregion
 //#region Device Management main view
+
 function Devices() {
-  const SORT_OPTIONS = [
-    { id: "firstSeen-desc", label: "Newest first", key: "firstSeen", dir: -1 },
-    { id: "firstSeen-asc", label: "Oldest first", key: "firstSeen", dir: 1 },
-    { id: "lastSeen-desc", label: "Last connected", key: "lastSeen", dir: -1 },
-    { id: "name-asc", label: "Name A–Z", key: "name", dir: 1 },
-    { id: "name-desc", label: "Name Z–A", key: "name", dir: -1 },
-  ] as const;
-  type SortOption = (typeof SORT_OPTIONS)[number];
-  type SortId = SortOption["id"];
   const { devices, events } = useSyncExternalStore(
     deviceStore.subscribe,
     deviceStore.getSnapshot
@@ -251,17 +261,8 @@ function Devices() {
   const [query, setQuery] = useState("");
   const [sortId, setSortId] = useState<SortId>("firstSeen-desc"); // default: newest registration first
   const [selectedUuid, setSelectedUuid] = useState<string | null>(null);
-  const [focusRemark, setFocusRemark] = useState(false);
   const [recentOpen, setRecentOpen] = useState(false); // Recent collapsed by default
-  const [menu, setMenu] = useState<{ x: number; y: number; uuid: string } | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
-  const toastTimer = useRef<number | null>(null);
-
-  const notify = (msg: string) => {
-    if (toastTimer.current) window.clearTimeout(toastTimer.current);
-    setToast(msg);
-    toastTimer.current = window.setTimeout(() => setToast(null), 2200);
-  };
+  const { show } = useToast();
 
   const q = query.trim().toLowerCase();
   const filtered = useMemo(() => {
@@ -288,61 +289,31 @@ function Devices() {
     return arr;
   }, [filtered, sortOption]);
 
+  /** Connections within the last 24h, newest first. */
   const recent = useMemo(
-    () => [...events].sort((a, b) => b.time - a.time).slice(0, 5),
+    () =>
+      events
+        .filter((e) => Date.now() - e.time <= RECENT_WINDOW)
+        .sort((a, b) => b.time - a.time),
     [events]
   );
 
   const selected = devices.find((d) => d.uuid === selectedUuid) ?? null;
 
-  const openDetail = (uuid: string, focus = false) => {
+  const openDetail = (uuid: string) => {
     setSelectedUuid(uuid);
-    setFocusRemark(focus);
   };
 
   const setRemark = (uuid: string, value: string) => {
     void deviceStore.setRemark(uuid, value === "" ? null : value); // empty = clear remark, fall back to hostname/Unknown device
-    notify("Remark saved");
-  };
-
-  const connectTo = (uuid: string, actionId?: string) => {
-    const d = devices.find((x) => x.uuid === uuid);
-    if (!d) return;
-    const last = events
-      .filter((e) => e.uuid === uuid)
-      .sort((a, b) => b.time - a.time)[0];
-    const plugin = actionId ?? last?.plugin ?? null;
-    notify(`Connecting to "${displayNameOf(d)}" via ${plugin ?? "core"}… (mock)`);
+    show("Remark saved");
   };
 
   const removeDevice = (uuid: string) => {
-    const d = devices.find((x) => x.uuid === uuid);
-    if (!d) return;
-    if (
-      !window.confirm(
-        `Delete the record for "${displayNameOf(d)}"?\nThis only removes the local record; the device identity is unaffected.`
-      )
-    )
-      return;
     void deviceStore.removeDevice(uuid);
     if (selectedUuid === uuid) setSelectedUuid(null);
-    setMenu(null);
-    notify("Device record deleted");
+    show("Device record deleted");
   };
-
-  interface MenuAction {
-    label: string;
-    danger?: boolean;
-    fn: () => void;
-  }
-
-  const menuActions: MenuAction[] | null = menu
-    ? [
-      { label: "Connect (last plugin)", fn: () => connectTo(menu.uuid) },
-      { label: "Rename", fn: () => openDetail(menu.uuid, true) },
-      { label: "Delete record", danger: true, fn: () => removeDevice(menu.uuid) },
-    ]
-    : null;
 
   return (
     <div className="space-y-4">
@@ -362,14 +333,27 @@ function Devices() {
       ) : (
         <div className="flex gap-4 items-start max-md:flex-col">
           <div className="flex-1 min-w-0 space-y-4 max-md:w-full">
-            {/* Recent (≤5 items, collapsed by default) */}
+            {/* Recent (last 24h, collapsed by default) */}
             {!q && (
               <section>
                 <button
                   onClick={() => setRecentOpen((o) => !o)}
                   className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 hover:text-gray-800 dark:hover:text-gray-200 select-none"
                 >
-                  <span>{recentOpen ? "▾" : "▸"}</span>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={`transition-transform ${recentOpen ? "rotate-90" : ""}`}
+                  >
+                    <path d="m9 18 6-6-6-6" />
+                  </svg>
                   Recent ({recent.length})
                 </button>
                 {recentOpen && (
@@ -381,29 +365,40 @@ function Devices() {
                         <li
                           key={e.id}
                           className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 cursor-pointer transition-colors"
-                          onClick={() =>
-                            e.direction === "out" ? connectTo(e.uuid) : openDetail(e.uuid)
-                          }
+                          onClick={() => openDetail(e.uuid)}
                         >
                           <span className="text-gray-500 dark:text-gray-400 text-xs">
-                            {e.direction === "out" ? "▶" : "◀"}
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className={`inline-block align-middle ${e.direction === "out" ? "text-green-500" : "text-amber-500"}`}
+                            >
+                              {e.direction === "out" ? (
+                                <>
+                                  <path d="M5 12h14" />
+                                  <path d="m13 6 6 6-6 6" />
+                                </>
+                              ) : (
+                                <>
+                                  <path d="M19 12H5" />
+                                  <path d="m11 6-6 6 6 6" />
+                                </>
+                              )}
+                            </svg>
                           </span>
                           <span className="flex-1 min-w-0 truncate text-sm text-gray-900 dark:text-gray-100">
                             {displayNameOf(d)}
                             <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-                              {systemOf(d)} · {relTime(e.time)} · {e.plugin ?? "core"}
+                              {systemOf(d)} · {relTime(e.time)} · {e.extension ?? "core"}
                             </span>
                           </span>
-                          <button
-                            onClick={(ev) => {
-                              ev.stopPropagation();
-                              openDetail(e.uuid);
-                            }}
-                            className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 text-sm px-1"
-                            title="View details"
-                          >
-                            ⋯
-                          </button>
                         </li>
                       );
                     })}
@@ -423,25 +418,7 @@ function Devices() {
                   options={SORT_OPTIONS.map((o) => ({ value: o.id, label: o.label }))}
                   onChange={setSortId}
                   ariaLabel="Sort devices"
-                  className="max-md:hidden"
                 />
-              </div>
-              {/* Narrow screens: horizontally scrollable sort chips — one tap, no popups. */}
-              <div className="md:hidden flex gap-2 overflow-x-auto scrollbar-hide pb-1 mb-1">
-                {SORT_OPTIONS.map((o) => (
-                  <button
-                    key={o.id}
-                    type="button"
-                    aria-pressed={o.id === sortId}
-                    onClick={() => setSortId(o.id)}
-                    className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${o.id === sortId
-                      ? "bg-gray-700 text-gray-100"
-                      : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
-                      }`}
-                  >
-                    {o.label}
-                  </button>
-                ))}
               </div>
               {sorted.length === 0 ? (
                 <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
@@ -453,18 +430,12 @@ function Devices() {
                     <div
                       key={d.uuid}
                       onClick={() => openDetail(d.uuid)}
-                      onDoubleClick={() => connectTo(d.uuid)}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        setMenu({ x: e.clientX, y: e.clientY, uuid: d.uuid });
-                      }}
                       className={`p-3 rounded-lg border cursor-pointer transition-colors hover:bg-gray-200 dark:hover:bg-gray-700 ${selectedUuid === d.uuid
                         ? "bg-gray-200 dark:bg-gray-700 border-gray-400 dark:border-gray-500"
                         : "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700"
                         }`}
                     >
                       <div className="flex items-center gap-2 min-w-0">
-                        <OnlineDot online={d.online} />
                         <span className="font-medium text-gray-900 dark:text-gray-100 truncate">
                           {displayNameOf(d)}
                         </span>
@@ -491,7 +462,6 @@ function Devices() {
               key={selected.uuid}
               device={selected}
               events={events}
-              focusRemark={focusRemark}
               onSetRemark={setRemark}
               onDelete={removeDevice}
               onClose={() => setSelectedUuid(null)}
@@ -500,50 +470,11 @@ function Devices() {
         </div>
       )}
 
-      {/* Context menu */}
-      {menu && menuActions && (
-        <>
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setMenu(null)}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              setMenu(null);
-            }}
-          />
-          <div
-            className="fixed z-50 min-w-40 py-1 rounded-md bg-gray-100 dark:bg-gray-800 shadow-lg border border-gray-300 dark:border-gray-700 text-sm"
-            style={{ left: menu.x, top: menu.y }}
-          >
-            {menuActions.map((a) => (
-              <button
-                key={a.label}
-                onClick={() => {
-                  setMenu(null);
-                  a.fn();
-                }}
-                className={`block w-full text-left px-3 py-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${a.danger ? "text-red-500" : "text-gray-800 dark:text-gray-200"
-                  }`}
-              >
-                {a.label}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* Toast */}
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-md bg-gray-900 text-gray-100 text-sm shadow-lg">
-          {toast}
-        </div>
-      )}
     </div>
   );
 }
-//#endregion
 
-//#region Page shell
+//#endregion
 
 function SettingsPage() {
   return (
@@ -561,6 +492,5 @@ function SettingsPage() {
     </div>
   );
 }
-//#endregion
 
 export default SettingsPage;
