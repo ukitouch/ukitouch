@@ -188,7 +188,7 @@ function DeviceDetail({
                   onClick={() => setExpanded(expanded === e.id ? null : e.id)}
                   className="w-full text-left px-2 py-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                 >
-                  <span className="text-gray-900 dark:text-gray-100">
+                  <span className="flex items-center gap-1 text-gray-900 dark:text-gray-100">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       width="12"
@@ -199,7 +199,7 @@ function DeviceDetail({
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      className={`inline-block align-middle ${e.direction === "out" ? "text-green-500" : "text-amber-500"}`}
+                      className={e.direction === "out" ? "text-green-500" : "text-amber-500"}
                     >
                       {e.direction === "out" ? (
                         <>
@@ -212,7 +212,7 @@ function DeviceDetail({
                           <path d="m11 6-6 6 6 6" />
                         </>
                       )}
-                    </svg>{" "}
+                    </svg>
                     {relTime(e.time)}
                   </span>
                   <span className="ml-2 text-gray-500 dark:text-gray-400 text-xs">
@@ -367,7 +367,7 @@ function Devices() {
                           className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 cursor-pointer transition-colors"
                           onClick={() => openDetail(e.uuid)}
                         >
-                          <span className="text-gray-500 dark:text-gray-400 text-xs">
+                          <span className="flex items-center text-gray-500 dark:text-gray-400 text-xs">
                             <svg
                               xmlns="http://www.w3.org/2000/svg"
                               width="12"
@@ -378,7 +378,7 @@ function Devices() {
                               strokeWidth="2"
                               strokeLinecap="round"
                               strokeLinejoin="round"
-                              className={`inline-block align-middle ${e.direction === "out" ? "text-green-500" : "text-amber-500"}`}
+                              className={e.direction === "out" ? "text-green-500" : "text-amber-500"}
                             >
                               {e.direction === "out" ? (
                                 <>
@@ -430,7 +430,7 @@ function Devices() {
                     <div
                       key={d.uuid}
                       onClick={() => openDetail(d.uuid)}
-                      className={`p-3 rounded-lg border cursor-pointer transition-colors hover:bg-gray-200 dark:hover:bg-gray-700 ${selectedUuid === d.uuid
+                      className={`p-3 rounded-lg border cursor-pointer transition-colors focus:bg-gray-200 dark:focus:bg-gray-700 ${selectedUuid === d.uuid
                         ? "bg-gray-200 dark:bg-gray-700 border-gray-400 dark:border-gray-500"
                         : "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700"
                         }`}
