@@ -180,7 +180,7 @@ export default function PingView() {
             <div className="flex gap-2">
               <button
                 onClick={onWebrtcConnect}
-                disabled={!canConnect}
+                disabled={status === "idle" && !canConnect}
                 className="bg-gray-700 text-gray-100 rounded-md px-3 py-1.5 hover:bg-gray-600 disabled:opacity-40 transition-colors"
               >
                 {status === "connecting"
@@ -247,10 +247,29 @@ export default function PingView() {
               </button>
             </div>
           </div>
-        ) : (
+        ) : status === "idle" ? (
           <p className="text-xs text-gray-500 dark:text-gray-400">
             USB dialing is only available on desktop. Just wait for the host
           </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => {
+                if (status === "connecting") cancelConnect();
+                else if (status === "connected") disconnect();
+              }}
+              className="bg-gray-700 text-gray-100 rounded-md px-3 py-1.5 hover:bg-gray-600 transition-colors"
+            >
+              {status === "connecting" ? "Cancel" : "Disconnect"}
+            </button>
+            <button
+              onClick={sendPing}
+              disabled={status !== "connected"}
+              className="bg-gray-700 text-gray-100 rounded-md px-3 py-1.5 hover:bg-gray-600 disabled:opacity-40 transition-colors"
+            >
+              Ping
+            </button>
+          </div>
         )
       ) : (
         <p className="text-xs text-gray-500 dark:text-gray-400">
