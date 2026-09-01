@@ -4,17 +4,17 @@
 */
 
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { deviceStore } from "./core/devices";
-import { Select } from "./components/Select";
-import { useToast } from "./components/toast";
-import { Button } from "./components/Button";
-import { PageHeader } from "./components/PageHeader";
-import { SectionHeader } from "./components/SectionHeader";
+import { deviceStore } from "../core/devices";
+import { Select } from "../components/Select";
+import { useToast } from "../components/Toast";
+import { Button } from "../components/Button";
+import { PageHeader } from "../components/PageHeader";
+import { SectionHeader } from "../components/SectionHeader";
 import type {
   ConnectionEvent,
   DeviceRecord,
   Platform,
-} from "./core/db/types";
+} from "../core/db/types";
 
 //#region Utils
 

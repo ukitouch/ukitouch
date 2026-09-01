@@ -18,7 +18,7 @@ import { toDisposable } from "../core/types";
 import type { OpenSpec } from "../core/transport";
 import type { DeviceRecord, HelloInfo } from "../core/db";
 import { Select } from "../components/Select";
-import { ToastProvider, useToast } from "../components/toast";
+import { ToastProvider, useToast } from "../components/Toast";
 import { Button } from "../components/Button";
 import { SettingRow } from "../components/SettingRow";
 import { PageHeader } from "../components/PageHeader";

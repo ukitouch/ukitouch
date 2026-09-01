@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
-import { ToastProvider } from "./components/toast";
+import { ToastProvider } from "./components/Toast";
 import { startSignaling } from "./core/p2p";
 import { deviceStore } from "./core/devices";
 import { activateExtensions } from "./core/registry";
