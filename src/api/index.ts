@@ -19,9 +19,21 @@ import type { OpenSpec } from "../core/transport";
 import type { DeviceRecord, HelloInfo } from "../core/db";
 import { Select } from "../components/Select";
 import { ToastProvider, useToast } from "../components/toast";
+import { Button } from "../components/Button";
+import { SettingRow } from "../components/SettingRow";
+import { PageHeader } from "../components/PageHeader";
+import { SectionHeader } from "../components/SectionHeader";
 
 export { React };
-export { Select, ToastProvider, useToast };
+export {
+  Select,
+  ToastProvider,
+  useToast,
+  Button,
+  SettingRow,
+  PageHeader,
+  SectionHeader,
+};
 
 export type {
   ExtensionContext,
@@ -101,6 +113,10 @@ export interface YatouchRuntime {
     Select: typeof Select;
     ToastProvider: typeof ToastProvider;
     useToast: typeof useToast;
+    Button: typeof Button;
+    SettingRow: typeof SettingRow;
+    PageHeader: typeof PageHeader;
+    SectionHeader: typeof SectionHeader;
   };
   /** Register an extension at runtime (same as {@link defineExtension}). */
   defineExtension: typeof defineExtension;
@@ -120,7 +136,15 @@ declare global {
 export function installBridge(): void {
   window.yatouch = {
     React,
-    components: { Select, ToastProvider, useToast },
+    components: {
+      Select,
+      ToastProvider,
+      useToast,
+      Button,
+      SettingRow,
+      PageHeader,
+      SectionHeader,
+    },
     defineExtension,
   };
 }

@@ -13,6 +13,8 @@ import {
   usbStore,
 } from "../../core/usb";
 import {
+  Button,
+  PageHeader,
   Select,
   type HostPlatform,
 } from "../../api";
@@ -77,12 +79,7 @@ export default function PingView() {
 
   return (
     <div className="p-6 max-w-lg flex flex-col gap-4">
-      <div>
-        <h1 className="text-xl font-semibold mb-1">Ping</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Template extension
-        </p>
-      </div>
+      <PageHeader title="Ping" subtitle="Template extension" />
 
       <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-md p-1 w-fit">
         {(["webrtc", "usb", "ble"] as const).map((m) => (
@@ -180,24 +177,22 @@ export default function PingView() {
               )}
             </div>
             <div className="flex gap-2">
-              <button
+              <Button
                 onClick={onWebrtcConnect}
                 disabled={status === "idle" && !canConnect}
-                className="bg-gray-700 text-gray-100 rounded-md px-3 py-1.5 hover:bg-gray-600 disabled:opacity-40 transition-colors"
               >
                 {status === "connecting"
                   ? "Cancel"
                   : status === "connected"
                     ? "Disconnect"
                     : "Connect"}
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={sendPing}
                 disabled={status !== "connected"}
-                className="bg-gray-700 text-gray-100 rounded-md px-3 py-1.5 hover:bg-gray-600 disabled:opacity-40 transition-colors"
               >
                 Ping
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -221,32 +216,30 @@ export default function PingView() {
                   No USB devices (plug in with USB debugging on, then refresh)
                 </p>
               )}
-              <button
+              <Button
+                variant="ghost"
                 onClick={() => void refreshUsbDevices()}
-                className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md px-3 py-2 text-sm"
               >
                 Refresh
-              </button>
+              </Button>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button
+              <Button
                 onClick={onUsbConnectClick}
                 disabled={usbDevices.length === 0}
-                className="bg-gray-700 text-gray-100 rounded-md px-3 py-1.5 hover:bg-gray-600 disabled:opacity-40 transition-colors"
               >
                 {status === "connecting"
                   ? "Cancel"
                   : status === "connected"
                     ? "Disconnect"
                     : "Connect"}
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={sendPing}
                 disabled={status !== "connected"}
-                className="bg-gray-700 text-gray-100 rounded-md px-3 py-1.5 hover:bg-gray-600 disabled:opacity-40 transition-colors"
               >
                 Ping
-              </button>
+              </Button>
             </div>
           </div>
         ) : status === "idle" ? (
@@ -255,22 +248,20 @@ export default function PingView() {
           </p>
         ) : (
           <div className="flex flex-wrap gap-2">
-            <button
+            <Button
               onClick={() => {
                 if (status === "connecting") cancelConnect();
                 else if (status === "connected") disconnect();
               }}
-              className="bg-gray-700 text-gray-100 rounded-md px-3 py-1.5 hover:bg-gray-600 transition-colors"
             >
               {status === "connecting" ? "Cancel" : "Disconnect"}
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={sendPing}
               disabled={status !== "connected"}
-              className="bg-gray-700 text-gray-100 rounded-md px-3 py-1.5 hover:bg-gray-600 disabled:opacity-40 transition-colors"
             >
               Ping
-            </button>
+            </Button>
           </div>
         )
       ) : (
@@ -285,5 +276,3 @@ export default function PingView() {
     </div>
   );
 }
-
-

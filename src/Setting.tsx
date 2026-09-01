@@ -7,6 +7,9 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import { deviceStore } from "./core/devices";
 import { Select } from "./components/Select";
 import { useToast } from "./components/toast";
+import { Button } from "./components/Button";
+import { PageHeader } from "./components/PageHeader";
+import { SectionHeader } from "./components/SectionHeader";
 import type {
   ConnectionEvent,
   DeviceRecord,
@@ -175,9 +178,7 @@ function DeviceDetail({
       </dl>
 
       <div className="mt-4">
-        <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
-          History (last 5)
-        </div>
+        <SectionHeader>History (last 5)</SectionHeader>
         {history.length === 0 ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">No records</p>
         ) : (
@@ -230,7 +231,9 @@ function DeviceDetail({
         )}
       </div>
 
-      <button
+      <Button
+        variant="danger"
+        className={`mt-4 w-full${deleteArmed ? " font-semibold bg-red-500/10" : ""}`}
         onClick={() => {
           if (deleteArmed) {
             setDeleteArmed(false);
@@ -239,13 +242,9 @@ function DeviceDetail({
             setDeleteArmed(true);
           }
         }}
-        className={`mt-4 w-full px-3 py-1.5 rounded-md text-sm transition-colors border ${deleteArmed
-          ? "text-red-500 font-semibold border-red-500/40 bg-red-500/10"
-          : "text-red-500 hover:bg-red-500/10 border-red-500/40"
-          }`}
       >
         {deleteArmed ? "Confirm?" : "Delete device record"}
-      </button>
+      </Button>
     </aside>
   );
 }
@@ -336,26 +335,12 @@ function Devices() {
             {/* Recent (last 24h, collapsed by default) */}
             {!q && (
               <section>
-                <button
+                <SectionHeader
                   onClick={() => setRecentOpen((o) => !o)}
-                  className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 hover:text-gray-800 dark:hover:text-gray-200 select-none"
+                  open={recentOpen}
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className={`transition-transform ${recentOpen ? "rotate-90" : ""}`}
-                  >
-                    <path d="m9 18 6-6-6-6" />
-                  </svg>
                   Recent ({recent.length})
-                </button>
+                </SectionHeader>
                 {recentOpen && (
                   <ul className="space-y-1">
                     {recent.map((e) => {
@@ -409,17 +394,18 @@ function Devices() {
 
             {/* Device cards (default: newest registration first) */}
             <section>
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  Devices ({devices.length} total)
-                </div>
-                <Select
-                  value={sortId}
-                  options={SORT_OPTIONS.map((o) => ({ value: o.id, label: o.label }))}
-                  onChange={setSortId}
-                  ariaLabel="Sort devices"
-                />
-              </div>
+              <SectionHeader
+                action={
+                  <Select
+                    value={sortId}
+                    options={SORT_OPTIONS.map((o) => ({ value: o.id, label: o.label }))}
+                    onChange={setSortId}
+                    ariaLabel="Sort devices"
+                  />
+                }
+              >
+                Devices ({devices.length} total)
+              </SectionHeader>
               {sorted.length === 0 ? (
                 <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                   No matching devices
@@ -479,9 +465,7 @@ function Devices() {
 function SettingsPage() {
   return (
     <div className="p-6 max-w-4xl flex flex-col gap-4">
-      <div>
-        <h1 className="text-xl font-semibold mb-1">Settings</h1>
-      </div>
+      <PageHeader title="Settings" />
       <div>
         <hr className="border-gray-800 dark:border-gray-600" />
         <div className="mt-4">
