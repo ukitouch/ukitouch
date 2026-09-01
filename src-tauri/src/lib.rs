@@ -1,10 +1,11 @@
 mod extensions;
-mod net;
 mod host;
+mod net;
 
 use extensions::{
     install_extension, list_installed_extensions, read_extension_file, uninstall_extension,
 };
+use host::get_host_info;
 use net::bridge::{
     net_configure, p2p_close_channel, p2p_connect, p2p_open_channel, p2p_send, sig_connect,
     sig_disconnect, sig_query, sig_send,
@@ -15,7 +16,6 @@ use net::usb::{
     usb_close_channel, usb_list_devices, usb_listen_start, usb_listen_stop, usb_open_channel,
     usb_send,
 };
-use host::get_host_info;
 use std::sync::Arc;
 use tauri::Manager;
 
