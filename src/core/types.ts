@@ -35,6 +35,8 @@ export interface ExtensionContext {
   openChannel(request: OpenSpec): Promise<Channel>;
   /** Called when a remote peer opens a channel labelled with this extension's id. */
   onChannel(handler: (channel: Channel) => void): void;
+  /** Abort an in-progress openChannel. */
+  cancelOpenChannel(): Promise<void>;
   /** Known devices from the device store. */
   getKnownDevices(): DeviceRecord[];
   /**

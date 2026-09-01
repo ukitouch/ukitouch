@@ -317,11 +317,35 @@ export async function openChannel(
 ): Promise<Channel> {
   await ensureChannelListeners();
   const uuid = await resolveTarget(target);
-  const token = await invoke<string>("p2p_connect", { target: uuid });
-  const channelId = await invoke<number>("p2p_open_channel", { token, label });
-  const ch = new P2PChannel(token, channelId, label);
-  channels.set(key(token, channelId), ch);
-  return ch;
+  connectingUuid = uuid;
+  try {
+    const token = await invoke<string>("p2p_connect", { target: uuid });
+    const channelId = await invoke<number>("p2p_open_channel", { token, label });
+    const ch = new P2PChannel(token, channelId, label);
+    channels.set(key(token, channelId), ch);
+    connectingUuid = null;
+    return ch;
+  } catch (e) {
+    connectingUuid = null;
+    throw e;
+  }
+}
+
+let connectingUuid: string | null = null;
+
+/**
+ * Abort the in-progress connection (if any) at the network level: tears down
+ * the PeerConnection in Rust and asks the remote to abort too.
+ */
+export async function cancelConnection(): Promise<void> {
+  const uuid = connectingUuid;
+  connectingUuid = null;
+  if (!uuid) return;
+  try {
+    await invoke("p2p_cancel", { target: uuid });
+  } catch (e) {
+    console.error("[p2p] cancel failed", e);
+  }
 }
 
 /** Register a handler for incoming channels. */

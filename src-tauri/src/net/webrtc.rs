@@ -55,6 +55,8 @@ pub struct Peer {
     pub channels: Mutex<HashMap<u64, Arc<ChannelHandle>>>,
     /// Remote candidates that arrived before the remote description was set.
     pub pending_candidates: Mutex<Vec<RTCIceCandidateInit>>,
+    /// Signals a pending `open_channel` to abort (local cancel / remote abort).
+    pub cancelled: tokio::sync::Notify,
 }
 
 /// Cloneable handle that sends a signaling payload to a fixed peer.
@@ -171,6 +173,7 @@ async fn get_peer(state: &Arc<NetState>, target: String) -> Result<Arc<Peer>, St
             pc,
             channels: Mutex::new(HashMap::new()),
             pending_candidates: Mutex::new(Vec::new()),
+            cancelled: tokio::sync::Notify::new(),
         });
         w.peers.insert(target.clone(), peer.clone());
         (token, peer)
@@ -250,9 +253,13 @@ pub async fn open_channel(
 
     // Creating the channel.
     if !handle.open.load(std::sync::atomic::Ordering::SeqCst) {
-        match tokio::time::timeout(Duration::from_secs(10), handle.opened.notified()).await {
-            Ok(_) => {}
-            Err(_) => {
+        tokio::select! {
+            _ = handle.opened.notified() => {}
+            _ = peer.cancelled.notified() => {
+                remove_peer_by_token(state, &token);
+                return Err("connect cancelled".into());
+            }
+            _ = tokio::time::sleep(Duration::from_secs(10)) => {
                 remove_peer_by_token(state, &token);
                 return Err("channel open timed out".into());
             }
@@ -315,12 +322,28 @@ pub async fn close_channel(
     Ok(())
 }
 
+/// Tear down a pending peer connection locally: wake any waiting `open_channel`,
+/// drop the peer, and close the PeerConnection.
+pub async fn abort(state: &Arc<NetState>, target: String) -> Result<(), String> {
+    let peer = state.webrtc.lock().unwrap().peers.remove(&target);
+    let Some(peer) = peer else {
+        return Ok(()); // nothing pending
+    };
+    peer.cancelled.notify_waiters();
+    let _ = peer.pc.close().await;
+    Ok(())
+}
+
 /// Handle an incoming signaling message (SDP / ICE) from `from`.
 pub async fn handle_signal(
     state: &Arc<NetState>,
     from: String,
     value: serde_json::Value,
 ) -> Result<(), String> {
+    // Remote peer aborted the connection.
+    if value.get("cancel").is_some() {
+        return abort(state, from).await;
+    }
     if let Some(desc) = value.get("description") {
         let desc: RTCSessionDescription =
             serde_json::from_value(desc.clone()).map_err(|e| e.to_string())?;

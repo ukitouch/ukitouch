@@ -133,6 +133,10 @@ export function cancelConnect(): void {
   cancelled = true;
   pingStore.set({ connecting: false });
   log("cancelling...");
+  // Tear down the pending connection at the network level.
+  if (ctxRef) {
+    void ctxRef.cancelOpenChannel().catch((e) => console.error("[ping] cancel failed", e));
+  }
 }
 
 /** Close the active channel and reset. */

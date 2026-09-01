@@ -1,7 +1,7 @@
 import { hostCapabilities } from "./host";
 import { deviceStore } from "./devices";
 import { getHostInfo } from "./hostinfo";
-import { onChannel, openChannel } from "./p2p";
+import { onChannel, openChannel, cancelConnection } from "./p2p";
 import { onUsbChannel, openUsbChannel } from "./usb";
 import { deviceUuid } from "./identity";
 import type { CoreProtocol, HelloInfo } from "./db";
@@ -122,6 +122,7 @@ export function makeContext(extId: string): ExtensionContext {
       onChannel((ch) => handler(attachHello(ch, "in", extId, "p2p")));
       onUsbChannel((ch) => handler(attachHello(ch, "in", extId, "usb")));
     },
+    cancelOpenChannel: () => cancelConnection(),
     getKnownDevices: () => deviceStore.getSnapshot().devices,
     onDeviceSeen: (handler) => {
       // First callback waits for the store to finish loading

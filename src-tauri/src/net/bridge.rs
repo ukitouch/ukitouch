@@ -34,7 +34,10 @@ pub async fn sig_connect(
         while let Some(ev) = recv.recv().await {
             match ev {
                 Event::Forward { from, value } => {
-                    if value.get("description").is_some() || value.get("candidate").is_some() {
+                    if value.get("description").is_some()
+                        || value.get("candidate").is_some()
+                        || value.get("cancel").is_some()
+                    {
                         if let Err(e) = webrtc::handle_signal(&net, from.clone(), value).await {
                             eprintln!("[webrtc] handle_signal error from {from}: {e}");
                         }
@@ -148,6 +151,17 @@ pub async fn p2p_send(
     text: bool,
 ) -> Result<(), String> {
     webrtc::send(&state, token, channel_id, data, text).await
+}
+
+/// Abort an in-progress connection to `target`.
+#[tauri::command]
+pub async fn p2p_cancel(state: State<'_, Arc<NetState>>, target: String) -> Result<(), String> {
+    webrtc::abort(&state, target.clone()).await?;
+    // Tell the remote to abort as well (ignore if signaling is down).
+    let _ = state
+        .send_signal(&target, serde_json::json!({ "cancel": true }))
+        .await;
+    Ok(())
 }
 
 /// Close a data channel.
