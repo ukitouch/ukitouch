@@ -1,5 +1,6 @@
 mod extensions;
 mod net;
+mod host;
 
 use extensions::{
     install_extension, list_installed_extensions, read_extension_file, uninstall_extension,
@@ -9,6 +10,7 @@ use net::bridge::{
     sig_disconnect, sig_query, sig_send,
 };
 use net::state::NetState;
+use host::get_host_info;
 use std::sync::Arc;
 use tauri::Manager;
 
@@ -32,6 +34,7 @@ pub fn run() {
             p2p_open_channel,
             p2p_send,
             p2p_close_channel,
+            get_host_info,
             list_installed_extensions,
             read_extension_file,
             install_extension,
