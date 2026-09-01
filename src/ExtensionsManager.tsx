@@ -4,7 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { loadInstalledExtensions } from "./core/loader";
 import { unregisterExtension } from "./core/registry";
-import { useToast } from "./toast";
+import { useToast } from "./components/toast";
 
 interface InstalledExt {
   id: string;

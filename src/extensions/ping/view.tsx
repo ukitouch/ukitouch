@@ -12,9 +12,11 @@ import {
   refreshUsbDevices,
   usbStore,
 } from "../../core/usb";
-import { Select } from "../../components/Select";
+import {
+  Select,
+  type HostPlatform,
+} from "../../api";
 import { getHostPlatform } from "../../core/host";
-import type { HostPlatform } from "../../core/types";
 
 export default function PingView() {
   const state = useSyncExternalStore(pingStore.subscribe, pingStore.get);

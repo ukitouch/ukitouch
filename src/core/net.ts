@@ -6,7 +6,8 @@ import { onUsbChannel, openUsbChannel } from "./usb";
 import { deviceUuid } from "./identity";
 import type { CoreProtocol, HelloInfo } from "./db";
 import type { OpenSpec } from "./transport";
-import type { Channel, ExtensionContext } from "./types";
+import type { Channel, Disposable, ExtensionContext } from "./types";
+import { toDisposable } from "./types";
 
 /** In-band hello: both ends send one over the opened channel. */
 interface HelloMsg {
@@ -99,8 +100,10 @@ function attachHello(
 }
 
 export function makeContext(extId: string): ExtensionContext {
+  const subscriptions: Disposable[] = [];
   return {
     ...hostCapabilities,
+    subscriptions,
     openChannel: (request: OpenSpec) => {
       const { transport } = request;
       if (transport === "usb") {
@@ -119,8 +122,13 @@ export function makeContext(extId: string): ExtensionContext {
       );
     },
     onChannel: (handler) => {
-      onChannel((ch) => handler(attachHello(ch, "in", extId, "p2p")));
-      onUsbChannel((ch) => handler(attachHello(ch, "in", extId, "usb")));
+      const unsubs = [
+        onChannel((ch) => handler(attachHello(ch, "in", extId, "p2p"))),
+        onUsbChannel((ch) => handler(attachHello(ch, "in", extId, "usb"))),
+      ];
+      return toDisposable(() => {
+        for (const unsub of unsubs) unsub();
+      });
     },
     cancelOpenChannel: () => cancelConnection(),
     getKnownDevices: () => deviceStore.getSnapshot().devices,
@@ -129,9 +137,10 @@ export function makeContext(extId: string): ExtensionContext {
       void deviceStore.init().then(() => {
         handler(deviceStore.getSnapshot().devices);
       });
-      return deviceStore.subscribe(() =>
+      const unsub = deviceStore.subscribe(() =>
         handler(deviceStore.getSnapshot().devices)
       );
+      return toDisposable(unsub);
     },
   };
 }

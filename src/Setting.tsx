@@ -6,7 +6,7 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { deviceStore } from "./core/devices";
 import { Select } from "./components/Select";
-import { useToast } from "./toast";
+import { useToast } from "./components/toast";
 import type {
   ConnectionEvent,
   DeviceRecord,

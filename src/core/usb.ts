@@ -126,10 +126,18 @@ export async function openUsbChannel(
   return ch;
 }
 
-/** Register a handler for incoming USB channels. */
-export function onUsbChannel(handler: (ch: Channel) => void): void {
+/**
+ * Register a handler for incoming USB channels.
+ *
+ * @param handler Receives each incoming USB channel.
+ * @returns An unsubscribe function that removes the handler.
+ */
+export function onUsbChannel(handler: (ch: Channel) => void): () => void {
   void ensureListeners();
   incomingHandlers.add(handler);
+  return () => {
+    incomingHandlers.delete(handler);
+  };
 }
 
 //#endregion

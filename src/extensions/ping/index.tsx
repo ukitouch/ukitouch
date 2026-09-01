@@ -1,4 +1,4 @@
-import { defineExtension } from "../../core/registry";
+import { defineExtension } from "../../api";
 import { initPing } from "./api";
 import PingView from "./view";
 

@@ -1,5 +1,4 @@
-import type { Channel, ExtensionContext } from "../../core/types";
-import type { DeviceRecord } from "../../core/db/types";
+import type { Channel, DeviceRecord, ExtensionContext } from "../../api";
 import { createStore } from "../../core/store";
 
 export interface PingState {

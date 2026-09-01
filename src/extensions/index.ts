@@ -1,12 +1,3 @@
-// Bundled source of the unified loading pipeline
-import { registerExtension } from "../core/registry";
-import type { ExtensionDefinition } from "../core/types";
-
-const modules = import.meta.glob<{ default: ExtensionDefinition }>(
-  "./*/index.{ts,tsx}",
-  { eager: true }
-);
-
-for (const mod of Object.values(modules)) {
-  if (mod?.default) registerExtension(mod.default);
-}
+// Bundled extensions register themselves via defineExtension() when their
+// module is evaluated. Eagerly importing them here triggers that side effect.
+void import.meta.glob("./*/index.{ts,tsx}", { eager: true });
