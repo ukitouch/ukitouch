@@ -95,7 +95,7 @@ export function Select<T extends string>({
         aria-label={ariaLabel}
         onClick={() => setOpen((o) => !o)}
         onKeyDown={handleKeyDown}
-        className="flex min-w-40 items-center justify-between gap-1 whitespace-nowrap p-2 rounded-md bg-gray-100 dark:bg-gray-800 text-sm text-gray-700 dark:text-gray-300 outline-none focus:bg-gray-200 dark:focus:bg-gray-700 select-none"
+        className={`flex min-w-40 items-center justify-between gap-1 whitespace-nowrap p-2 rounded-md bg-gray-100 dark:bg-gray-800 text-sm text-gray-700 dark:text-gray-300 outline-none select-none transition-colors hover:bg-gray-200 dark:hover:bg-gray-700 focus-visible:ring-1 focus-visible:ring-gray-400${open ? " bg-gray-200 dark:bg-gray-700" : ""}`}
       >
         <span>{current?.label ?? ""}</span>
         <span
@@ -117,34 +117,39 @@ export function Select<T extends string>({
           </svg>
         </span>
       </button>
-      {open && (
-        <ul
-          ref={listRef}
-          role="listbox"
-          className="absolute top-full left-0 z-50 mt-1 w-full py-1 rounded-md bg-gray-100 dark:bg-gray-800 text-sm text-gray-700 dark:text-gray-300 shadow-lg border border-gray-300 dark:border-gray-700"
-        >
-          {options.map((o, i) => (
-            <li key={o.value}>
-              <button
-                type="button"
-                role="option"
-                aria-selected={o.value === value}
-                onPointerEnter={() => setHighlight(i)}
-                onClick={() => {
-                  onChange(o.value);
-                  setOpen(false);
-                }}
-                className={`block w-full text-left px-3 py-1.5 transition-colors ${i === highlight
-                  ? "bg-gray-200 dark:bg-gray-700"
-                  : "hover:bg-gray-200 dark:hover:bg-gray-700"
-                  } ${o.value === value ? "font-medium" : ""}`}
-              >
-                {o.label}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      {open &&
+        (options.length > 0 ? (
+          <ul
+            ref={listRef}
+            role="listbox"
+            className="absolute top-full left-0 z-50 mt-1 w-full py-1 rounded-md bg-gray-100 dark:bg-gray-800 text-sm text-gray-700 dark:text-gray-300 shadow-lg border border-gray-300 dark:border-gray-700"
+          >
+            {options.map((o, i) => (
+              <li key={o.value}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={o.value === value}
+                  onPointerEnter={() => setHighlight(i)}
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                  className={`block w-full text-left px-3 py-1.5 transition-colors ${i === highlight
+                    ? "bg-gray-200 dark:bg-gray-700"
+                    : "hover:bg-gray-200 dark:hover:bg-gray-700"
+                    } ${o.value === value ? "font-medium" : ""}`}
+                >
+                  {o.label}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="absolute top-full left-0 z-50 mt-1 w-full py-1.5 px-3 rounded-md bg-gray-100 dark:bg-gray-800 text-sm text-gray-500 dark:text-gray-400 shadow-lg border border-gray-300 dark:border-gray-700">
+            No options
+          </div>
+        ))}
     </div>
   );
 }

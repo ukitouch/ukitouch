@@ -1,5 +1,12 @@
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { disableTempId, enableTempId, tempIdStore } from "./core/p2p";
+import {
+  disableUsbListener,
+  enableUsbListener,
+  usbListenerStore,
+} from "./core/usb";
+import { getHostPlatform } from "./core/host";
+import type { HostPlatform } from "./core/types";
 
 async function copyText(text: string): Promise<void> {
   try {
@@ -114,6 +121,67 @@ function Home() {
             : "Only known contacts can reach you."}
         </span>
       </div>
+
+      <UsbListenerSection />
+    </div>
+  );
+}
+
+/**
+ * Android-only USB listener toggle.
+ */
+function UsbListenerSection() {
+  const [platform, setPlatform] = useState<HostPlatform | null>(null);
+  useEffect(() => {
+    void getHostPlatform().then(setPlatform);
+  }, []);
+
+  const enabled = useSyncExternalStore(
+    usbListenerStore.subscribe,
+    () => usbListenerStore.get().enabled
+  );
+  const [toggling, setToggling] = useState(false);
+
+  async function toggle() {
+    if (toggling) return;
+    setToggling(true);
+    try {
+      if (enabled) await disableUsbListener();
+      else await enableUsbListener();
+    } catch (e) {
+      console.error("[usb] listener toggle failed", e);
+    } finally {
+      window.setTimeout(() => setToggling(false), 500);
+    }
+  }
+
+  if (platform !== "android") return null;
+
+  return (
+    <div>
+      <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 mb-2">
+        <span className="self-center">USB Listener</span>
+        <button
+          onClick={() => void toggle()}
+          disabled={toggling}
+          className={`px-3 py-1.5 rounded-md text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${enabled
+            ? "bg-gray-700 hover:bg-gray-600 text-gray-100"
+            : "bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-300"
+            }`}
+        >
+          {enabled ? "Disable" : "Enable"}
+        </button>
+      </div>
+      <div className="bg-gray-100 dark:bg-gray-800 rounded-md px-3 py-2">
+        <span className="text-sm text-gray-700 dark:text-gray-300">
+          {enabled
+            ? "Will accept USB connections from a desktop"
+            : "Connection request from desktop will be rejected"}
+        </span>
+      </div>
+      <p className="text-xs text-gray-600 dark:text-gray-500 rounded-md mt-1">
+        USB debugging must be enabled for a desktop to find this device
+      </p>
     </div>
   );
 }

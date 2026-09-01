@@ -240,8 +240,8 @@ function DeviceDetail({
           }
         }}
         className={`mt-4 w-full px-3 py-1.5 rounded-md text-sm transition-colors border ${deleteArmed
-            ? "text-red-500 font-semibold border-red-500/40 bg-red-500/10"
-            : "text-red-500 hover:bg-red-500/10 border-red-500/40"
+          ? "text-red-500 font-semibold border-red-500/40 bg-red-500/10"
+          : "text-red-500 hover:bg-red-500/10 border-red-500/40"
           }`}
       >
         {deleteArmed ? "Confirm?" : "Delete device record"}
@@ -430,7 +430,7 @@ function Devices() {
                     <div
                       key={d.uuid}
                       onClick={() => openDetail(d.uuid)}
-                      className={`p-3 rounded-lg border cursor-pointer transition-colors focus:bg-gray-200 dark:focus:bg-gray-700 ${selectedUuid === d.uuid
+                      className={`p-3 rounded-lg border cursor-pointer transition-colors hover:bg-gray-200 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-700 ${selectedUuid === d.uuid
                         ? "bg-gray-200 dark:bg-gray-700 border-gray-400 dark:border-gray-500"
                         : "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700"
                         }`}
