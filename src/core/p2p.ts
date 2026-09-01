@@ -214,7 +214,7 @@ interface ChannelCloseEvent {
 
 let listenersReady: Promise<void> | null = null;
 const channels = new Map<string, P2PChannel>();
-const incomingHandlers = new Set<(ch: Channel) => void>();
+const incomingHandlers = new Set<(ch: P2PChannel) => void>();
 const key = (token: string, id: number) => `${token}:${id}`;
 
 function ensureChannelListeners(): Promise<void> {
@@ -224,8 +224,7 @@ function ensureChannelListeners(): Promise<void> {
       const ch = new P2PChannel(
         e.payload.token,
         e.payload.channel_id,
-        e.payload.label,
-        e.payload.target
+        e.payload.label
       );
       channels.set(key(e.payload.token, e.payload.channel_id), ch);
       incomingHandlers.forEach((h) => h(ch));
@@ -260,7 +259,6 @@ class P2PChannel implements Channel {
   readonly label: string;
   readonly token: string;
   readonly channelId: number;
-  readonly peerId: string;
   readyState: string = "connecting";
   bufferedAmount: number = 0;
   onmessage: ((ev: MessageEvent) => void) | null = null;
@@ -268,11 +266,10 @@ class P2PChannel implements Channel {
   onopen: ((ev: Event) => void) | null = null;
   onerror: ((ev: Event) => void) | null = null;
 
-  constructor(token: string, channelId: number, label: string, peerId: string) {
+  constructor(token: string, channelId: number, label: string) {
     this.token = token;
     this.channelId = channelId;
     this.label = label;
-    this.peerId = peerId;
   }
 
   send(data: string | ArrayBuffer | ArrayBufferView | Blob): void {
@@ -322,7 +319,7 @@ export async function openChannel(
   const uuid = await resolveTarget(target);
   const token = await invoke<string>("p2p_connect", { target: uuid });
   const channelId = await invoke<number>("p2p_open_channel", { token, label });
-  const ch = new P2PChannel(token, channelId, label, uuid);
+  const ch = new P2PChannel(token, channelId, label);
   channels.set(key(token, channelId), ch);
   return ch;
 }

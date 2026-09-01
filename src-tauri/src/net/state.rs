@@ -6,6 +6,7 @@ use tauri::AppHandle;
 use webrtc::ice_transport::ice_server::RTCIceServer;
 
 use super::signaling::SignalingSender;
+use super::usb::UsbInner;
 use super::webrtc::WebrtcInner;
 
 pub struct NetState {
@@ -13,6 +14,8 @@ pub struct NetState {
     pub signaling: Mutex<HashMap<String, SignalingSender>>,
     /// WebRTC peers (keyed by target uuid).
     pub webrtc: Mutex<WebrtcInner>,
+    /// USB (adb) channels.
+    pub usb: Mutex<UsbInner>,
     /// Frontend event emitter.
     pub app: AppHandle,
     /// ICE servers for new peer connections.
@@ -24,6 +27,7 @@ impl NetState {
         Self {
             signaling: Mutex::new(HashMap::new()),
             webrtc: Mutex::new(WebrtcInner::default()),
+            usb: Mutex::new(UsbInner::default()),
             app,
             ice_servers: Mutex::new(Vec::new()),
         }
