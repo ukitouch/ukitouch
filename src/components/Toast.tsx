@@ -1,7 +1,7 @@
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-
-type ToastKind = "info" | "error";
+import { setToastSink } from "../core/host";
+import type { ToastKind } from "../core/host";
 
 interface Toast {
   id: number;
@@ -25,6 +25,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       setToasts((t) => t.filter((x) => x.id !== id));
     }, 3000);
   }, []);
+
+  // expose `show` outside React
+  useEffect(() => {
+    setToastSink(show);
+    return () => setToastSink(null);
+  }, [show]);
 
   return (
     <ToastContext.Provider value={{ show }}>

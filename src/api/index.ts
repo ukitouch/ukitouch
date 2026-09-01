@@ -6,6 +6,10 @@
  */
 import * as React from "react";
 import { registerExtension } from "../core/registry";
+import { getHostPlatform, showToast } from "../core/host";
+import { getHostInfo } from "../core/hostinfo";
+import { refreshUsbDevices, usbStore } from "../core/usb";
+import { createStore } from "../core/store";
 import type {
   ExtensionContext,
   ExtensionDefinition as CoreExtensionDefinition,
@@ -33,6 +37,12 @@ export {
   SettingRow,
   PageHeader,
   SectionHeader,
+  getHostPlatform,
+  getHostInfo,
+  refreshUsbDevices,
+  usbStore,
+  createStore,
+  showToast,
 };
 
 export type {
@@ -45,6 +55,10 @@ export type {
   DeviceRecord,
   HelloInfo,
 };
+
+export type { UsbDevice } from "../core/usb";
+export type { Store } from "../core/store";
+export type { ToastKind } from "../core/host";
 
 export { toDisposable };
 
@@ -120,6 +134,18 @@ export interface YatouchRuntime {
   };
   /** Register an extension at runtime (same as {@link defineExtension}). */
   defineExtension: typeof defineExtension;
+  /** Resolve the current host platform. */
+  getHostPlatform: typeof getHostPlatform;
+  /** Resolve the current host info. */
+  getHostInfo: typeof getHostInfo;
+  /** Refresh the connected USB device list. */
+  refreshUsbDevices: typeof refreshUsbDevices;
+  /** Reactive USB device store. */
+  usbStore: typeof usbStore;
+  /** In-memory store factory. */
+  createStore: typeof createStore;
+  /** Show a toast (works outside React). */
+  showToast: typeof showToast;
 }
 
 declare global {
@@ -146,5 +172,11 @@ export function installBridge(): void {
       SectionHeader,
     },
     defineExtension,
+    getHostPlatform,
+    getHostInfo,
+    refreshUsbDevices,
+    usbStore,
+    createStore,
+    showToast,
   };
 }

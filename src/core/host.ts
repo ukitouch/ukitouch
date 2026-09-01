@@ -1,6 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { ExtensionContext, HostPlatform, Layout } from "./types";
 
+/** Toast severity. */
+export type ToastKind = "info" | "error";
+
 let setLayoutImpl: (layout: Layout) => void = () => {
   // no-op until the shell binds its React state
 };
@@ -13,6 +16,27 @@ export const hostCapabilities: Pick<ExtensionContext, "setLayout"> = {
 /** Called by the shell to wire host capabilities to React state. */
 export function bindHost(impl: { setLayout: (layout: Layout) => void }): void {
   setLayoutImpl = impl.setLayout;
+}
+
+let toastImpl: ((message: string, kind?: ToastKind) => void) | null = null;
+
+/**
+ * The React toast provider registers here.
+ *
+ * @param fn The toast function, or `null` to unregister.
+ */
+export function setToastSink(fn: ((message: string, kind?: ToastKind) => void) | null): void {
+  toastImpl = fn;
+}
+
+/**
+ * Show a toast if a sink is wired.
+ *
+ * @param message The message to show.
+ * @param kind The severity, defaults to "info".
+ */
+export function showToast(message: string, kind?: ToastKind): void {
+  toastImpl?.(message, kind);
 }
 
 let platformPromise: Promise<HostPlatform> | null = null;
