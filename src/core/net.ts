@@ -122,5 +122,15 @@ export function makeContext(extId: string): ExtensionContext {
       onChannel((ch) => handler(attachHello(ch, "in", extId, "p2p")));
       onUsbChannel((ch) => handler(attachHello(ch, "in", extId, "usb")));
     },
+    getKnownDevices: () => deviceStore.getSnapshot().devices,
+    onDeviceSeen: (handler) => {
+      // First callback waits for the store to finish loading
+      void deviceStore.init().then(() => {
+        handler(deviceStore.getSnapshot().devices);
+      });
+      return deviceStore.subscribe(() =>
+        handler(deviceStore.getSnapshot().devices)
+      );
+    },
   };
 }

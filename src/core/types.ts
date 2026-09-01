@@ -1,5 +1,6 @@
 import type { ComponentType, ReactNode } from "react";
 import type { OpenSpec } from "./transport";
+import type { DeviceRecord } from "./db/types";
 
 /** Shell layout */
 export type Layout = "withSidebar" | "fullscreen";
@@ -34,6 +35,13 @@ export interface ExtensionContext {
   openChannel(request: OpenSpec): Promise<Channel>;
   /** Called when a remote peer opens a channel labelled with this extension's id. */
   onChannel(handler: (channel: Channel) => void): void;
+  /** Known devices from the device store. */
+  getKnownDevices(): DeviceRecord[];
+  /**
+   * Subscribe to the known-device list. The handler receives the full current
+   * list once immediately, then again on every change.
+   */
+  onDeviceSeen(handler: (devices: DeviceRecord[]) => void): () => void;
 }
 
 export interface ExtensionDefinition {

@@ -1,16 +1,19 @@
 import type { Channel, ExtensionContext } from "../../core/types";
+import type { DeviceRecord } from "../../core/db/types";
 import { createStore } from "../../core/store";
 
 export interface PingState {
   logs: string[];
   peerId: string | null;
   connecting: boolean;
+  devices: DeviceRecord[];
 }
 
 export const pingStore = createStore<PingState>({
   logs: [],
   peerId: null,
   connecting: false,
+  devices: [],
 });
 
 function log(line: string): void {
@@ -61,6 +64,9 @@ function bindChannel(ch: Channel, peerLabel: string): void {
 export function initPing(ctx: ExtensionContext): void {
   ctxRef = ctx;
 
+  pingStore.set({ devices: ctx.getKnownDevices() });
+  ctx.onDeviceSeen((devices) => pingStore.set({ devices }));
+
   // A remote peer opening a "ping" channel lands here.
   ctx.onChannel((ch) => {
     log("incoming channel");
@@ -68,30 +74,36 @@ export function initPing(ctx: ExtensionContext): void {
   });
 }
 
-/** Dial a target device. */
-export async function openPingChannel(targetId: string): Promise<void> {
-  targetId = targetId.replace(/\D/g, ""); // tolerate grouped input ("123 456 789")
-  if (!ctxRef || !targetId) return;
+/** Shared WebRTC dial: no digit-stripping, `label` is what the status/log shows. */
+async function dialWebRtc(target: string, label: string): Promise<void> {
+  if (!ctxRef || !target) return;
   if (channel) channel.close();
   cancelled = false;
   pingStore.set({ connecting: true, peerId: null });
   log(`connecting...`);
   try {
-    const ch = await ctxRef.openChannel({
-      transport: "webrtc",
-      target: targetId,
-    });
+    const ch = await ctxRef.openChannel({ transport: "webrtc", target });
     if (cancelled) {
       ch.close();
       log("connect cancelled");
       return;
     }
-    bindChannel(ch, targetId);
+    bindChannel(ch, label);
     log("connected");
   } catch (err) {
     if (!cancelled) log(`connect failed: ${String(err)}`);
     pingStore.set({ connecting: false });
   }
+}
+
+/** Dial by a user-entered id. */
+export function openPingChannel(targetId: string): Promise<void> {
+  return dialWebRtc(targetId.replace(/\D/g, ""), targetId);
+}
+
+/** Dial a known device directly by uuid. */
+export function openPingChannelByUuid(uuid: string, label: string): Promise<void> {
+  return dialWebRtc(uuid, label);
 }
 
 /** Dial a USB device by serial. */
