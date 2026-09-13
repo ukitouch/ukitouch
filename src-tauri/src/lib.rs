@@ -1,6 +1,8 @@
 mod extensions;
 mod host;
 mod net;
+#[cfg(desktop)]
+mod tray;
 
 use extensions::{
     install_extension, list_installed_extensions, read_extension_file, uninstall_extension,
@@ -27,7 +29,19 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             app.manage(Arc::new(NetState::new(app.handle().clone())));
+            #[cfg(desktop)]
+            tray::init(app)?;
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // Closing the main window drops it to the tray. Quit via the tray menu.
+            #[cfg(desktop)]
+            if window.label() == "main" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             net_configure,
