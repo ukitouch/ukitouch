@@ -30,7 +30,15 @@ pub fn run() {
         .setup(|app| {
             app.manage(Arc::new(NetState::new(app.handle().clone())));
             #[cfg(desktop)]
-            tray::init(app)?;
+            {
+                tray::init(app)?;
+                // `--silent` starts straight into the tray, for autostart.
+                if std::env::args().any(|arg| arg == "--silent") {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.hide();
+                    }
+                }
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
