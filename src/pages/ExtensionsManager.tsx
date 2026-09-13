@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
-import { loadInstalledExtensions } from "./core/loader";
-import { unregisterExtension } from "./core/registry";
-import { useToast } from "./toast";
+import { loadInstalledExtensions } from "../core/loader";
+import { unregisterExtension } from "../core/registry";
+import { useToast } from "../components/Toast";
 
 interface InstalledExt {
   id: string;

@@ -1,25 +1,16 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
-import { ToastProvider } from "./toast";
+import { ToastProvider } from "./components/Toast";
 import { startSignaling } from "./core/p2p";
 import { deviceStore } from "./core/devices";
-import { activateExtensions, registerExtension } from "./core/registry";
+import { activateExtensions } from "./core/registry";
 import { loadInstalledExtensions } from "./core/loader";
+import { installBridge } from "./api";
 import "./index.css";
 
-// Bridge for externally-loaded extensions.
-window.__extRegistry = {
-  register: (def) => {
-    registerExtension({
-      id: def.id,
-      title: def.id,
-      icon: <></>,
-      component: def.view,
-      activate: def.activate,
-    });
-  },
-};
+// Runtime surface for installed (zip) extensions.
+installBridge();
 
 startSignaling().catch((e) => console.error("[sig] start failed", e));
 loadInstalledExtensions().catch((e) => console.error("[ext] load failed", e));

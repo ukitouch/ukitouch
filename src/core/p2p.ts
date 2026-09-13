@@ -348,10 +348,18 @@ export async function cancelConnection(): Promise<void> {
   }
 }
 
-/** Register a handler for incoming channels. */
-export function onChannel(handler: (ch: Channel) => void): void {
+/**
+ * Register a handler for incoming channels.
+ *
+ * @param handler Receives each incoming channel.
+ * @returns An unsubscribe function that removes the handler.
+ */
+export function onChannel(handler: (ch: Channel) => void): () => void {
   void ensureChannelListeners();
   incomingHandlers.add(handler);
+  return () => {
+    incomingHandlers.delete(handler);
+  };
 }
 
 //#endregion

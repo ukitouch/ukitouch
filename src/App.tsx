@@ -4,9 +4,9 @@ import { bindHost } from "./core/host";
 import { listExtensions, subscribeExtensions } from "./core/registry";
 import type { Layout } from "./core/types";
 import "./extensions";
-import Home from "./Home";
-import SettingPage from "./Setting";
-import { ExtensionsManager } from "./ExtensionsManager";
+import Home from "./pages/Home";
+import SettingPage from "./pages/Settings";
+import { ExtensionsManager } from "./pages/ExtensionsManager";
 
 const BUILTIN_PAGES: Record<string, ComponentType> = {
   manager: ExtensionsManager,

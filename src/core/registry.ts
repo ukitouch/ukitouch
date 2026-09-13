@@ -6,6 +6,8 @@ let activated = false;
 let cached: ExtensionDefinition[] = [];
 let dirty = true;
 const listeners = new Set<() => void>();
+/** Per-extension cleanup, run on deactivation/uninstall. */
+const cleanups = new Map<string, () => void>();
 
 export function registerExtension(
   def: ExtensionDefinition
@@ -16,10 +18,21 @@ export function registerExtension(
   registry.set(def.id, def);
   dirty = true;
   listeners.forEach((l) => l());
+  // An extension registered after activateExtensions() has already run
+  // (e.g. installed ones loaded asynchronously from disk) still needs its
+  // context handed over. Activate it immediately on registration.
+  if (activated) activateOne(def);
   return def;
 }
 
+/**
+ * Remove an extension and run its cleanup (disposing its subscriptions).
+ *
+ * @param id The extension id to remove.
+ */
 export function unregisterExtension(id: string): void {
+  cleanups.get(id)?.();
+  cleanups.delete(id);
   if (registry.delete(id)) {
     dirty = true;
     listeners.forEach((l) => l());
@@ -34,6 +47,12 @@ export function listExtensions(): ExtensionDefinition[] {
   return cached;
 }
 
+/**
+ * Subscribe to registry changes.
+ *
+ * @param cb Called whenever the extension set changes.
+ * @returns An unsubscribe function.
+ */
 export function subscribeExtensions(cb: () => void): () => void {
   listeners.add(cb);
   return () => {
@@ -41,16 +60,25 @@ export function subscribeExtensions(cb: () => void): () => void {
   };
 }
 
-/** Identity helper for extension modules. */
-export function defineExtension(def: ExtensionDefinition): ExtensionDefinition {
-  return def;
+/**
+ * Activate a single extension: hand it a context and record its cleanup.
+ *
+ * @param def The extension to activate.
+ */
+function activateOne(def: ExtensionDefinition): void {
+  const ctx = makeContext(def.id);
+  const cleanup = def.activate?.(ctx);
+  cleanups.set(def.id, () => {
+    for (const d of ctx.subscriptions) d.dispose();
+    if (typeof cleanup === "function") cleanup();
+  });
 }
 
-/** Run every extension's logic layer. */
+/**
+ * Run every registered extension's logic layer.
+ */
 export function activateExtensions(): void {
   if (activated) return;
   activated = true;
-  for (const ext of registry.values()) {
-    ext.activate?.(makeContext(ext.id));
-  }
+  for (const ext of registry.values()) activateOne(ext);
 }

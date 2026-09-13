@@ -1,12 +1,15 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { disableTempId, enableTempId, tempIdStore } from "./core/p2p";
+import { disableTempId, enableTempId, tempIdStore } from "../core/p2p";
 import {
   disableUsbListener,
   enableUsbListener,
   usbListenerStore,
-} from "./core/usb";
-import { getHostPlatform } from "./core/host";
-import type { HostPlatform } from "./core/types";
+} from "../core/usb";
+import { getHostPlatform } from "../core/host";
+import type { HostPlatform } from "../core/types";
+import { Button } from "../components/Button";
+import { PageHeader } from "../components/PageHeader";
+import { SettingRow } from "../components/SettingRow";
 
 async function copyText(text: string): Promise<void> {
   try {
@@ -49,24 +52,20 @@ function Home() {
 
   return (
     <div className="p-6 max-w-lg flex flex-col gap-4">
-      <div>
-        <h1 className="text-xl font-semibold mb-1">YATouch</h1>
-      </div>
+      <PageHeader title="YATouch" />
 
-      <div>
-        <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 mb-2">
-          <span className="self-center">Temporary ID</span>
-          <button
-            onClick={() => void toggle()}
+      <SettingRow
+        label="Temporary ID"
+        action={
+          <Button
+            variant={tmpEnabled ? "primary" : "ghost"}
             disabled={toggling}
-            className={`px-3 py-1.5 rounded-md text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${tmpEnabled
-              ? "bg-gray-700 hover:bg-gray-600 text-gray-100"
-              : "bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-300"
-              }`}
+            onClick={() => void toggle()}
           >
             {tmpEnabled ? "Hide" : "Show"}
-          </button>
-        </div>
+          </Button>
+        }
+      >
         <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-md px-3 py-2">
           <code className="flex-1 break-all text-sm text-gray-700 dark:text-gray-300">
             {tempId.replace(/(.{3})(?=.)/g, "$1 ")}
@@ -112,7 +111,7 @@ function Home() {
             <></>
           )}
         </div>
-      </div>
+      </SettingRow>
 
       <div className="flex items-center gap-3">
         <span className="text-xs text-gray-500 dark:text-gray-400">
@@ -158,20 +157,19 @@ function UsbListenerSection() {
   if (platform !== "android") return null;
 
   return (
-    <div>
-      <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 mb-2">
-        <span className="self-center">USB Listener</span>
-        <button
-          onClick={() => void toggle()}
+    <SettingRow
+      label="USB Listener"
+      action={
+        <Button
+          variant={enabled ? "primary" : "ghost"}
           disabled={toggling}
-          className={`px-3 py-1.5 rounded-md text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${enabled
-            ? "bg-gray-700 hover:bg-gray-600 text-gray-100"
-            : "bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-300"
-            }`}
+          onClick={() => void toggle()}
         >
           {enabled ? "Disable" : "Enable"}
-        </button>
-      </div>
+        </Button>
+      }
+      hint="USB debugging must be enabled for a desktop to find this device"
+    >
       <div className="bg-gray-100 dark:bg-gray-800 rounded-md px-3 py-2">
         <span className="text-sm text-gray-700 dark:text-gray-300">
           {enabled
@@ -179,10 +177,7 @@ function UsbListenerSection() {
             : "Connection request from desktop will be rejected"}
         </span>
       </div>
-      <p className="text-xs text-gray-600 dark:text-gray-500 rounded-md mt-1">
-        USB debugging must be enabled for a desktop to find this device
-      </p>
-    </div>
+    </SettingRow>
   );
 }
 
