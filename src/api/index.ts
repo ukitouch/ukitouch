@@ -6,7 +6,7 @@
  */
 import * as React from "react";
 import { registerExtension } from "../core/registry";
-import { getHostPlatform, showToast } from "../core/host";
+import { getHostPlatform, readClipboardText, showToast, writeClipboardText } from "../core/host";
 import { getHostInfo } from "../core/hostinfo";
 import { refreshUsbDevices, usbStore } from "../core/usb";
 import { createStore } from "../core/store";
@@ -39,6 +39,8 @@ export {
   SectionHeader,
   getHostPlatform,
   getHostInfo,
+  readClipboardText,
+  writeClipboardText,
   refreshUsbDevices,
   usbStore,
   createStore,
@@ -138,6 +140,10 @@ export interface YatouchRuntime {
   getHostPlatform: typeof getHostPlatform;
   /** Resolve the current host info. */
   getHostInfo: typeof getHostInfo;
+  /** Read the system clipboard as plain text. */
+  readClipboardText: typeof readClipboardText;
+  /** Write plain text to the system clipboard. */
+  writeClipboardText: typeof writeClipboardText;
   /** Refresh the connected USB device list. */
   refreshUsbDevices: typeof refreshUsbDevices;
   /** Reactive USB device store. */
@@ -174,6 +180,8 @@ export function installBridge(): void {
     defineExtension,
     getHostPlatform,
     getHostInfo,
+    readClipboardText,
+    writeClipboardText,
     refreshUsbDevices,
     usbStore,
     createStore,
