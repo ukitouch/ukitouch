@@ -51,26 +51,20 @@ function attachHello(
   protocol: CoreProtocol
 ): Channel {
   let extOnmessage: Channel["onmessage"] = null;
-  let first = true;
 
-  // Convention: the first message on a freshly-opened channel is the peer's
-  // hello (both ends send it on open), consumed here and kept out of the
-  // extension's data channel.
+  // Consume the peer's hello by shape on every message.
   raw.onmessage = (ev) => {
-    if (first) {
-      first = false;
-      const hello = parseHello(ev.data);
-      if (hello) {
-        void deviceStore
-          .recordConnection({
-            uuid: hello.uuid,
-            direction,
-            protocol,
-            extension: extId,
-            hello: hello.hello,
-          })
-          .catch((err) => console.error("[devices] record failed:", err));
-      }
+    const hello = parseHello(ev.data);
+    if (hello) {
+      void deviceStore
+        .recordConnection({
+          uuid: hello.uuid,
+          direction,
+          protocol,
+          extension: extId,
+          hello: hello.hello,
+        })
+        .catch((err) => console.error("[devices] record failed:", err));
       return;
     }
     extOnmessage?.(ev);
