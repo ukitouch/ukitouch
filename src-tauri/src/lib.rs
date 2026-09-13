@@ -33,9 +33,10 @@ pub fn run() {
             {
                 tray::init(app)?;
                 // `--silent` starts straight into the tray, for autostart.
-                if std::env::args().any(|arg| arg == "--silent") {
+                if !std::env::args().any(|arg| arg == "--silent") {
                     if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.hide();
+                        let _ = window.show();
+                        let _ = window.set_focus();
                     }
                 }
             }
