@@ -24,9 +24,13 @@ pub async fn sig_connect(
     id: String,
     force: bool,
 ) -> Result<(), String> {
-    let (sender, mut recv) = signaling::connect(&url, id, force)
-        .await
-        .map_err(|e| e.to_string())?;
+    let (sender, mut recv) = signaling::connect(&url, id, force);
+
+    // Replace any previous connection under the same name.
+    let prev = state.signaling.lock().unwrap().remove(&name);
+    if let Some(prev) = prev {
+        let _ = prev.disconnect().await;
+    }
     state.signaling.lock().unwrap().insert(name.clone(), sender);
 
     let net = Arc::clone(state.inner());
@@ -52,6 +56,12 @@ pub async fn sig_connect(
                     let _ = app.emit(
                         "sig-notice",
                         serde_json::json!({ "name": name, "message": msg }),
+                    );
+                }
+                Event::Status(status) => {
+                    let _ = app.emit(
+                        "sig-status",
+                        serde_json::json!({ "name": name, "status": status }),
                     );
                 }
             }

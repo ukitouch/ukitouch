@@ -24,7 +24,24 @@ pub enum Event {
     Forward { from: String, value: Value },
     /// Bare-string server notice / error.
     Notice(String),
+    /// Connection lifecycle change.
+    Status(Status),
 }
+
+/// Connection lifecycle, pushed up as [`Event::Status`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+pub enum Status {
+    /// A connection attempt is active, or about to be.
+    Connecting,
+    /// Socket is up and the id has been registered.
+    Connected,
+    /// Socket is gone, a retry follows unless `disconnect` was called.
+    Disconnected,
+}
+
+/// Delay between reconnection attempts.
+/// TODO: for now every 2s makes a retry, further should be stronger
+const RETRY: Duration = Duration::from_secs(2);
 
 type Ws = WebSocketStream<MaybeTlsStream<TcpStream>>;
 type WriteHalf = futures_util::stream::SplitSink<Ws, Message>;
@@ -138,96 +155,88 @@ async fn handle_text(
     }
 }
 
-/// Connect and register `id` on the server, returning split send/receive halves.
-pub async fn connect(
-    url: &str,
-    id: String,
-    force: bool,
-) -> Result<(SignalingSender, SignalingReceiver), Error> {
+/// Start connecting and registering `id` on the server.
+///
+/// Returns immediately, the socket lives in a supervisor task that keeps
+/// retrying until [`SignalingSender::disconnect`] is called.
+pub fn connect(url: &str, id: String, force: bool) -> (SignalingSender, SignalingReceiver) {
     let url = url.to_string();
-    let (ws, _) = connect_async(&url).await.map_err(Error::Connect)?;
-    let (mut write, mut read) = ws.split();
-
-    write
-        .send(Message::Text(
-            serde_json::json!({ "register": id, "force": force })
-                .to_string()
-                .into(),
-        ))
-        .await
-        .map_err(Error::Send)?;
-
     let (tx, rx) = mpsc::channel(64);
-    let write_shared: Arc<Mutex<Option<WriteHalf>>> = Arc::new(Mutex::new(Some(write)));
+    let write: Arc<Mutex<Option<WriteHalf>>> = Arc::new(Mutex::new(None));
     let pending_queries: Arc<std::sync::Mutex<HashMap<String, oneshot::Sender<bool>>>> =
         Arc::new(std::sync::Mutex::new(HashMap::new()));
     let closed = Arc::new(AtomicBool::new(false));
 
     let pq = pending_queries.clone();
-    let write_mgr = write_shared.clone();
+    let write_mgr = write.clone();
     let closed_mgr = closed.clone();
     let tx_mgr = tx.clone();
     let id_mgr = id.clone();
     tokio::spawn(async move {
-        // Drain the initial socket, reconnect in a loop.
-        while let Some(msg) = read.next().await {
-            if closed_mgr.load(Ordering::SeqCst) {
-                return;
-            }
-            match msg {
-                Ok(Message::Text(t)) => handle_text(t.to_string(), &tx_mgr, &pq).await,
-                _ => {}
-            }
-        }
-
-        // Initial connection dropped, reconnect forever (until closed).
+        // One attempt per iteration: connect, register, drain, then retry.
+        // The caller's `force` only applies to the first registration.
+        let mut force = force;
         loop {
             if closed_mgr.load(Ordering::SeqCst) {
-                return;
+                break;
             }
-            *write_mgr.lock().await = None; // drop the stale write half
-            tokio::time::sleep(Duration::from_secs(2)).await;
-            if closed_mgr.load(Ordering::SeqCst) {
-                return;
-            }
-            let (ws, _) = match connect_async(&url).await {
-                Ok(w) => w,
-                Err(_) => continue,
+            let _ = tx_mgr.send(Event::Status(Status::Connecting)).await;
+
+            let (mut write, mut read) = match connect_async(&url).await {
+                Ok((ws, _)) => ws.split(),
+                Err(_) => {
+                    tokio::time::sleep(RETRY).await;
+                    continue;
+                }
             };
-            let (mut write, mut read) = ws.split();
-            let _ = write
+
+            if write
                 .send(Message::Text(
-                    serde_json::json!({ "register": id_mgr, "force": true })
+                    serde_json::json!({ "register": id_mgr, "force": force })
                         .to_string()
                         .into(),
                 ))
-                .await;
+                .await
+                .is_err()
+            {
+                tokio::time::sleep(RETRY).await;
+                continue;
+            }
+            force = true;
             *write_mgr.lock().await = Some(write);
+            let _ = tx_mgr.send(Event::Status(Status::Connected)).await;
+
             while let Some(msg) = read.next().await {
                 if closed_mgr.load(Ordering::SeqCst) {
-                    return;
+                    break;
                 }
-                match msg {
-                    Ok(Message::Text(t)) => handle_text(t.to_string(), &tx_mgr, &pq).await,
-                    _ => {}
+                if let Ok(Message::Text(t)) = msg {
+                    handle_text(t.to_string(), &tx_mgr, &pq).await;
                 }
             }
+
+            // Socket is gone: unblock sends, report, then retry (or stop).
+            *write_mgr.lock().await = None;
+            let _ = tx_mgr.send(Event::Status(Status::Disconnected)).await;
+            if closed_mgr.load(Ordering::SeqCst) {
+                break;
+            }
+            tokio::time::sleep(RETRY).await;
         }
     });
 
     let sender = SignalingSender {
         id,
-        write: write_shared,
+        write,
         pending_queries,
         closed,
     };
     let receiver = SignalingReceiver { rx };
-    Ok((sender, receiver))
+    (sender, receiver)
 }
 
 #[derive(Debug)]
 pub enum Error {
-    Connect(tokio_tungstenite::tungstenite::Error),
     Send(tokio_tungstenite::tungstenite::Error),
     Other(String),
 }
@@ -235,7 +244,6 @@ pub enum Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::Connect(e) => write!(f, "connect: {e}"),
             Error::Send(e) => write!(f, "send: {e}"),
             Error::Other(s) => write!(f, "{s}"),
         }
@@ -262,34 +270,49 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_millis();
-        let (a_sender, a_recv) = match connect(&url, format!("test-{suffix}-a"), true).await {
-            Ok(c) => c,
-            Err(_) => return, // server unreachable; skip
-        };
-        let (b_sender, mut b_recv) = connect(&url, format!("test-{suffix}-b"), true)
-            .await
-            .expect("b connect");
+        let (a_sender, _a_recv) = connect(&url, format!("test-{suffix}-a"), true);
+        let (b_sender, mut b_recv) = connect(&url, format!("test-{suffix}-b"), true);
 
         let to = format!("test-{suffix}-b");
-        // The server processes connections concurrently; a's forward could race
-        // b's register. Wait until the server confirms b is registered first.
-        for _ in 0..30 {
-            if a_sender.query(&to).await.expect("query") {
-                break;
+        // `connect` returns before the sockets are up, and the server processes
+        // connections concurrently, so a's forward could race b's register.
+        // Wait until the server confirms b is registered; skip if it never
+        // comes up (server unreachable).
+        let mut up = false;
+        let mut ready = false;
+        for _ in 0..50 {
+            match a_sender.query(&to).await {
+                Ok(true) => {
+                    up = true;
+                    ready = true;
+                    break;
+                }
+                Ok(false) => up = true,
+                Err(_) => {}
             }
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
+        if !up {
+            return;
+        }
+        assert!(ready, "b never registered");
 
         // a -> b forward
         a_sender
             .send(&to, serde_json::json!({ "hello": "world" }))
             .await
             .expect("a send");
-        match tokio::time::timeout(Duration::from_secs(3), b_recv.recv())
-            .await
-            .expect("timeout")
-            .expect("stream closed")
-        {
+        // b's receiver also carries Status events, skip them.
+        let event = loop {
+            let ev = tokio::time::timeout(Duration::from_secs(3), b_recv.recv())
+                .await
+                .expect("timeout")
+                .expect("stream closed");
+            if !matches!(ev, Event::Status(_)) {
+                break ev;
+            }
+        };
+        match event {
             Event::Forward { from, value } => {
                 assert_eq!(from, format!("test-{suffix}-a"));
                 assert_eq!(value["hello"], "world");
@@ -301,6 +324,5 @@ mod tests {
         assert_eq!(a_sender.query(&to).await.expect("query"), true);
         assert_eq!(a_sender.query("nope").await.expect("query"), false);
         drop(b_sender);
-        drop(a_recv);
     }
 }

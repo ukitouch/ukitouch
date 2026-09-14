@@ -27,7 +27,11 @@ export interface SignalingApi {
   disconnect(): Promise<void>;
   onForward(h: (f: Forwarded) => void): () => void;
   onNotice(h: (message: string) => void): () => void;
+  onStatus(h: (status: SignalingStatus) => void): () => void;
 }
+
+/** Connection lifecycle reported by `net::signaling::Status`. */
+export type SignalingStatus = "Connecting" | "Connected" | "Disconnected";
 
 interface ForwardEvent {
   name: string;
@@ -38,6 +42,10 @@ interface NoticeEvent {
   name: string;
   message: string;
 }
+interface StatusEvent {
+  name: string;
+  status: SignalingStatus;
+}
 
 /**
  * @param name unique name for the signaling connection
@@ -45,12 +53,13 @@ interface NoticeEvent {
 export function createSignaling(name: string): SignalingApi {
   const forwardHandlers = new Set<(f: Forwarded) => void>();
   const noticeHandlers = new Set<(message: string) => void>();
+  const statusHandlers = new Set<(status: SignalingStatus) => void>();
   let unlisten: Promise<UnlistenFn> | null = null;
 
   /** Listen event from backend. */
   async function initSigListener(): Promise<void> {
     if (unlisten) return;
-    const [f, n] = await Promise.all([
+    const [f, n, s] = await Promise.all([
       listen<ForwardEvent>("sig-forward", (e) => {
         if (e.payload.name === name) {
           forwardHandlers.forEach((h) =>
@@ -63,10 +72,16 @@ export function createSignaling(name: string): SignalingApi {
           noticeHandlers.forEach((h) => h(e.payload.message));
         }
       }),
+      listen<StatusEvent>("sig-status", (e) => {
+        if (e.payload.name === name) {
+          statusHandlers.forEach((h) => h(e.payload.status));
+        }
+      }),
     ]);
     unlisten = Promise.resolve(() => {
       f();
       n();
+      s();
     });
   }
 
@@ -96,6 +111,12 @@ export function createSignaling(name: string): SignalingApi {
         noticeHandlers.delete(h);
       };
     },
+    onStatus(h) {
+      statusHandlers.add(h);
+      return () => {
+        statusHandlers.delete(h);
+      };
+    },
   };
 }
 
@@ -107,6 +128,7 @@ export async function startSignaling(): Promise<void> {
   await invoke("net_configure", { iceServers: serverConfig.iceServers });
   await ensureChannelListeners();
   signaling.onNotice((m) => console.warn("[sig]", m));
+  signaling.onStatus((s) => console.log("[sig] primary", s));
   await signaling.connect(serverConfig.signaling, deviceUuid, true);
 }
 
