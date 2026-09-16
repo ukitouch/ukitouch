@@ -1,9 +1,11 @@
+mod capture;
 mod extensions;
 mod host;
 mod net;
 #[cfg(desktop)]
 mod tray;
 
+use capture::bridge::{capture_resync, capture_start, capture_stop, CaptureState};
 use extensions::{
     install_extension, list_installed_extensions, read_extension_file, uninstall_extension,
 };
@@ -29,6 +31,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             app.manage(Arc::new(NetState::new(app.handle().clone())));
+            app.manage(CaptureState::default());
             #[cfg(desktop)]
             {
                 tray::init(app)?;
@@ -69,6 +72,9 @@ pub fn run() {
             usb_close_channel,
             usb_listen_start,
             usb_listen_stop,
+            capture_start,
+            capture_stop,
+            capture_resync,
             get_platform,
             get_host_info,
             list_installed_extensions,

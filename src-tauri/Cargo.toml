@@ -36,3 +36,7 @@ hostname = "0.4"
 os_info = "3"
 zip = "2"
 
+[target.'cfg(all(unix, not(target_os = "android")))'.dependencies]
+x11rb = { version = "0.14", features = ["shm", "damage", "xfixes"] }
+libc = "0.2"
+

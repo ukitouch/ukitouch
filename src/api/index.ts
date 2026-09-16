@@ -10,6 +10,7 @@ import { getHostPlatform, readClipboardText, showToast, writeClipboardText } fro
 import { getHostInfo } from "../core/hostinfo";
 import { refreshUsbDevices, usbStore } from "../core/usb";
 import { createStore } from "../core/store";
+import { createScreenMonitor } from "./media";
 import type {
   ExtensionContext,
   ExtensionDefinition as CoreExtensionDefinition,
@@ -45,6 +46,7 @@ export {
   usbStore,
   createStore,
   showToast,
+  createScreenMonitor,
 };
 
 export type {
@@ -57,6 +59,15 @@ export type {
   DeviceRecord,
   HelloInfo,
 };
+
+export type {
+  Damage,
+  DamageFrame,
+  ScreenInfo,
+  ScreenMonitor,
+  StartResult,
+  CaptureFailure,
+} from "./media";
 
 export type { UsbDevice } from "../core/usb";
 export type { Store } from "../core/store";
@@ -150,6 +161,8 @@ export interface YatouchRuntime {
   usbStore: typeof usbStore;
   /** In-memory store factory. */
   createStore: typeof createStore;
+  /** Start capturing the screen. */
+  createScreenMonitor: typeof createScreenMonitor;
   /** Show a toast (works outside React). */
   showToast: typeof showToast;
 }
@@ -186,5 +199,6 @@ export function installBridge(): void {
     usbStore,
     createStore,
     showToast,
+    createScreenMonitor,
   };
 }
