@@ -160,6 +160,7 @@ async fn get_peer(state: &Arc<NetState>, target: String) -> Result<Arc<Peer>, St
             );
             if s == RTCPeerConnectionState::Failed || s == RTCPeerConnectionState::Closed {
                 close_peer_channels(&net, &target).await;
+                remove_peer_by_target(&net, &target);
             }
         })
     }));
@@ -200,6 +201,31 @@ fn remove_peer_by_token(state: &Arc<NetState>, token: &str) {
         .retain(|_, p| p.token != token);
 }
 
+fn remove_peer_by_target(state: &Arc<NetState>, target: &str) {
+    state.webrtc.lock().unwrap().peers.remove(target);
+}
+
+/// Drop a single channel; the peer goes with the last one.
+fn remove_channel_by_token(state: &Arc<NetState>, token: &str, channel_id: u64) {
+    let peer = state
+        .webrtc
+        .lock()
+        .unwrap()
+        .peers
+        .values()
+        .find(|p| p.token == token)
+        .cloned();
+    let Some(peer) = peer else { return };
+    let empty = {
+        let mut channels = peer.channels.lock().unwrap();
+        channels.remove(&channel_id);
+        channels.is_empty()
+    };
+    if empty {
+        remove_peer_by_token(state, token);
+    }
+}
+
 /// The peer connection failed/closed, notify the frontend and close every channel.
 async fn close_peer_channels(state: &Arc<NetState>, target: &str) {
     let peer = state.webrtc.lock().unwrap().peers.get(target).cloned();
@@ -214,10 +240,12 @@ async fn close_peer_channels(state: &Arc<NetState>, target: &str) {
     }
 }
 
-/// Establish a peer connection to `target`. Returns the connection token.
+/// Establish a peer connection to `target`, reusing a live one. Returns the
+/// connection token, every channel opened under it shares the same connection.
 pub async fn connect(state: &Arc<NetState>, target: String) -> Result<String, String> {
-    // remove previous peers
-    state.webrtc.lock().unwrap().peers.remove(&target);
+    if let Some(p) = state.webrtc.lock().unwrap().peers.get(&target) {
+        return Ok(p.token.clone());
+    }
     let peer = get_peer(state, target).await?;
     Ok(peer.token.clone())
 }
@@ -251,7 +279,6 @@ pub async fn open_channel(
         .insert(channel_id, handle.clone());
     wire_channel(state.clone(), peer.clone(), channel_id, handle.clone());
 
-    // Creating the channel.
     if !handle.open.load(std::sync::atomic::Ordering::SeqCst) {
         tokio::select! {
             _ = handle.opened.notified() => {}
@@ -303,7 +330,8 @@ pub async fn send(
     send_now(&handle, data, text).await
 }
 
-/// Close a channel.
+/// Close a single channel, leaving the peer's other channels untouched. The
+/// peer is dropped once its last channel is gone.
 pub async fn close_channel(
     state: &Arc<NetState>,
     token: String,
@@ -314,11 +342,13 @@ pub async fn close_channel(
         .channels
         .lock()
         .unwrap()
-        .get(&channel_id)
-        .cloned()
+        .remove(&channel_id)
         .ok_or("channel not found")?;
+    let last = peer.channels.lock().unwrap().is_empty();
     handle.dc.close().await.map_err(|e| e.to_string())?;
-    remove_peer_by_token(state, &token);
+    if last {
+        remove_peer_by_token(state, &token);
+    }
     Ok(())
 }
 
@@ -347,10 +377,6 @@ pub async fn handle_signal(
     if let Some(desc) = value.get("description") {
         let desc: RTCSessionDescription =
             serde_json::from_value(desc.clone()).map_err(|e| e.to_string())?;
-        if desc.sdp_type == RTCSdpType::Offer {
-            // remove previous peers
-            state.webrtc.lock().unwrap().peers.remove(&from);
-        }
         let peer = get_peer(state, from.clone()).await?;
         if desc.sdp_type == RTCSdpType::Offer {
             peer.pc
@@ -487,7 +513,7 @@ fn wire_channel(
                 "channel-close",
                 json!({ "token": token, "channel_id": channel_id }),
             );
-            remove_peer_by_token(&net, &token);
+            remove_channel_by_token(&net, &token, channel_id);
         })
     }));
 }

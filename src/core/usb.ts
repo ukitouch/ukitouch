@@ -36,7 +36,7 @@ interface UsbChannelCloseEvent {
 
 let listenersReady: Promise<void> | null = null;
 const channels = new Map<number, UsbChannel>();
-const incomingHandlers = new Set<(ch: Channel) => void>();
+const incomingHandlers = new Map<string, Set<(ch: Channel) => void>>();
 
 function ensureListeners(): Promise<void> {
   if (listenersReady) return listenersReady;
@@ -44,7 +44,8 @@ function ensureListeners(): Promise<void> {
     listen<UsbChannelOpenEvent>("usb-channel-open", (e) => {
       const ch = new UsbChannel(e.payload.channel_id, e.payload.label);
       channels.set(ch.channelId, ch);
-      incomingHandlers.forEach((h) => h(ch));
+      // Route by label (the dialing extension's id), unmatched labels stay inert.
+      incomingHandlers.get(e.payload.label)?.forEach((h) => h(ch));
     }),
     listen<UsbChannelDataEvent>("usb-channel-data", (e) => {
       const ch = channels.get(e.payload.channel_id);
@@ -129,14 +130,24 @@ export async function openUsbChannel(
 /**
  * Register a handler for incoming USB channels.
  *
+ * @param extId The extension id whose channels to route here.
  * @param handler Receives each incoming USB channel.
  * @returns An unsubscribe function that removes the handler.
  */
-export function onUsbChannel(handler: (ch: Channel) => void): () => void {
+export function onUsbChannel(
+  extId: string,
+  handler: (ch: Channel) => void
+): () => void {
   void ensureListeners();
-  incomingHandlers.add(handler);
+  let handlers = incomingHandlers.get(extId);
+  if (!handlers) {
+    handlers = new Set();
+    incomingHandlers.set(extId, handlers);
+  }
+  handlers.add(handler);
   return () => {
-    incomingHandlers.delete(handler);
+    handlers.delete(handler);
+    if (handlers.size === 0) incomingHandlers.delete(extId);
   };
 }
 

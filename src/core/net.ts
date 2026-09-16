@@ -117,8 +117,8 @@ export function makeContext(extId: string): ExtensionContext {
     },
     onChannel: (handler) => {
       const unsubs = [
-        onChannel((ch) => handler(attachHello(ch, "in", extId, "p2p"))),
-        onUsbChannel((ch) => handler(attachHello(ch, "in", extId, "usb"))),
+        onChannel(extId, (ch) => handler(attachHello(ch, "in", extId, "p2p"))),
+        onUsbChannel(extId, (ch) => handler(attachHello(ch, "in", extId, "usb"))),
       ];
       return toDisposable(() => {
         for (const unsub of unsubs) unsub();
