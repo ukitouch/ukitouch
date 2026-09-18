@@ -2,15 +2,20 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+use image::codecs::jpeg::JpegEncoder;
+use image::ExtendedColorType;
 use serde::Serialize;
 use tauri::State;
 
-use super::{create, CaptureBackend};
+use super::{create, CaptureBackend, Damage};
 use crate::net::sink::{ChannelSink, Rect};
 use crate::net::state::NetState;
 
 /// Poll cadence: an idle screen costs one cheap check per tick.
 const POLL_INTERVAL: Duration = Duration::from_millis(16);
+
+/// JPEG quality for encoded rectangles.
+const QUALITY: u8 = 85;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -93,23 +98,49 @@ async fn run_stream(
             Ok(Err(_)) | Err(_) => return,
         };
 
-        let frame: Vec<(Rect, &[u8])> = rects
-            .iter()
-            .map(|(d, px)| {
-                (
+        let mut blocks: Vec<(Rect, Vec<u8>)> = Vec::new();
+        for (d, px) in &rects {
+            if d.width == 0 || d.height == 0 {
+                continue;
+            }
+            if let Some(jpeg) = encode_jpeg(d, px) {
+                blocks.push((
                     Rect {
                         x: d.x,
                         y: d.y,
                         width: d.width,
                         height: d.height,
                     },
-                    px.as_slice(),
-                )
-            })
+                    jpeg,
+                ));
+            }
+        }
+        let frame: Vec<(Rect, &[u8])> = blocks
+            .iter()
+            .map(|(rect, jpeg)| (*rect, jpeg.as_slice()))
             .collect();
         if sink.push(&frame).await.is_err() {
             return;
         }
         tokio::time::sleep(POLL_INTERVAL).await;
     }
+}
+
+/// JPEG-encode a damage rectangle, or `None` if the encoder fails.
+fn encode_jpeg(src: &Damage, px: &[u8]) -> Option<Vec<u8>> {
+    let bw = src.width as usize;
+    let bh = src.height as usize;
+    let mut rgb = Vec::with_capacity(bw * bh * 3);
+    for y in 0..bh {
+        let row = y * bw * 4;
+        for x in 0..bw {
+            let o = row + x * 4;
+            rgb.extend_from_slice(&px[o..o + 3]);
+        }
+    }
+    let mut jpeg = Vec::new();
+    JpegEncoder::new_with_quality(&mut jpeg, QUALITY)
+        .encode(&rgb, bw as u32, bh as u32, ExtendedColorType::Rgb8)
+        .ok()?;
+    Some(jpeg)
 }

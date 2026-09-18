@@ -5,11 +5,8 @@ use webrtc::data_channel::RTCDataChannel;
 
 use super::state::NetState;
 
-/// SCTP's default per-message cap (`webrtc-sctp`'s `DEFAULT_MAX_MESSAGE_SIZE`).
-const MAX_MESSAGE: usize = 65536;
-
-/// Per-tile header: `[x, y, w, h]` as little-endian `u16`.
-const HEADER: usize = 8;
+/// SCTP's default per-message cap (65536 - 1).
+const MAX_MESSAGE: usize = u16::MAX as usize;
 
 /// UDP-like backpressure
 const BACKPRESSURE: usize = 256 * 1024;
@@ -63,30 +60,42 @@ impl ChannelSink {
             .map_err(|e| e.to_string())
     }
 
-    /// Ship a frame: tile each rectangle into ≤ `MAX_MESSAGE` messages and send.
+    /// Ship a frame: a JSON header naming each rectangle and its payload length,
+    /// then the concatenated payloads.
     pub async fn push(&self, frame: &[(Rect, &[u8])]) -> Result<(), String> {
-        for (r, px) in frame {
-            if r.width == 0 || r.height == 0 {
-                continue;
+        let items: Vec<(Rect, &[u8])> = frame
+            .iter()
+            .filter(|(r, payload)| r.width > 0 && r.height > 0 && !payload.is_empty())
+            .map(|(r, payload)| (*r, *payload))
+            .collect();
+        if items.is_empty() {
+            return Ok(());
+        }
+
+        let total: usize = items.iter().map(|(_, payload)| payload.len()).sum();
+        let mut header = String::from("{\"frame\":[");
+        for (i, (r, payload)) in items.iter().enumerate() {
+            if i > 0 {
+                header.push(',');
             }
-            let stride = r.width as usize * 4;
-            let max_rows = ((MAX_MESSAGE - HEADER) / stride).max(1);
-            let mut y = 0u16;
-            while y < r.height {
-                let h = (max_rows as u16).min(r.height - y);
-                let off = y as usize * stride;
-                let len = h as usize * stride;
-                let mut msg = Vec::with_capacity(HEADER + len);
-                msg.extend_from_slice(&r.x.to_le_bytes());
-                msg.extend_from_slice(&(r.y + y).to_le_bytes());
-                msg.extend_from_slice(&r.width.to_le_bytes());
-                msg.extend_from_slice(&h.to_le_bytes());
-                msg.extend_from_slice(&px[off..off + len]);
+            header.push_str(&format!(
+                "{{\"x\":{},\"y\":{},\"w\":{},\"h\":{},\"len\":{}}}",
+                r.x,
+                r.y,
+                r.width,
+                r.height,
+                payload.len()
+            ));
+        }
+        header.push_str(&format!("],\"total\":{total}}}"));
+        self.dc.send_text(header).await.map_err(|e| e.to_string())?;
+
+        for (_, payload) in &items {
+            for chunk in payload.chunks(MAX_MESSAGE) {
                 self.dc
-                    .send(&Bytes::from(msg))
+                    .send(&Bytes::copy_from_slice(chunk))
                     .await
                     .map_err(|e| e.to_string())?;
-                y += h;
             }
         }
         Ok(())

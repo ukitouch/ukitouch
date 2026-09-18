@@ -2,6 +2,9 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button, Select } from "../../api";
 import { castStore, setViewer, startCast, stopCast } from "./api";
 
+/** Serializes JPEG decodes so tiles land in arrival order. */
+let drawQueue: Promise<void> = Promise.resolve();
+
 export default function CastView() {
   const state = useSyncExternalStore(castStore.subscribe, castStore.get);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -16,20 +19,23 @@ export default function CastView() {
           canvas.height = height;
         }
       },
-      draw(tile) {
-        const canvas = canvasRef.current;
-        const ctx = canvas?.getContext("2d");
-        if (!canvas || !ctx) return;
-        const pixels = new Uint8ClampedArray(
-          tile.data.buffer,
-          tile.data.byteOffset,
-          tile.data.byteLength
-        );
-        ctx.putImageData(
-          new ImageData(pixels, tile.width, tile.height),
-          tile.x,
-          tile.y
-        );
+      draw(tiles) {
+        drawQueue = drawQueue
+          .then(async () => {
+            const canvas = canvasRef.current;
+            const ctx = canvas?.getContext("2d");
+            if (!canvas || !ctx) return;
+            const bitmaps = await Promise.all(
+              tiles.map((tile) =>
+                createImageBitmap(new Blob([tile.data as Uint8Array<ArrayBuffer>], { type: "image/jpeg" }))
+              )
+            );
+            tiles.forEach((tile, i) => {
+              ctx.drawImage(bitmaps[i], tile.x, tile.y);
+              bitmaps[i].close();
+            });
+          })
+          .catch((e) => console.error("[cast] draw failed", e));
       },
     });
     return () => setViewer(null);

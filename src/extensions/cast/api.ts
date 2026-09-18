@@ -2,7 +2,6 @@ import {
   createStore,
   startScreenStream,
   type Channel,
-  type DamageFrame,
   type DeviceRecord,
   type ExtensionContext,
   type ScreenInfo,
@@ -25,10 +24,20 @@ export const castStore = createStore<CastState>({
   stats: { tiles: 0, bytes: 0 },
 });
 
-/** Where incoming tiles land; the view puts its canvas here. */
+/** One JPEG rectangle from a stream, positioned in screen coordinates. */
+export interface StreamTile {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** JPEG bytes. */
+  data: Uint8Array;
+}
+
+/** Where incoming frames land; the view puts its canvas here. */
 export interface CastViewer {
   resize(width: number, height: number): void;
-  draw(tile: DamageFrame): void;
+  draw(tiles: StreamTile[]): void;
 }
 
 let viewer: CastViewer | null = null;
@@ -69,28 +78,82 @@ export function stopCast(): void {
   castStore.set({ sending: null });
 }
 
+/** A rectangle's place in a frame's concatenated JPEGs. */
+interface FrameRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  len: number;
+}
+
+/** A frame being reassembled from its chunks. */
+interface Pending {
+  rects: FrameRect[];
+  total: number;
+  chunks: Uint8Array[];
+  have: number;
+}
+
+let pending: Pending | null = null;
+
 function receive(channel: Channel): void {
   channel.onmessage = (ev) => {
     if (typeof ev.data === "string") {
-      const info = parseScreen(ev.data);
-      if (info) {
-        castStore.set({ receiving: info, stats: { tiles: 0, bytes: 0 } });
-        viewer?.resize(info.width, info.height);
+      const screen = parseScreen(ev.data);
+      if (screen) {
+        pending = null;
+        castStore.set({ receiving: screen, stats: { tiles: 0, bytes: 0 } });
+        viewer?.resize(screen.width, screen.height);
+        return;
+      }
+      const frame = parseFrame(ev.data);
+      if (frame) {
+        pending = { rects: frame.rects, total: frame.total, chunks: [], have: 0 };
       }
       return;
     }
-    const tile = parseTile(toBytes(ev.data));
-    if (!tile) return;
-    viewer?.draw(tile);
+
+    if (!pending) return;
+    const bytes = toBytes(ev.data);
+    pending.chunks.push(bytes);
+    pending.have += bytes.byteLength;
     const stats = castStore.get().stats;
     castStore.set({
-      stats: {
-        tiles: stats.tiles + 1,
-        bytes: stats.bytes + tile.width * tile.height * 4,
-      },
+      stats: { tiles: stats.tiles + 1, bytes: stats.bytes + bytes.byteLength },
     });
+    if (pending.have >= pending.total) {
+      const tiles = assemble(pending);
+      pending = null;
+      viewer?.draw(tiles);
+    }
   };
-  channel.onclose = () => castStore.set({ receiving: null });
+  channel.onclose = () => {
+    pending = null;
+    castStore.set({ receiving: null });
+  };
+}
+
+/** Split a frame's concatenated JPEGs back out by their lengths. */
+function assemble(p: Pending): StreamTile[] {
+  const blob = new Uint8Array(p.total);
+  let off = 0;
+  for (const part of p.chunks) {
+    blob.set(part, off);
+    off += part.byteLength;
+  }
+  let cursor = 0;
+  return p.rects.map((r) => {
+    const tile: StreamTile = {
+      x: r.x,
+      y: r.y,
+      width: r.w,
+      height: r.h,
+      data: blob.subarray(cursor, cursor + r.len),
+    };
+    cursor += r.len;
+    return tile;
+  });
 }
 
 function parseScreen(text: string): ScreenInfo | null {
@@ -108,6 +171,18 @@ function parseScreen(text: string): ScreenInfo | null {
   return null;
 }
 
+function parseFrame(text: string): { rects: FrameRect[]; total: number } | null {
+  try {
+    const parsed = JSON.parse(text) as { frame?: FrameRect[]; total?: number };
+    if (Array.isArray(parsed.frame) && typeof parsed.total === "number") {
+      return { rects: parsed.frame, total: parsed.total };
+    }
+  } catch {
+    // not ours
+  }
+  return null;
+}
+
 function toBytes(data: unknown): Uint8Array {
   if (data instanceof Uint8Array) return data;
   if (data instanceof ArrayBuffer) return new Uint8Array(data);
@@ -115,23 +190,4 @@ function toBytes(data: unknown): Uint8Array {
     return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
   }
   return new Uint8Array(0);
-}
-
-/** One tile: `[x, y, w, h]` little-endian u16, then `w * h * 4` RGBA bytes. */
-function parseTile(buf: Uint8Array): DamageFrame | null {
-  if (buf.byteLength < 8) return null;
-  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
-  const x = dv.getUint16(0, true);
-  const y = dv.getUint16(2, true);
-  const width = dv.getUint16(4, true);
-  const height = dv.getUint16(6, true);
-  const need = width * height * 4;
-  if (buf.byteLength - 8 < need) return null;
-  return {
-    x,
-    y,
-    width,
-    height,
-    data: new Uint8Array(buf.buffer, buf.byteOffset + 8, need),
-  };
 }
