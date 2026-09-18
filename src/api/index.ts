@@ -22,6 +22,9 @@ import { toDisposable } from "../core/types";
 import type { OpenSpec } from "../core/transport";
 import type { DeviceRecord, HelloInfo } from "../core/db";
 import { Select } from "../components/Select";
+import { SearchSelect } from "../components/SearchSelect";
+import { PeerDeviceSearch } from "../components/PeerDeviceSearch";
+import { UsbDeviceSelect } from "../components/UsbDeviceSelect";
 import { ToastProvider, useToast } from "../components/Toast";
 import { Button } from "../components/Button";
 import { SettingRow } from "../components/SettingRow";
@@ -31,6 +34,9 @@ import { SectionHeader } from "../components/SectionHeader";
 export { React };
 export {
   Select,
+  SearchSelect,
+  PeerDeviceSearch,
+  UsbDeviceSelect,
   ToastProvider,
   useToast,
   Button,
@@ -58,6 +64,7 @@ export type {
   HelloInfo,
 };
 
+export type { SearchOption } from "../components/SearchSelect";
 export type { UsbDevice } from "../core/usb";
 export type { Store } from "../core/store";
 export type { ToastKind } from "../core/host";
@@ -127,6 +134,9 @@ export interface YatouchRuntime {
   /** Shared UI components reusable by extensions. */
   components: {
     Select: typeof Select;
+    SearchSelect: typeof SearchSelect;
+    PeerDeviceSearch: typeof PeerDeviceSearch;
+    UsbDeviceSelect: typeof UsbDeviceSelect;
     ToastProvider: typeof ToastProvider;
     useToast: typeof useToast;
     Button: typeof Button;
@@ -170,6 +180,9 @@ export function installBridge(): void {
     React,
     components: {
       Select,
+      SearchSelect,
+      PeerDeviceSearch,
+      UsbDeviceSelect,
       ToastProvider,
       useToast,
       Button,
