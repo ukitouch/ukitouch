@@ -2,10 +2,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use base64::engine::general_purpose::STANDARD as B64;
-use base64::Engine;
 use bytes::Bytes;
 use serde_json::json;
+use tauri::ipc::{Channel, InvokeResponseBody};
 use tauri::Emitter;
 use webrtc::api::APIBuilder;
 use webrtc::data_channel::data_channel_message::DataChannelMessage;
@@ -35,7 +34,20 @@ pub struct ChannelHandle {
     pub buffer: Mutex<Vec<(Vec<u8>, bool)>>,
     /// Signals when the channel transitions to open.
     pub opened: tokio::sync::Notify,
+    /// Where inbound messages go.
+    pub inbound: Mutex<Inbound>,
 }
+
+/// The frontend's end of a channel's inbound stream.
+#[derive(Default)]
+pub struct Inbound {
+    sink: Option<Channel<InvokeResponseBody>>,
+    buffered: Vec<(Vec<u8>, bool)>,
+    bytes: usize,
+}
+
+/// Bytes held before the frontend binds.
+const INBOUND_CAP: usize = 4 * 1024 * 1024;
 
 impl ChannelHandle {
     fn new(dc: Arc<RTCDataChannel>) -> Self {
@@ -44,7 +56,67 @@ impl ChannelHandle {
             open: std::sync::atomic::AtomicBool::new(false),
             buffer: Mutex::new(Vec::new()),
             opened: tokio::sync::Notify::new(),
+            inbound: Mutex::new(Inbound::default()),
         }
+    }
+}
+
+/// Point a channel at the frontend's sink and flush the backlog.
+pub fn bind(
+    state: &Arc<NetState>,
+    token: &str,
+    channel_id: u64,
+    sink: Channel<InvokeResponseBody>,
+) -> Result<(), String> {
+    let peer = find_by_token(state, token)?;
+    let handle = peer
+        .channels
+        .lock()
+        .unwrap()
+        .get(&channel_id)
+        .cloned()
+        .ok_or("channel not found")?;
+
+    let buffered = {
+        let mut inbound = handle.inbound.lock().unwrap();
+        inbound.sink = Some(sink.clone());
+        inbound.bytes = 0;
+        std::mem::take(&mut inbound.buffered)
+    };
+    for (data, text) in buffered {
+        forward(&sink, &data, text);
+    }
+    Ok(())
+}
+
+/// Forward one message to the frontend.
+fn forward(sink: &Channel<InvokeResponseBody>, data: &[u8], text: bool) {
+    let body = match (text, std::str::from_utf8(data)) {
+        (true, Ok(s)) => InvokeResponseBody::Json(serde_json::to_string(s).unwrap()),
+        _ => InvokeResponseBody::Raw(data.to_vec()),
+    };
+    let _ = sink.send(body);
+}
+
+/// Forward one inbound message, or buffer it until `bind`.
+fn push_inbound(handle: &Arc<ChannelHandle>, data: &[u8], text: bool) {
+    let sink = {
+        let mut inbound = handle.inbound.lock().unwrap();
+        match &inbound.sink {
+            Some(sink) => Some(sink.clone()),
+            None => {
+                inbound.bytes += data.len();
+                inbound.buffered.push((data.to_vec(), text));
+                while inbound.bytes > INBOUND_CAP && !inbound.buffered.is_empty() {
+                    let (old, _) = inbound.buffered.remove(0);
+                    inbound.bytes -= old.len();
+                }
+                None
+            }
+        }
+    };
+    if let Some(sink) = sink {
+        forward(&sink, data, text);
     }
 }
 
@@ -480,24 +552,13 @@ fn wire_channel(
         })
     }));
 
-    let app = state.app.clone();
-    let token = peer.token.clone();
+    let h = handle.clone();
     handle
         .dc
         .on_message(Box::new(move |msg: DataChannelMessage| {
-            let app = app.clone();
-            let token = token.clone();
+            let handle = h.clone();
             Box::pin(async move {
-                let data = B64.encode(&msg.data);
-                let _ = app.emit(
-                    "channel-data",
-                    json!({
-                        "token": token,
-                        "channel_id": channel_id,
-                        "data": data,
-                        "text": msg.is_string,
-                    }),
-                );
+                push_inbound(&handle, &msg.data, msg.is_string);
             })
         }));
 

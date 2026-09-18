@@ -118,15 +118,17 @@ function receive(channel: Channel): void {
     const bytes = toBytes(ev.data);
     pending.chunks.push(bytes);
     pending.have += bytes.byteLength;
+    if (pending.have < pending.total) return;
+    const tiles = assemble(pending);
     const stats = castStore.get().stats;
     castStore.set({
-      stats: { tiles: stats.tiles + 1, bytes: stats.bytes + bytes.byteLength },
+      stats: {
+        tiles: stats.tiles + tiles.length,
+        bytes: stats.bytes + pending.total,
+      },
     });
-    if (pending.have >= pending.total) {
-      const tiles = assemble(pending);
-      pending = null;
-      viewer?.draw(tiles);
-    }
+    pending = null;
+    viewer?.draw(tiles);
   };
   channel.onclose = () => {
     pending = null;

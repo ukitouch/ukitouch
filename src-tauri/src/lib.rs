@@ -12,8 +12,8 @@ use extensions::{
 };
 use host::get_host_info;
 use net::bridge::{
-    net_configure, p2p_cancel, p2p_close_channel, p2p_connect, p2p_open_channel, p2p_send,
-    sig_connect, sig_disconnect, sig_query, sig_send,
+    net_configure, p2p_bind, p2p_cancel, p2p_close_channel, p2p_connect, p2p_open_channel,
+    p2p_send, sig_connect, sig_disconnect, sig_query, sig_send,
 };
 use net::host::get_platform;
 use net::state::NetState;
@@ -66,6 +66,7 @@ pub fn run() {
             p2p_connect,
             p2p_open_channel,
             p2p_send,
+            p2p_bind,
             p2p_close_channel,
             p2p_cancel,
             usb_list_devices,

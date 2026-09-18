@@ -15,22 +15,11 @@ interface HelloMsg {
   hello: HelloInfo;
 }
 
-function decodeText(data: unknown): string | null {
-  if (typeof data === "string") return data;
-  if (data instanceof ArrayBuffer) return new TextDecoder().decode(data);
-  if (ArrayBuffer.isView(data))
-    return new TextDecoder().decode(
-      new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
-    );
-  return null;
-}
-
 function parseHello(data: unknown): HelloMsg | null {
-  const text = decodeText(data);
-  if (text === null) return null;
+  if (typeof data !== "string") return null;
   let parsed: unknown;
   try {
-    parsed = JSON.parse(text);
+    parsed = JSON.parse(data);
   } catch {
     return null;
   }
@@ -52,20 +41,22 @@ function attachHello(
 ): Channel {
   let extOnmessage: Channel["onmessage"] = null;
 
-  // Consume the peer's hello by shape on every message.
+  // Consume the peer's hello by shape.
   raw.onmessage = (ev) => {
-    const hello = parseHello(ev.data);
-    if (hello) {
-      void deviceStore
-        .recordConnection({
-          uuid: hello.uuid,
-          direction,
-          protocol,
-          extension: extId,
-          hello: hello.hello,
-        })
-        .catch((err) => console.error("[devices] record failed:", err));
-      return;
+    if (typeof ev.data === "string") {
+      const hello = parseHello(ev.data);
+      if (hello) {
+        void deviceStore
+          .recordConnection({
+            uuid: hello.uuid,
+            direction,
+            protocol,
+            extension: extId,
+            hello: hello.hello,
+          })
+          .catch((err) => console.error("[devices] record failed:", err));
+        return;
+      }
     }
     extOnmessage?.(ev);
   };

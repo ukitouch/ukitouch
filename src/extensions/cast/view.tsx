@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button, Select } from "../../api";
-import { castStore, setViewer, startCast, stopCast } from "./api";
-
-/** Serializes JPEG decodes so tiles land in arrival order. */
-let drawQueue: Promise<void> = Promise.resolve();
+import { castStore, setViewer, startCast, stopCast, type StreamTile } from "./api";
 
 export default function CastView() {
   const state = useSyncExternalStore(castStore.subscribe, castStore.get);
@@ -11,8 +8,43 @@ export default function CastView() {
   const [selectedUuid, setSelectedUuid] = useState("");
 
   useEffect(() => {
+    let pending: StreamTile[][] = [];
+    let drawing = false;
+    let screen = { width: 0, height: 0 };
+
+    async function pump(): Promise<void> {
+      if (drawing) return;
+      drawing = true;
+      try {
+        while (pending.length > 0) {
+          const tiles = pending.shift()!;
+          const canvas = canvasRef.current;
+          const ctx = canvas?.getContext("2d");
+          if (!canvas || !ctx) continue;
+          const bitmaps = await Promise.all(
+            tiles.map((tile) =>
+              createImageBitmap(
+                new Blob([tile.data as Uint8Array<ArrayBuffer>], {
+                  type: "image/jpeg",
+                })
+              )
+            )
+          );
+          tiles.forEach((tile, i) => {
+            ctx.drawImage(bitmaps[i], tile.x, tile.y);
+            bitmaps[i].close();
+          });
+        }
+      } catch (e) {
+        console.error("[cast] draw failed", e);
+      } finally {
+        drawing = false;
+      }
+    }
+
     setViewer({
       resize(width, height) {
+        screen = { width, height };
         const canvas = canvasRef.current;
         if (canvas) {
           canvas.width = width;
@@ -20,22 +52,15 @@ export default function CastView() {
         }
       },
       draw(tiles) {
-        drawQueue = drawQueue
-          .then(async () => {
-            const canvas = canvasRef.current;
-            const ctx = canvas?.getContext("2d");
-            if (!canvas || !ctx) return;
-            const bitmaps = await Promise.all(
-              tiles.map((tile) =>
-                createImageBitmap(new Blob([tile.data as Uint8Array<ArrayBuffer>], { type: "image/jpeg" }))
-              )
-            );
-            tiles.forEach((tile, i) => {
-              ctx.drawImage(bitmaps[i], tile.x, tile.y);
-              bitmaps[i].close();
-            });
-          })
-          .catch((e) => console.error("[cast] draw failed", e));
+        const full = tiles.some(
+          (t) =>
+            t.x === 0 &&
+            t.y === 0 &&
+            t.width >= screen.width &&
+            t.height >= screen.height
+        );
+        pending = full ? [tiles] : [...pending, tiles];
+        void pump();
       },
     });
     return () => setViewer(null);
