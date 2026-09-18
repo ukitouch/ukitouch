@@ -12,18 +12,20 @@ import {
   Button,
   getHostPlatform,
   PageHeader,
+  PeerDeviceSearch,
   refreshUsbDevices,
-  Select,
   type HostPlatform,
+  UsbDeviceSelect,
   usbStore,
 } from "../../api";
+
+type Mode = "webrtc" | "usb" | "ble";
 
 export default function PingView() {
   const state = useSyncExternalStore(pingStore.subscribe, pingStore.get);
   const [query, setQuery] = useState("");
-  const [open, setOpen] = useState(false);
   const [selectedUuid, setSelectedUuid] = useState<string | null>(null);
-  const [mode, setMode] = useState<"webrtc" | "usb" | "ble">("webrtc");
+  const [mode, setMode] = useState<Mode>("webrtc");
   const [serial, setSerial] = useState("");
   const usbDevices = useSyncExternalStore(
     usbStore.subscribe,
@@ -42,14 +44,6 @@ export default function PingView() {
       ? "connected"
       : "idle";
 
-  const q = query.trim().toLowerCase();
-  const filteredDevices =
-    q === ""
-      ? state.devices
-      : state.devices.filter((d) =>
-        (d.remark ?? d.name ?? "").toLowerCase().includes(q)
-      );
-  const showNewDevice = q !== "" && filteredDevices.length === 0;
   const canConnect = selectedUuid !== null || query.trim() !== "";
 
   function onWebrtcConnect() {
@@ -97,83 +91,23 @@ export default function PingView() {
       {mode === "webrtc" ? (
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 min-w-40">
-              {open ? (
-                <input
-                  autoFocus
-                  value={query}
-                  onChange={(e) => {
-                    setQuery(e.target.value);
-                    setSelectedUuid(null);
-                  }}
-                  onBlur={() => setOpen(false)}
-                  placeholder="Select a device or enter a temp id"
-                  className="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md px-3 py-1.5 text-sm"
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (selectedUuid) {
-                      setQuery("");
-                      setSelectedUuid(null);
-                    }
-                    setOpen(true);
-                  }}
-                  className="w-full flex items-center text-left truncate rounded-md bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300"
-                >
-                  {selectedUuid ? (
-                    <span className="max-w-full truncate rounded bg-gray-200 dark:bg-gray-700 px-1.5">
-                      {query.trim()}
-                    </span>
-                  ) : (
-                    (query.trim() || "Select a device or enter a temp id")
-                  )}
-                </button>
-              )}
-              {open && (
-                <div className="absolute top-full left-0 z-50 mt-1 w-full max-h-48 overflow-y-auto rounded-md bg-gray-100 dark:bg-gray-800 shadow-lg border border-gray-300 dark:border-gray-700 py-1">
-                  {filteredDevices.length === 0 && !showNewDevice && (
-                    <div className="px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400">
-                      No known devices yet.
-                    </div>
-                  )}
-                  {filteredDevices.map((d) => {
-                    const label = d.remark ?? d.name ?? "Unknown device";
-                    return (
-                      <button
-                        key={d.uuid}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          setSelectedUuid(d.uuid);
-                          setQuery(label);
-                          setOpen(false);
-                        }}
-                        className="block w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
-                      >
-                        <span className="truncate">{label}</span>
-                        <span className="ml-1 text-xs text-gray-500">
-                          {d.platform ?? ""}
-                        </span>
-                      </button>
-                    );
-                  })}
-                  {showNewDevice && (
-                    <button
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => {
-                        setSelectedUuid(null);
-                        setOpen(false);
-                      }}
-                      className="block w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
-                    >
-                      Connect to new device{" "}
-                      <code className="font-mono text-xs">{query.trim()}</code>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+            <PeerDeviceSearch
+              devices={state.devices}
+              selectedUuid={selectedUuid}
+              text={query}
+              onTextChange={(text) => {
+                setQuery(text);
+                setSelectedUuid(null);
+              }}
+              onSelect={(uuid, label) => {
+                setSelectedUuid(uuid);
+                setQuery(label);
+              }}
+              onCreate={(id) => {
+                setSelectedUuid(null);
+                setQuery(id);
+              }}
+            />
             <div className="flex gap-2">
               <Button
                 onClick={onWebrtcConnect}
@@ -199,14 +133,10 @@ export default function PingView() {
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2">
               {usbDevices.length > 0 && (
-                <Select
+                <UsbDeviceSelect
+                  devices={usbDevices}
                   value={serial}
-                  options={usbDevices.map((d) => ({
-                    value: d.serial,
-                    label: `${d.serial}  (${d.state})`,
-                  }))}
                   onChange={setSerial}
-                  ariaLabel="USB device"
                 />
               )}
               {usbDevices.length === 0 && (
