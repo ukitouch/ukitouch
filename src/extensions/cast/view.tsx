@@ -1,14 +1,26 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Button, Select } from "../../api";
-import { castStore, setViewer, startCast, stopCast, type StreamTile } from "./api";
+import { useEffect, useRef, useSyncExternalStore, useState } from "react";
+import { Button, PageHeader, PeerDeviceSearch } from "../../api";
+import {
+  castStore,
+  setViewer,
+  stopSharing,
+  stopWatching,
+  watch,
+  type StreamTile,
+} from "./api";
 
 export default function CastView() {
   const state = useSyncExternalStore(castStore.subscribe, castStore.get);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [selectedUuid, setSelectedUuid] = useState("");
+  const [selectedUuid, setSelectedUuid] = useState<string | null>(null);
+  const [text, setText] = useState("");
 
+  const { devices, watching, sharing, error } = state;
+
+  // Hand frame batches to the canvas. Registered once and the ref is resolved at
+  // draw time so the viewer can mount later.
   useEffect(() => {
-    let pending: StreamTile[][] = [];
+    let queued: StreamTile[][] = [];
     let drawing = false;
     let screen = { width: 0, height: 0 };
 
@@ -16,8 +28,8 @@ export default function CastView() {
       if (drawing) return;
       drawing = true;
       try {
-        while (pending.length > 0) {
-          const tiles = pending.shift()!;
+        while (queued.length > 0) {
+          const tiles = queued.shift()!;
           const canvas = canvasRef.current;
           const ctx = canvas?.getContext("2d");
           if (!canvas || !ctx) continue;
@@ -59,74 +71,93 @@ export default function CastView() {
             t.width >= screen.width &&
             t.height >= screen.height
         );
-        pending = full ? [tiles] : [...pending, tiles];
+        queued = full ? [tiles] : [...queued, tiles];
         void pump();
       },
     });
     return () => setViewer(null);
   }, []);
 
-  const { devices, sending, receiving, stats } = state;
+  // Leaving the page ends the watch: there is no canvas left to draw into.
+  useEffect(() => () => stopWatching(), []);
 
-  // Size up front when the view mounts after the stream's announce already
-  // arrived.
+  // Size up front when the view mounts after the announce already arrived.
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (canvas && receiving) {
-      canvas.width = receiving.width;
-      canvas.height = receiving.height;
+    if (canvas && watching?.info) {
+      canvas.width = watching.info.width;
+      canvas.height = watching.info.height;
     }
-  }, [receiving]);
+  }, [watching?.info]);
 
-  function toggle() {
-    if (sending) {
-      stopCast();
-      return;
-    }
-    const dev = devices.find((d) => d.uuid === selectedUuid);
-    if (dev) void startCast(dev.uuid, dev.remark ?? dev.name ?? "Unknown device");
-  }
-
-  return (
-    <div className="h-full flex flex-col bg-black">
-      <div className="flex items-center gap-2 px-3 py-2 shrink-0 text-xs text-gray-400">
-        {sending ? (
-          <>
-            <span>
-              casting to {sending.peerId} — {sending.info.width}x
-              {sending.info.height}
-            </span>
-            <Button onClick={toggle}>Stop</Button>
-          </>
-        ) : (
-          <>
-            <Select
-              value={selectedUuid}
-              options={devices.map((d) => ({
-                value: d.uuid,
-                label: d.remark ?? d.name ?? d.uuid,
-              }))}
-              onChange={setSelectedUuid}
-              ariaLabel="Target device"
-            />
-            <Button onClick={toggle} disabled={!selectedUuid}>
-              Cast
-            </Button>
-          </>
-        )}
-        {receiving && (
-          <span>
-            receiving {receiving.width}x{receiving.height} · {stats.tiles} tiles ·{" "}
-            {(stats.bytes / 1024).toFixed(0)} KiB
-          </span>
-        )}
-      </div>
-      <div className="flex-1 min-h-0 flex items-center justify-center overflow-hidden">
+  if (watching) {
+    return (
+      <div className="relative h-full bg-black">
         <canvas
           ref={canvasRef}
-          className="max-w-full max-h-full"
+          className="w-full h-full"
           style={{ objectFit: "contain" }}
         />
+        <div className="absolute top-0 left-0 right-0 flex items-center gap-3 px-4 py-3 text-xs text-gray-200 bg-gradient-to-b from-black/80 to-transparent">
+          <span className="truncate">
+            {watching.peerId}
+            {!watching.info && " · connecting…"}
+          </span>
+          {sharing && <span className="text-gray-400">· sharing your screen</span>}
+          <Button variant="danger" className="ml-auto" onClick={stopWatching}>
+            Stop
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const selected = devices.find((d) => d.uuid === selectedUuid);
+
+  return (
+    <div className="p-6 max-w-lg flex flex-col gap-4">
+      <PageHeader title="Cast" subtitle="Watch another device's screen" />
+
+      {error && <p className="text-xs text-red-500">{error}</p>}
+
+      {sharing && (
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            Sharing this screen
+          </span>
+          <Button variant="danger" onClick={stopSharing}>
+            Stop
+          </Button>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-3">
+        <PeerDeviceSearch
+          devices={devices}
+          selectedUuid={selectedUuid}
+          text={text}
+          onTextChange={(t) => {
+            setText(t);
+            setSelectedUuid(null);
+          }}
+          onSelect={(uuid, label) => {
+            setSelectedUuid(uuid);
+            setText(label);
+          }}
+        />
+        <Button
+          onClick={() => {
+            if (selected) {
+              void watch(
+                selected.uuid,
+                selected.remark ?? selected.name ?? "Unknown device"
+              );
+            }
+          }}
+          disabled={!selected}
+        >
+          Watch
+        </Button>
       </div>
     </div>
   );

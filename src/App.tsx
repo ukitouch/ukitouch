@@ -19,6 +19,10 @@ function App() {
 
   useEffect(() => bindHost({ setLayout }), [setLayout]);
 
+  // Switching pages always drops back to the sidebar. An extension only raises
+  // its own layout while it is the active page.
+  useEffect(() => setLayout("withSidebar"), [activeId]);
+
   const extensions = useSyncExternalStore(subscribeExtensions, listExtensions);
   const active = extensions.find((ext) => ext.id === activeId);
   const ActiveComponent = active?.component;
@@ -108,18 +112,28 @@ function App() {
           </div>
         </aside>
       )}
-      <MainPageContent />
+      <MainPageContent activeId={activeId} ActiveComponent={ActiveComponent} />
     </>
   );
-  function MainPageContent() {
-    const Page =
-      (activeId ? BUILTIN_PAGES[activeId] : undefined) ?? ActiveComponent ?? Home;
-    return (
-      <main className="flex-1 min-w-0 overflow-y-auto">
-        <Page />
-      </main>
-    );
-  }
+}
+
+/**
+ * The page area.
+ */
+function MainPageContent({
+  activeId,
+  ActiveComponent,
+}: {
+  activeId: string | null;
+  ActiveComponent?: ComponentType;
+}) {
+  const Page =
+    (activeId ? BUILTIN_PAGES[activeId] : undefined) ?? ActiveComponent ?? Home;
+  return (
+    <main className="flex-1 min-w-0 overflow-y-auto">
+      <Page />
+    </main>
+  );
 }
 
 function SidebarButton(props: {
