@@ -6,6 +6,7 @@ mod net;
 mod tray;
 
 use capture::bridge::{capture_resync, capture_start, capture_stop, CaptureState};
+use capture::stream::{start_screen_stream, stop_screen_stream, StreamState};
 use extensions::{
     install_extension, list_installed_extensions, read_extension_file, uninstall_extension,
 };
@@ -32,6 +33,7 @@ pub fn run() {
         .setup(|app| {
             app.manage(Arc::new(NetState::new(app.handle().clone())));
             app.manage(CaptureState::default());
+            app.manage(StreamState::default());
             #[cfg(desktop)]
             {
                 tray::init(app)?;
@@ -75,6 +77,8 @@ pub fn run() {
             capture_start,
             capture_stop,
             capture_resync,
+            start_screen_stream,
+            stop_screen_stream,
             get_platform,
             get_host_info,
             list_installed_extensions,

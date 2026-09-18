@@ -1,5 +1,6 @@
 // TODO: This is just a test extension, will be removed after capture backend actually completed.
 import { defineExtension } from "../../api";
+import { initCast } from "./api";
 import CastView from "./view";
 
 export default defineExtension({
@@ -22,5 +23,6 @@ export default defineExtension({
       <line x1="12" y1="17" x2="12" y2="21" />
     </svg>
   ),
+  activate: initCast,
   component: CastView,
 });

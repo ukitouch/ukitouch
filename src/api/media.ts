@@ -9,7 +9,11 @@
  * never have to know which display server or OS they are on.
  */
 import { Channel, invoke } from "@tauri-apps/api/core";
-import { toDisposable, type Disposable } from "../core/types";
+import {
+  toDisposable,
+  type Channel as ScreenChannel,
+  type Disposable,
+} from "../core/types";
 
 /** A changed rectangle, in screen pixels. */
 export interface Damage {
@@ -170,6 +174,46 @@ export async function createScreenMonitor(): Promise<StartResult> {
     },
   };
   return { ok: true, monitor };
+}
+
+/** A running screen stream to a peer. */
+export interface ScreenStream {
+  readonly id: number;
+  /** Shape of the screen being sent. */
+  readonly info: ScreenInfo;
+  /** Stop sending. */
+  stop(): Promise<void>;
+}
+
+/**
+ * Stream this screen onto an already-open WebRTC channel.
+ *
+ * TODO: WebRTC only for now; other transports open up once this path holds.
+ *
+ * @param channel An open channel from `openChannel({ transport: "webrtc" })`.
+ * @returns The running stream, for stats and to stop it.
+ */
+export async function startScreenStream(
+  channel: ScreenChannel
+): Promise<ScreenStream> {
+  const { token, channelId } = channel as unknown as {
+    token?: string;
+    channelId?: number;
+  };
+  if (!token || channelId === undefined) {
+    throw new Error("screen streaming needs a WebRTC channel");
+  }
+  const started = await invoke<{
+    id: number;
+    width: number;
+    height: number;
+    format: "rgba";
+  }>("start_screen_stream", { token, channelId });
+  return {
+    id: started.id,
+    info: { width: started.width, height: started.height, format: started.format },
+    stop: () => invoke("stop_screen_stream", { id: started.id }),
+  };
 }
 
 /**

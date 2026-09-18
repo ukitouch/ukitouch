@@ -76,6 +76,7 @@ pub trait CaptureBackend: Send {
 }
 
 pub mod bridge;
+pub mod stream;
 
 #[cfg(all(unix, not(target_os = "android")))]
 pub mod x11;

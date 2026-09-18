@@ -1,104 +1,93 @@
-import { useEffect, useRef, useState } from "react";
-import { createScreenMonitor, type ScreenInfo, type Disposable } from "../../api";
-
-/** How often the on-screen counters refresh, in ms. */
-const STATS_INTERVAL = 500;
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Button, Select } from "../../api";
+import { castStore, setViewer, startCast, stopCast } from "./api";
 
 export default function CastView() {
+  const state = useSyncExternalStore(castStore.subscribe, castStore.get);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [info, setInfo] = useState<ScreenInfo | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [stopReason, setStopReason] = useState<string | null>(null);
-  const [stats, setStats] = useState({ frames: 0, rects: 0, bytes: 0 });
-
-  // Counted in refs so a change arrives without forcing a render per frame.
-  const counters = useRef({ frames: 0, rects: 0, bytes: 0 });
+  const [selectedUuid, setSelectedUuid] = useState("");
 
   useEffect(() => {
-    let cancelled = false;
-    let monitor: { stop(): Promise<void> } | null = null;
-    let sub: Disposable | null = null;
-
-    void (async () => {
-      const started = await createScreenMonitor();
-      if (!started.ok) {
-        if (!cancelled) {
-          setError(
-            started.detail ? `${started.reason}: ${started.detail}` : started.reason
-          );
+    setViewer({
+      resize(width, height) {
+        const canvas = canvasRef.current;
+        if (canvas) {
+          canvas.width = width;
+          canvas.height = height;
         }
-        return;
-      }
-      // StrictMode mounts twice in development; the first monitor is stopped by
-      // the cleanup below rather than being left running.
-      if (cancelled) {
-        void started.monitor.stop();
-        return;
-      }
-      monitor = started.monitor;
-      setInfo(started.monitor.info);
-      started.monitor.onStop((reason) => setStopReason(reason ?? "stopped"));
-
-      sub = started.monitor.onDamage((frames) => {
+      },
+      draw(tile) {
         const canvas = canvasRef.current;
         const ctx = canvas?.getContext("2d");
         if (!canvas || !ctx) return;
-
-        for (const f of frames) {
-          const px = new Uint8ClampedArray(
-            f.data.buffer as ArrayBuffer,
-            f.data.byteOffset,
-            f.data.length
-          );
-          ctx.putImageData(new ImageData(px, f.width, f.height), f.x, f.y);
-        }
-
-        const c = counters.current;
-        c.frames += 1;
-        c.rects += frames.length;
-        for (const f of frames) c.bytes += f.data.length;
-      });
-    })();
-
-    return () => {
-      cancelled = true;
-      sub?.dispose();
-      void monitor?.stop();
-    };
+        const pixels = new Uint8ClampedArray(
+          tile.data.buffer,
+          tile.data.byteOffset,
+          tile.data.byteLength
+        );
+        ctx.putImageData(
+          new ImageData(pixels, tile.width, tile.height),
+          tile.x,
+          tile.y
+        );
+      },
+    });
+    return () => setViewer(null);
   }, []);
 
-  useEffect(() => {
-    const t = setInterval(() => setStats({ ...counters.current }), STATS_INTERVAL);
-    return () => clearInterval(t);
-  }, []);
+  const { devices, sending, receiving, stats } = state;
 
-  // Damage is incremental, the backing store has to match the screen exactly
-  // for the rectangle coordinates to land where they belong.
+  // Size up front when the view mounts after the stream's announce already
+  // arrived.
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !info) return;
-    canvas.width = info.width;
-    canvas.height = info.height;
-  }, [info]);
+    if (canvas && receiving) {
+      canvas.width = receiving.width;
+      canvas.height = receiving.height;
+    }
+  }, [receiving]);
+
+  function toggle() {
+    if (sending) {
+      stopCast();
+      return;
+    }
+    const dev = devices.find((d) => d.uuid === selectedUuid);
+    if (dev) void startCast(dev.uuid, dev.remark ?? dev.name ?? "Unknown device");
+  }
 
   return (
     <div className="h-full flex flex-col bg-black">
-      <div className="flex items-center gap-3 px-3 py-1 text-xs text-gray-400 shrink-0">
-        {info ? (
-          <span>
-            {info.width}x{info.height} {info.format}
-          </span>
-        ) : (
-          <span>{error ? `capture failed — ${error}` : "starting…"}</span>
-        )}
-        {stopReason && <span className="text-red-400">stopped: {stopReason}</span>}
-        {info && (
+      <div className="flex items-center gap-2 px-3 py-2 shrink-0 text-xs text-gray-400">
+        {sending ? (
           <>
             <span>
-              {stats.frames} frames / {stats.rects} rects
+              casting to {sending.peerId} — {sending.info.width}x
+              {sending.info.height}
             </span>
-            <span>{(stats.bytes / 1024).toFixed(0)} KiB</span>
+            <Button onClick={toggle}>Stop</Button>
           </>
+        ) : (
+          <>
+            <Select
+              value={selectedUuid}
+              options={devices.map((d) => ({
+                value: d.uuid,
+                label: d.remark ?? d.name ?? d.uuid,
+              }))}
+              onChange={setSelectedUuid}
+              ariaLabel="Target device"
+            />
+            <Button onClick={toggle} disabled={!selectedUuid}>
+              Cast
+            </Button>
+          </>
+        )}
+        {receiving && (
+          <span>
+            receiving {receiving.width}x{receiving.height} · {stats.tiles} tiles ·{" "}
+            {(stats.bytes / 1024).toFixed(0)} KiB
+          </span>
         )}
       </div>
       <div className="flex-1 min-h-0 flex items-center justify-center overflow-hidden">
