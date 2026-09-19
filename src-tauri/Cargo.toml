@@ -35,7 +35,7 @@ adb_client = { version = "3.2.3", default-features = false }
 hostname = "0.4"
 os_info = "3"
 zip = "2"
-image = { version = "0.25", default-features = false, features = ["jpeg"] }
+webp = { version = "0.3", default-features = false }
 
 [target.'cfg(all(unix, not(target_os = "android")))'.dependencies]
 x11rb = { version = "0.14", features = ["shm", "damage", "xfixes"] }

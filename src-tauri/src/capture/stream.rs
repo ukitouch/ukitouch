@@ -2,10 +2,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use image::codecs::jpeg::JpegEncoder;
-use image::ExtendedColorType;
 use serde::Serialize;
 use tauri::State;
+use webp::{Encoder, WebPConfig};
 
 use super::{create, CaptureBackend, Damage};
 use crate::net::sink::{ChannelSink, Rect};
@@ -13,9 +12,6 @@ use crate::net::state::NetState;
 
 /// Poll cadence: an idle screen costs one cheap check per tick.
 const POLL_INTERVAL: Duration = Duration::from_millis(16);
-
-/// JPEG quality for encoded rectangles.
-const QUALITY: u8 = 85;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -103,7 +99,7 @@ async fn run_stream(
             if d.width == 0 || d.height == 0 {
                 continue;
             }
-            if let Some(jpeg) = encode_jpeg(d, px) {
+            if let Some(payload) = encode_webp(d, px) {
                 blocks.push((
                     Rect {
                         x: d.x,
@@ -111,13 +107,13 @@ async fn run_stream(
                         width: d.width,
                         height: d.height,
                     },
-                    jpeg,
+                    payload,
                 ));
             }
         }
         let frame: Vec<(Rect, &[u8])> = blocks
             .iter()
-            .map(|(rect, jpeg)| (*rect, jpeg.as_slice()))
+            .map(|(rect, payload)| (*rect, payload.as_slice()))
             .collect();
         if sink.push(&frame).await.is_err() {
             return;
@@ -126,8 +122,10 @@ async fn run_stream(
     }
 }
 
-/// JPEG-encode a damage rectangle, or `None` if the encoder fails.
-fn encode_jpeg(src: &Damage, px: &[u8]) -> Option<Vec<u8>> {
+/// WebP-encode a damage rectangle, or `None` if the encoder fails.
+///
+/// Lossy WebP is always 4:2:0.
+fn encode_webp(src: &Damage, px: &[u8]) -> Option<Vec<u8>> {
     let bw = src.width as usize;
     let bh = src.height as usize;
     let mut rgb = Vec::with_capacity(bw * bh * 3);
@@ -138,9 +136,12 @@ fn encode_jpeg(src: &Damage, px: &[u8]) -> Option<Vec<u8>> {
             rgb.extend_from_slice(&px[o..o + 3]);
         }
     }
-    let mut jpeg = Vec::new();
-    JpegEncoder::new_with_quality(&mut jpeg, QUALITY)
-        .encode(&rgb, bw as u32, bh as u32, ExtendedColorType::Rgb8)
-        .ok()?;
-    Some(jpeg)
+    let mut config = WebPConfig::new().ok()?;
+    config.lossless = 0;
+    config.quality = 80.0;
+    config.method = 0;
+    Encoder::from_rgb(&rgb, bw as u32, bh as u32)
+        .encode_advanced(&config)
+        .ok()
+        .map(|mem| mem.to_vec())
 }

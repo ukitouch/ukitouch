@@ -8,8 +8,8 @@ use super::state::NetState;
 /// SCTP's default per-message cap (65536 - 1).
 const MAX_MESSAGE: usize = u16::MAX as usize;
 
-/// UDP-like backpressure
-const BACKPRESSURE: usize = 256 * 1024;
+/// Bytes allowed in the send buffer before the pump pauses.
+const BACKPRESSURE: usize = 64 * 1024;
 
 /// A rectangle of pixels in the transport's own terms.
 #[derive(Debug, Clone, Copy)]

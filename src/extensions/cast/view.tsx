@@ -37,7 +37,7 @@ export default function CastView() {
             tiles.map((tile) =>
               createImageBitmap(
                 new Blob([tile.data as Uint8Array<ArrayBuffer>], {
-                  type: "image/jpeg",
+                  type: "image/webp",
                 })
               )
             )
