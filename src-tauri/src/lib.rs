@@ -1,6 +1,7 @@
 mod extensions;
 mod host;
 mod net;
+mod orientation;
 #[cfg(desktop)]
 mod tray;
 
@@ -18,12 +19,14 @@ use net::usb::{
     usb_close_channel, usb_list_devices, usb_listen_start, usb_listen_stop, usb_open_channel,
     usb_send,
 };
+use orientation::{init as orientation_plugin, lock_orientation};
 use std::sync::Arc;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(orientation_plugin())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -69,6 +72,7 @@ pub fn run() {
             usb_close_channel,
             usb_listen_start,
             usb_listen_stop,
+            lock_orientation,
             get_platform,
             get_host_info,
             list_installed_extensions,
