@@ -81,3 +81,18 @@ export function getHostPlatform(): Promise<HostPlatform> {
   );
   return platformPromise;
 }
+
+/** A window orientation to hold the app in. */
+export type Orientation = "landscape" | "portrait" | "auto";
+
+/**
+ * Lock the app window to an orientation.
+ *
+ * Android only: the command rejects elsewhere, where the window is the user's
+ * to size.
+ *
+ * @param orientation The orientation to hold; `auto` hands it back.
+ */
+export async function lockOrientation(orientation: Orientation): Promise<void> {
+  await invoke("lock_orientation", { orientation });
+}
