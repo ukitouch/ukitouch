@@ -77,9 +77,12 @@ export type {
   StartResult,
   CaptureFailure,
   CaptureOptions,
+  StreamOptions,
+  ScreenSize,
 } from "./media";
 
 export type { SearchOption } from "../components/SearchSelect";
+export type { SelectOption } from "../components/Select";
 export type { UsbDevice } from "../core/usb";
 export type { Store } from "../core/store";
 export type { ToastKind } from "../core/host";

@@ -3,19 +3,21 @@ import {
   getHostPlatform,
   setFullscreen,
   startScreenStream,
-  type CaptureOptions,
   type Channel,
   type DeviceRecord,
   type ExtensionContext,
   type HostPlatform,
   type ScreenInfo,
   type ScreenStream,
+  type StreamOptions,
 } from "../../api";
 
 /** What Cast does, changeable while it runs. */
 export interface CastSettings {
   /** Viewer side: show the peer's pointer in the stream. */
   cursor: boolean;
+  /** Viewer side: the fraction of the peer's screen to ask for. */
+  scale: number;
 }
 
 /** The connection status. */
@@ -39,7 +41,7 @@ export const castStore = createStore<CastState>({
   devices: [],
   connection: { status: "idle" },
   sharing: null,
-  settings: { cursor: true },
+  settings: { cursor: true, scale: 1 },
   platform: null,
   error: null,
 });
@@ -170,8 +172,8 @@ export function stopWatching(): void {
 /** Tell the host what the stream should contain. */
 function sendOptions(): void {
   if (!watchChannel) return;
-  const { cursor } = castStore.get().settings;
-  watchChannel.send(JSON.stringify({ cast: { cursor } }));
+  const { cursor, scale } = castStore.get().settings;
+  watchChannel.send(JSON.stringify({ cast: { cursor, scale } }));
 }
 
 /** Reassemble the frame stream arriving on the channel we opened. */
@@ -230,7 +232,7 @@ async function serve(channel: Channel): Promise<void> {
 
   // The viewer owns what its stream contains and says so as soon as the channel
   // is up. Anything it sends after that reconfigures the running stream.
-  let options: CaptureOptions = {};
+  let options: StreamOptions = {};
   channel.onmessage = (ev) => {
     const next = parseRequest(ev.data);
     if (!next) return;
@@ -270,12 +272,26 @@ export function setCursor(on: boolean): void {
   sendOptions();
 }
 
+/** Ask the peer for a smaller share of its screen. */
+export function setScale(scale: number): void {
+  castStore.set({ settings: { ...castStore.get().settings, scale } });
+  sendOptions();
+}
+
 /** Read a viewer's options off the channel. */
-function parseRequest(data: unknown): CaptureOptions | null {
+function parseRequest(data: unknown): StreamOptions | null {
   if (typeof data !== "string") return null;
   try {
-    const parsed = JSON.parse(data) as { cast?: { cursor?: unknown } };
-    if (parsed.cast) return { cursor: parsed.cast.cursor === true };
+    const parsed = JSON.parse(data) as {
+      cast?: { cursor?: unknown; scale?: unknown };
+    };
+    if (parsed.cast) {
+      const { cursor, scale } = parsed.cast;
+      return {
+        cursor: cursor === true,
+        scale: typeof scale === "number" ? scale : 1,
+      };
+    }
   } catch {
     // not ours
   }
@@ -335,11 +351,19 @@ function assemble(p: Pending): StreamTile[] {
 function parseScreen(text: string): ScreenInfo | null {
   try {
     const parsed = JSON.parse(text) as {
-      screen?: { width?: number; height?: number };
+      screen?: {
+        width?: number;
+        height?: number;
+        source?: { width?: number; height?: number };
+      };
     };
-    const { width, height } = parsed.screen ?? {};
+    const { width, height, source } = parsed.screen ?? {};
     if (typeof width === "number" && typeof height === "number") {
-      return { width, height, format: "rgba" };
+      const info: ScreenInfo = { width, height, format: "rgba" };
+      if (typeof source?.width === "number" && typeof source.height === "number") {
+        info.source = { width: source.width, height: source.height };
+      }
+      return info;
     }
   } catch {
     // not ours

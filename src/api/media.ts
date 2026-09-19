@@ -39,6 +39,14 @@ export interface ScreenInfo {
   height: number;
   /** Always `"rgba"`. */
   format: "rgba";
+  /** The screen's own size, when it is sending us a scaled version. */
+  source?: ScreenSize;
+}
+
+/** A pixel size. */
+export interface ScreenSize {
+  width: number;
+  height: number;
 }
 
 /**
@@ -47,6 +55,14 @@ export interface ScreenInfo {
 export interface CaptureOptions {
   /** Include the pointer in the frames. */
   cursor?: boolean;
+}
+
+/**
+ * Options to tell sender how a frame be like.
+ */
+export interface StreamOptions extends CaptureOptions {
+  /** Fraction of the screen to send, up to 1. */
+  scale?: number;
 }
 
 /** Reasons of capture could not start or stopped on its own. */
@@ -198,7 +214,7 @@ export interface ScreenStream {
   /** Shape of the screen being sent. */
   readonly info: ScreenInfo;
   /** Change how the screen is captured; the peer is told the new shape. */
-  configure(options: CaptureOptions): Promise<void>;
+  configure(options: StreamOptions): Promise<void>;
   /** Stop sending. */
   stop(): Promise<void>;
 }
@@ -214,7 +230,7 @@ export interface ScreenStream {
  */
 export async function startScreenStream(
   channel: ScreenChannel,
-  options?: CaptureOptions
+  options?: StreamOptions
 ): Promise<ScreenStream> {
   const { token, channelId } = channel as unknown as {
     token?: string;

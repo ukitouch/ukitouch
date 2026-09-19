@@ -51,8 +51,16 @@ impl ChannelSink {
     }
 
     /// Send the stream's shape up front.
-    pub async fn announce(&self, width: u16, height: u16) -> Result<(), String> {
-        let msg = format!(r#"{{"screen":{{"width":{width},"height":{height}}}}}"#);
+    pub async fn announce(
+        &self,
+        width: u16,
+        height: u16,
+        source: (u16, u16),
+    ) -> Result<(), String> {
+        let (sw, sh) = source;
+        let msg = format!(
+            r#"{{"screen":{{"width":{width},"height":{height},"source":{{"width":{sw},"height":{sh}}}}}}}"#
+        );
         self.dc
             .send_text(msg)
             .await
