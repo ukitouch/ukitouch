@@ -41,6 +41,14 @@ export interface ScreenInfo {
   format: "rgba";
 }
 
+/**
+ * What a caller can ask of a screen source.
+ */
+export interface CaptureOptions {
+  /** Include the pointer in the frames. */
+  cursor?: boolean;
+}
+
 /** Reasons of capture could not start or stopped on its own. */
 export type CaptureFailure =
   /** The user refused the capture request. */
@@ -75,6 +83,8 @@ export interface ScreenMonitor {
   onStop(handler: (reason?: string) => void): Disposable;
   /** Ask for the whole screen again, for a viewer that lost its baseline. */
   resync(): Promise<void>;
+  /** Change how the screen is captured. */
+  configure(options: CaptureOptions): Promise<void>;
   /** Stop capturing and release the platform resources. */
   stop(): Promise<void>;
 }
@@ -98,9 +108,12 @@ type HostEvent =
 /**
  * Start capturing the screen.
  *
+ * @param options How to capture, if the caller cares.
  * @returns The started monitor, or why it could not start.
  */
-export async function createScreenMonitor(): Promise<StartResult> {
+export async function createScreenMonitor(
+  options?: CaptureOptions
+): Promise<StartResult> {
   const damageHandlers = new Set<(frames: DamageFrame[]) => void>();
   const stopHandlers = new Set<(reason?: string) => void>();
   let pending: { rects: RectSpan[]; total: number } | null = null;
@@ -143,7 +156,7 @@ export async function createScreenMonitor(): Promise<StartResult> {
 
   let started: { id: number; width: number; height: number; format: "rgba" };
   try {
-    started = await invoke("capture_start", { onEvent: on_event });
+    started = await invoke("capture_start", { onEvent: on_event, options });
   } catch (err) {
     return { ok: false, reason: classify(String(err)), detail: String(err) };
   }
@@ -169,6 +182,9 @@ export async function createScreenMonitor(): Promise<StartResult> {
     async resync() {
       await invoke("capture_resync", { id: monitorId });
     },
+    async configure(options: CaptureOptions) {
+      await invoke("capture_configure", { id: monitorId, options });
+    },
     async stop() {
       await invoke("capture_stop", { id: monitorId });
     },
@@ -181,6 +197,8 @@ export interface ScreenStream {
   readonly id: number;
   /** Shape of the screen being sent. */
   readonly info: ScreenInfo;
+  /** Change how the screen is captured; the peer is told the new shape. */
+  configure(options: CaptureOptions): Promise<void>;
   /** Stop sending. */
   stop(): Promise<void>;
 }
@@ -191,10 +209,12 @@ export interface ScreenStream {
  * TODO: WebRTC only for now; other transports open up once this path holds.
  *
  * @param channel An open channel from `openChannel({ transport: "webrtc" })`.
+ * @param options How to capture, if the caller cares.
  * @returns The running stream, for stats and to stop it.
  */
 export async function startScreenStream(
-  channel: ScreenChannel
+  channel: ScreenChannel,
+  options?: CaptureOptions
 ): Promise<ScreenStream> {
   const { token, channelId } = channel as unknown as {
     token?: string;
@@ -208,10 +228,12 @@ export async function startScreenStream(
     width: number;
     height: number;
     format: "rgba";
-  }>("start_screen_stream", { token, channelId });
+  }>("start_screen_stream", { token, channelId, options });
   return {
     id: started.id,
     info: { width: started.width, height: started.height, format: started.format },
+    configure: (options) =>
+      invoke("stream_configure", { id: started.id, options }),
     stop: () => invoke("stop_screen_stream", { id: started.id }),
   };
 }

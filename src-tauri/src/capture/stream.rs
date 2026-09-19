@@ -6,7 +6,7 @@ use serde::Serialize;
 use tauri::State;
 use webp::{Encoder, WebPConfig};
 
-use super::{create, CaptureBackend, Damage};
+use super::{create, CaptureBackend, CaptureOptions, Damage};
 use crate::net::sink::{ChannelSink, Rect};
 use crate::net::state::NetState;
 
@@ -30,6 +30,8 @@ pub struct StreamState {
 
 struct StreamHandle {
     running: AtomicBool,
+    /// Options from a `stream_configure`, taken by the task on its next turn.
+    pending: std::sync::Mutex<Option<CaptureOptions>>,
 }
 
 /// Start pumping the screen onto channel `(token, channel_id)`.
@@ -39,14 +41,19 @@ pub async fn start_screen_stream(
     state: State<'_, StreamState>,
     token: String,
     channel_id: u64,
+    options: Option<CaptureOptions>,
 ) -> Result<StreamStarted, String> {
     let sink = ChannelSink::new(net.inner(), &token, channel_id)?;
-    let backend = create().map_err(|e| e.to_string())?;
+    let mut backend = create().map_err(|e| e.to_string())?;
+    if let Some(options) = &options {
+        backend.configure(options);
+    }
     let info = backend.info();
 
     let id = state.next_id.fetch_add(1, Ordering::Relaxed);
     let handle = Arc::new(StreamHandle {
         running: AtomicBool::new(true),
+        pending: std::sync::Mutex::new(None),
     });
     state.streams.lock().unwrap().insert(id, handle.clone());
 
@@ -57,6 +64,19 @@ pub async fn start_screen_stream(
         height: info.height,
         format: info.format.to_string(),
     })
+}
+
+/// Change how a running stream captures. Safe to call for an id that stopped.
+#[tauri::command]
+pub fn stream_configure(
+    state: State<'_, StreamState>,
+    id: u64,
+    options: CaptureOptions,
+) -> Result<(), String> {
+    if let Some(handle) = state.streams.lock().unwrap().get(&id) {
+        *handle.pending.lock().unwrap() = Some(options);
+    }
+    Ok(())
 }
 
 /// Stop a running stream. Safe to call for an id that already stopped.
@@ -74,11 +94,23 @@ async fn run_stream(
     sink: ChannelSink,
     handle: Arc<StreamHandle>,
 ) {
-    let info = backend.info();
+    let mut info = backend.info();
     if sink.announce(info.width, info.height).await.is_err() {
         return;
     }
     while handle.running.load(Ordering::Relaxed) {
+        // Apply any options asked for since the last turn. A new shape has to be
+        // announced before the rectangles that follow it.
+        let pending = handle.pending.lock().unwrap().take();
+        if let Some(options) = pending {
+            if backend.configure(&options) {
+                info = backend.info();
+                if sink.announce(info.width, info.height).await.is_err() {
+                    return;
+                }
+            }
+        }
+
         if sink.congested().await {
             tokio::time::sleep(POLL_INTERVAL).await;
             continue;

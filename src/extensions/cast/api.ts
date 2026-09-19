@@ -1,12 +1,22 @@
 import {
   createStore,
+  getHostPlatform,
+  setFullscreen,
   startScreenStream,
+  type CaptureOptions,
   type Channel,
   type DeviceRecord,
   type ExtensionContext,
+  type HostPlatform,
   type ScreenInfo,
   type ScreenStream,
 } from "../../api";
+
+/** What Cast does, changeable while it runs. */
+export interface CastSettings {
+  /** Viewer side: show the peer's pointer in the stream. */
+  cursor: boolean;
+}
 
 export interface CastState {
   devices: DeviceRecord[];
@@ -14,6 +24,8 @@ export interface CastState {
   watching: { peerId: string; info: ScreenInfo | null } | null;
   /** Host side: shape of the screen we are sending out. */
   sharing: ScreenInfo | null;
+  settings: CastSettings;
+  platform: HostPlatform | null;
   error: string | null;
 }
 
@@ -21,6 +33,8 @@ export const castStore = createStore<CastState>({
   devices: [],
   watching: null,
   sharing: null,
+  settings: { cursor: true },
+  platform: null,
   error: null,
 });
 
@@ -64,6 +78,7 @@ export function initCast(context: ExtensionContext): void {
     // The channel arriving *is* the request: one-to-one, serve it right away.
     context.onChannel(serve)
   );
+  void getHostPlatform().then((platform) => castStore.set({ platform }));
 }
 
 /** Raise the sidebar-free layout while watching. The shell restores it. */
@@ -76,6 +91,22 @@ function clearWatching(): void {
   pending = null;
   castStore.set({ watching: null });
   layout(false);
+  void applyFullscreen(false);
+}
+
+/** Whether we currently hold the window in fullscreen for a watch. */
+let fullscreenOn = false;
+
+/** Android only: hold the window in fullscreen, or hand it back. */
+async function applyFullscreen(on: boolean): Promise<void> {
+  if (on === fullscreenOn) return;
+  if (on && castStore.get().platform !== "android") return;
+  fullscreenOn = on;
+  try {
+    await setFullscreen(on);
+  } catch (err) {
+    castStore.set({ error: String(err) });
+  }
 }
 
 //#region Viewer side
@@ -99,6 +130,8 @@ export async function watch(target: string, label: string): Promise<void> {
     }
     watchChannel = channel;
     bindViewer(channel);
+    sendOptions();
+    void applyFullscreen(true);
   } catch (err) {
     if (seq !== watchSeq) return;
     castStore.set({ error: `connect failed: ${String(err)}` });
@@ -112,6 +145,13 @@ export function stopWatching(): void {
   watchChannel?.close();
   watchChannel = null;
   clearWatching();
+}
+
+/** Tell the host what the stream should contain. */
+function sendOptions(): void {
+  if (!watchChannel) return;
+  const { cursor } = castStore.get().settings;
+  watchChannel.send(JSON.stringify({ cast: { cursor } }));
 }
 
 /** Reassemble the frame stream arriving on the channel we opened. */
@@ -165,14 +205,27 @@ async function serve(channel: Channel): Promise<void> {
     closed = true;
     if (share?.channel === channel) stopSharing();
   };
+
+  // The viewer owns what its stream contains and says so as soon as the channel
+  // is up. Anything it sends after that reconfigures the running stream.
+  let options: CaptureOptions = {};
+  channel.onmessage = (ev) => {
+    const next = parseRequest(ev.data);
+    if (!next) return;
+    options = next;
+    void share?.stream.configure(options).catch(() => { });
+  };
+
   try {
-    const stream = await startScreenStream(channel);
+    const stream = await startScreenStream(channel, options);
     if (closed) {
       void stream.stop().catch(() => { });
       return;
     }
     share = { channel, stream };
     castStore.set({ sharing: stream.info, error: null });
+    // A request that landed while the stream was starting still has to apply.
+    void stream.configure(options).catch(() => { });
   } catch (err) {
     channel.close();
     castStore.set({ error: describe(err) });
@@ -187,6 +240,24 @@ export function stopSharing(): void {
   castStore.set({ sharing: null });
   void stopped.stream.stop().catch(() => { });
   stopped.channel.close();
+}
+
+/** Show the peer's pointer in the stream we are watching. */
+export function setCursor(on: boolean): void {
+  castStore.set({ settings: { ...castStore.get().settings, cursor: on } });
+  sendOptions();
+}
+
+/** Read a viewer's options off the channel. */
+function parseRequest(data: unknown): CaptureOptions | null {
+  if (typeof data !== "string") return null;
+  try {
+    const parsed = JSON.parse(data) as { cast?: { cursor?: unknown } };
+    if (parsed.cast) return { cursor: parsed.cast.cursor === true };
+  } catch {
+    // not ours
+  }
+  return null;
 }
 
 //#endregion

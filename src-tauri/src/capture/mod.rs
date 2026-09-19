@@ -6,7 +6,7 @@
 //! TODO: One backends exists today (`x11`). Windows (WGC) and Android (MediaProjection
 //! + ImageReader) are the other two, and they plug in behind the same trait.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// A changed rectangle, in screen pixels.
 ///
@@ -53,6 +53,19 @@ impl std::fmt::Display for CaptureError {
 
 impl std::error::Error for CaptureError {}
 
+/// What a caller can ask of a screen source.
+///
+/// These are requests, not guarantees: a backend maps them onto whatever its
+/// platform offers and ignores the ones it cannot honor. On X11 the pointer is
+/// absent from the root image, so `cursor` means blending the XFixes image in;
+/// on Windows and Android the platform can include it for free.
+#[derive(Debug, Clone, Copy, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CaptureOptions {
+    /// Include the pointer in the frames.
+    pub cursor: bool,
+}
+
 /// A full-screen frame source.
 ///
 /// Implementations own whatever the platform needs to read pixels, and are
@@ -73,6 +86,12 @@ pub trait CaptureBackend: Send {
 
     /// Force the next `poll` to report the whole screen again.
     fn resync(&mut self);
+
+    /// Apply options. Returning `true` means the screen's shape changed and
+    /// callers that announced it before have to announce it again.
+    fn configure(&mut self, _options: &CaptureOptions) -> bool {
+        false
+    }
 }
 
 pub mod bridge;

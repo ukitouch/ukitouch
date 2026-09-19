@@ -12,7 +12,7 @@ use serde::Serialize;
 use tauri::ipc::{Channel, InvokeResponseBody};
 use tauri::State;
 
-use super::{create, CaptureBackend, Damage};
+use super::{create, CaptureBackend, CaptureOptions, Damage};
 
 /// How often to ask the backend for changes.
 ///
@@ -77,6 +77,8 @@ struct MonitorHandle {
     running: AtomicBool,
     /// Set to ask the task for a full frame.
     resync: AtomicBool,
+    /// Options from a `capture_configure`, taken by the task on its next turn.
+    pending: std::sync::Mutex<Option<CaptureOptions>>,
 }
 
 /// Start capturing. Returns the monitor id and the screen's shape.
@@ -84,10 +86,14 @@ struct MonitorHandle {
 pub async fn capture_start(
     state: State<'_, CaptureState>,
     on_event: Channel<InvokeResponseBody>,
+    options: Option<CaptureOptions>,
 ) -> Result<MonitorStarted, String> {
     // The backend is opened here so a failure — no display, no extension, a
     // refusal — reaches the caller as a rejection instead of a dead monitor.
-    let backend = create().map_err(|e| e.to_string())?;
+    let mut backend = create().map_err(|e| e.to_string())?;
+    if let Some(options) = &options {
+        backend.configure(options);
+    }
     let info = backend.info();
 
     let id = state
@@ -96,6 +102,7 @@ pub async fn capture_start(
     let handle = Arc::new(MonitorHandle {
         running: AtomicBool::new(true),
         resync: AtomicBool::new(false),
+        pending: std::sync::Mutex::new(None),
     });
     state.monitors.lock().unwrap().insert(id, handle.clone());
 
@@ -122,6 +129,11 @@ async fn run_monitor(
     handle: Arc<MonitorHandle>,
 ) {
     while handle.running.load(Ordering::Relaxed) {
+        // Apply any options asked for since the last turn.
+        if let Some(options) = handle.pending.lock().unwrap().take() {
+            backend.configure(&options);
+        }
+
         // Take a pending resync request before polling.
         if handle.resync.swap(false, Ordering::Relaxed) {
             backend.resync();
@@ -231,6 +243,19 @@ fn panic_message(payload: &(dyn std::any::Any + Send)) -> &str {
 pub fn capture_resync(state: State<'_, CaptureState>, id: u64) -> Result<(), String> {
     if let Some(handle) = state.monitors.lock().unwrap().get(&id) {
         handle.resync.store(true, Ordering::Relaxed);
+    }
+    Ok(())
+}
+
+/// Change how a running monitor captures. Safe to call for an id that stopped.
+#[tauri::command]
+pub fn capture_configure(
+    state: State<'_, CaptureState>,
+    id: u64,
+    options: CaptureOptions,
+) -> Result<(), String> {
+    if let Some(handle) = state.monitors.lock().unwrap().get(&id) {
+        *handle.pending.lock().unwrap() = Some(options);
     }
     Ok(())
 }

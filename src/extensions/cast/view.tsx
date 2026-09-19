@@ -8,14 +8,47 @@ import {
   watch,
   type StreamTile,
 } from "./api";
+import { CastSettings } from "./settings";
+
+/** How long the watch controls linger without input. */
+const IDLE_MS = 3000;
 
 export default function CastView() {
   const state = useSyncExternalStore(castStore.subscribe, castStore.get);
+  const { devices, watching, sharing, error } = state;
+  const isWatching = watching !== null;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [selectedUuid, setSelectedUuid] = useState<string | null>(null);
   const [text, setText] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [controls, setControls] = useState(true);
+  const hideAt = useRef(Date.now() + IDLE_MS);
 
-  const { devices, watching, sharing, error } = state;
+  /** Flip the watch controls, restarting the idle timer when they come out. */
+  const toggleControls = () => {
+    if (controls) {
+      setControls(false);
+    } else {
+      hideAt.current = Date.now() + IDLE_MS;
+      setControls(true);
+    }
+  };
+
+  // Fade the watch controls when nothing has happened for a while, but keep
+  // them up while settings are open.
+  useEffect(() => {
+    if (!isWatching) return;
+    if (!settingsOpen) hideAt.current = Date.now() + IDLE_MS;
+    const id = window.setInterval(() => {
+      if (!settingsOpen && Date.now() > hideAt.current) setControls(false);
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [isWatching, settingsOpen]);
+
+  // A fresh watch starts with settings closed.
+  useEffect(() => {
+    if (!isWatching) setSettingsOpen(false);
+  }, [isWatching]);
 
   // Hand frame batches to the canvas. Registered once and the ref is resolved at
   // draw time so the viewer can mount later.
@@ -92,21 +125,53 @@ export default function CastView() {
 
   if (watching) {
     return (
-      <div className="relative h-full bg-black">
+      <div className="relative h-full overflow-hidden bg-black">
         <canvas
           ref={canvasRef}
           className="w-full h-full"
           style={{ objectFit: "contain" }}
+          onClick={toggleControls}
         />
-        <div className="absolute top-0 left-0 right-0 flex items-center gap-3 px-4 py-3 text-xs text-gray-200 bg-gradient-to-b from-black/80 to-transparent">
+
+        <div
+          className={`absolute top-0 left-0 right-0 z-20 flex items-center gap-3 px-4 py-3 text-xs text-gray-200 bg-gradient-to-b from-black/80 to-transparent transition-opacity duration-300 ${controls || settingsOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+            }`}
+        >
           <span className="truncate">
             {watching.peerId}
             {!watching.info && " · connecting…"}
           </span>
           {sharing && <span className="text-gray-400">· sharing your screen</span>}
-          <Button variant="danger" className="ml-auto" onClick={stopWatching}>
+          <Button
+            variant="ghost"
+            className="ml-auto"
+            onClick={() => setSettingsOpen((o) => !o)}
+          >
+            Settings
+          </Button>
+          <Button variant="danger" onClick={stopWatching}>
             Stop
           </Button>
+        </div>
+
+        <div
+          className={`absolute inset-0 z-10 bg-black/40 transition-opacity duration-300 ${settingsOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+            }`}
+          onClick={() => setSettingsOpen(false)}
+        />
+
+        <div
+          className={`absolute top-0 right-0 z-30 h-full w-80 max-w-full flex flex-col bg-white dark:bg-gray-900 shadow-xl transition-transform duration-300 ${settingsOpen ? "translate-x-0" : "translate-x-full"
+            }`}
+        >
+          <div className="p-4 border-b border-gray-200 dark:border-gray-800">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+              Settings
+            </span>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4">
+            <CastSettings />
+          </div>
         </div>
       </div>
     );

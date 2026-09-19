@@ -8,7 +8,7 @@ use x11rb::protocol::xproto::ImageFormat;
 use x11rb::protocol::Event;
 use x11rb::rust_connection::RustConnection;
 
-use super::{CaptureBackend, CaptureError, Damage, ScreenInfo};
+use super::{CaptureBackend, CaptureError, CaptureOptions, Damage, ScreenInfo};
 
 /// Bytes per pixel in the root window's image. Depth 24 arrives padded to 32.
 const BPP: usize = 4;
@@ -22,6 +22,21 @@ type Bounds = [usize; 4];
 /// Damage rectangles are filled out to their bounding box while the gap costs
 /// less than the decoder call it saves.
 const MERGE_BUDGET: usize = 100_000;
+
+/// The pointer as XFixes reports it: premultiplied ARGB, plus the position of
+/// its hotspot on the root.
+#[derive(Debug)]
+struct Pointer {
+    serial: u32,
+    x: i16,
+    y: i16,
+    width: usize,
+    height: usize,
+    xhot: u16,
+    yhot: u16,
+    /// Row-major `0xAARRGGBB`, already premultiplied by the alpha.
+    pixels: Vec<u32>,
+}
 
 pub struct X11Capture {
     conn: RustConnection,
@@ -46,6 +61,10 @@ pub struct X11Capture {
     region: u32,
     /// Set when the next poll must report everything.
     force_full: bool,
+    /// Composite the pointer into frames.
+    cursor_on: bool,
+    /// `(serial, x, y)` of the pointer last composited.
+    cursor_stamp: Option<(u32, i16, i16)>,
     /// Reused buffer for the outgoing rectangles.
     out: Vec<(Damage, Vec<u8>)>,
 }
@@ -124,8 +143,33 @@ impl X11Capture {
             damage_id,
             region,
             force_full: true,
+            cursor_on: false,
+            cursor_stamp: None,
             out: Vec::new(),
         })
+    }
+
+    /// Read the pointer, or `None` when it is not wanted.
+    fn pointer(&mut self) -> Result<Option<Pointer>, CaptureError> {
+        if !self.cursor_on {
+            return Ok(None);
+        }
+        let reply = self
+            .conn
+            .xfixes_get_cursor_image()
+            .map_err(|e| self.fail(format!("cursor image: {e}")))?
+            .reply()
+            .map_err(|e| self.fail(format!("cursor image: {e}")))?;
+        Ok(Some(Pointer {
+            serial: reply.cursor_serial,
+            x: reply.x,
+            y: reply.y,
+            width: reply.width as usize,
+            height: reply.height as usize,
+            xhot: reply.xhot,
+            yhot: reply.yhot,
+            pixels: reply.cursor_image,
+        }))
     }
 
     /// Read the root window into `cur`.
@@ -304,6 +348,41 @@ impl X11Capture {
     }
 }
 
+/// Blend the pointer into a BGRA frame of `width` x `height`.
+fn composite(pixels: &mut [u8], width: usize, height: usize, p: &Pointer) {
+    let x0 = p.x as isize - p.xhot as isize;
+    let y0 = p.y as isize - p.yhot as isize;
+    let stride = width * BPP;
+    for cy in 0..p.height {
+        let sy = y0 + cy as isize;
+        if sy < 0 || sy >= height as isize {
+            continue;
+        }
+        let row = sy as usize * stride;
+        for cx in 0..p.width {
+            let sx = x0 + cx as isize;
+            if sx < 0 || sx >= width as isize {
+                continue;
+            }
+            let argb = p.pixels[cy * p.width + cx];
+            let alpha = (argb >> 24) & 0xff;
+            if alpha == 0 {
+                continue;
+            }
+            let inv = 255 - alpha;
+            let o = row + sx as usize * BPP;
+            pixels[o] = blend(argb & 0xff, pixels[o], inv);
+            pixels[o + 1] = blend((argb >> 8) & 0xff, pixels[o + 1], inv);
+            pixels[o + 2] = blend((argb >> 16) & 0xff, pixels[o + 2], inv);
+        }
+    }
+}
+
+/// One channel of `src` over `dst`, both premultiplied by `src`'s alpha.
+fn blend(src: u32, dst: u8, inv: u32) -> u8 {
+    (src + dst as u32 * inv / 255) as u8
+}
+
 /// Pixels a merge would add, zero when the two already overlap.
 fn added_area(a: &Bounds, b: &Bounds) -> usize {
     let union = area(&merge(a, b)) as isize;
@@ -364,26 +443,30 @@ impl CaptureBackend for X11Capture {
 
     fn poll(&mut self) -> Result<Option<Vec<(Damage, Vec<u8>)>>, CaptureError> {
         let full = self.force_full;
-        if full {
-            // A full frame is owed to the caller regardless of what the server
-            // thinks, but we still need current pixels to produce it.
-            self.grab()?;
-            self.full();
-            self.force_full = false;
-            self.prev.copy_from_slice(&self.cur);
-            return Ok(Some(std::mem::take(&mut self.out)));
-        }
+        self.force_full = false;
 
-        // Cheap filter first: if nothing redrew, there is nothing to compare.
-        if !self.triggered()? {
+        let pointer = self.pointer()?;
+        let stamp = pointer.as_ref().map(|p| (p.serial, p.x, p.y));
+        let moved = stamp != self.cursor_stamp;
+        // Drain damage even when a pointer move already forces a grab: events
+        // left queued would look like fresh damage on the next poll.
+        let damaged = self.triggered()?;
+        if !full && !damaged && !moved {
             return Ok(None);
         }
 
         self.grab()?;
-        self.diff();
+        if let Some(p) = &pointer {
+            composite(&mut self.cur, self.width as usize, self.height as usize, p);
+        }
+        self.cursor_stamp = stamp;
+
+        if full {
+            self.full();
+        } else {
+            self.diff();
+        }
         if self.out.is_empty() {
-            // The server redrew something but the pixels came out identical
-            // (an expose of unchanged content, say). Nothing to report.
             return Ok(None);
         }
         self.prev.copy_from_slice(&self.cur);
@@ -392,6 +475,17 @@ impl CaptureBackend for X11Capture {
 
     fn resync(&mut self) {
         self.force_full = true;
+    }
+
+    fn configure(&mut self, options: &CaptureOptions) -> bool {
+        if options.cursor == self.cursor_on {
+            return false;
+        }
+        self.cursor_on = options.cursor;
+        // Turning it off has to repaint where it was, and turning it on must not
+        // wait for unrelated damage, or the next frame is full.
+        self.force_full = true;
+        false
     }
 }
 
@@ -573,5 +667,52 @@ mod tests {
             px.chunks_exact(4).all(|p| p[3] == 0xff),
             "every pixel should carry an opaque alpha"
         );
+    }
+
+    fn pointer(x: i16, y: i16, w: usize, h: usize, xhot: u16, yhot: u16, solid: u32) -> Pointer {
+        Pointer {
+            serial: 1,
+            x,
+            y,
+            width: w,
+            height: h,
+            xhot,
+            yhot,
+            pixels: vec![solid; w * h],
+        }
+    }
+
+    #[test]
+    fn the_cursor_lands_on_its_hotspot() {
+        let mut frame = vec![0u8; 4 * 4 * 4];
+        // Opaque red, 2x2, hotspot at its top-left corner.
+        let p = pointer(1, 1, 2, 2, 0, 0, 0xffff0000);
+        composite(&mut frame, 4, 4, &p);
+
+        let at = |x: usize, y: usize| &frame[(y * 4 + x) * 4..(y * 4 + x) * 4 + 4];
+        assert_eq!(at(1, 1), &[0x00, 0x00, 0xff, 0x00]);
+        assert_eq!(at(2, 2), &[0x00, 0x00, 0xff, 0x00]);
+        // Outside the image nothing moved.
+        assert_eq!(at(0, 0), &[0, 0, 0, 0]);
+        assert_eq!(at(3, 3), &[0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn a_translucent_cursor_blends_by_its_alpha() {
+        let mut frame = vec![0u8; 4 * 4 * 4];
+        let p = pointer(0, 0, 1, 1, 0, 0, 0x80808080);
+        composite(&mut frame, 4, 4, &p);
+        assert_eq!(&frame[0..3], &[0x80, 0x80, 0x80]);
+    }
+
+    #[test]
+    fn an_offscreen_cursor_is_clipped() {
+        let mut frame = vec![0u8; 4 * 4 * 4];
+        let p = pointer(-1, -1, 2, 2, 0, 0, 0xffff0000);
+        composite(&mut frame, 4, 4, &p);
+
+        // Only the image's bottom-right pixel falls inside, at (0, 0).
+        assert_eq!(&frame[0..4], &[0x00, 0x00, 0xff, 0x00]);
+        assert_eq!(&frame[(3 * 4 + 3) * 4..(3 * 4 + 3) * 4 + 4], &[0, 0, 0, 0]);
     }
 }
