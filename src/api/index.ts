@@ -6,7 +6,7 @@
  */
 import * as React from "react";
 import { registerExtension } from "../core/registry";
-import { getHostPlatform, lockOrientation, readClipboardText, showToast, writeClipboardText } from "../core/host";
+import { getHostPlatform, readClipboardText, setFullscreen, showToast, writeClipboardText } from "../core/host";
 import { getHostInfo } from "../core/hostinfo";
 import { refreshUsbDevices, usbStore } from "../core/usb";
 import { createStore } from "../core/store";
@@ -45,7 +45,7 @@ export {
   SectionHeader,
   getHostPlatform,
   getHostInfo,
-  lockOrientation,
+  setFullscreen,
   readClipboardText,
   writeClipboardText,
   refreshUsbDevices,
@@ -68,7 +68,7 @@ export type {
 export type { SearchOption } from "../components/SearchSelect";
 export type { UsbDevice } from "../core/usb";
 export type { Store } from "../core/store";
-export type { Orientation, ToastKind } from "../core/host";
+export type { ToastKind } from "../core/host";
 
 export { toDisposable };
 
@@ -151,8 +151,8 @@ export interface YatouchRuntime {
   getHostPlatform: typeof getHostPlatform;
   /** Resolve the current host info. */
   getHostInfo: typeof getHostInfo;
-  /** Lock the app window to an orientation (Android only). */
-  lockOrientation: typeof lockOrientation;
+  /** Hold the app fullscreen (Android only). */
+  setFullscreen: typeof setFullscreen;
   /** Read the system clipboard as plain text. */
   readClipboardText: typeof readClipboardText;
   /** Write plain text to the system clipboard. */
@@ -196,7 +196,7 @@ export function installBridge(): void {
     defineExtension,
     getHostPlatform,
     getHostInfo,
-    lockOrientation,
+    setFullscreen,
     readClipboardText,
     writeClipboardText,
     refreshUsbDevices,

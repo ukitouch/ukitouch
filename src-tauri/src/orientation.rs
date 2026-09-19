@@ -1,4 +1,4 @@
-//! Window orientation lock, forwarded to the local Android plugin
+//! Window fullscreen, forwarded to the local Android plugin
 //! `OrientationPlugin` via the mobile plugin bridge.
 
 use tauri::plugin::{Builder, TauriPlugin};
@@ -27,12 +27,10 @@ pub fn init() -> TauriPlugin<tauri::Wry> {
         .build()
 }
 
-/// Lock the app window to `orientation`: `landscape`, `portrait` or `auto`.
+/// Hold the window in landscape with the system bars hidden, or hand control
+/// back.
 #[tauri::command]
-pub async fn lock_orientation(
-    state: State<'_, Orientation>,
-    orientation: String,
-) -> Result<(), String> {
+pub async fn set_fullscreen(state: State<'_, Orientation>, enabled: bool) -> Result<(), String> {
     #[cfg(target_os = "android")]
     {
         let handle = state
@@ -40,16 +38,13 @@ pub async fn lock_orientation(
             .as_ref()
             .ok_or("orientation plugin not registered")?;
         handle
-            .run_mobile_plugin_async::<()>(
-                "lock",
-                serde_json::json!({ "orientation": orientation }),
-            )
+            .run_mobile_plugin_async::<()>("fullscreen", serde_json::json!({ "enabled": enabled }))
             .await
             .map_err(|e| e.to_string())
     }
     #[cfg(not(target_os = "android"))]
     {
-        let _ = (state, orientation);
-        Err("orientation lock is android-only".into())
+        let _ = (state, enabled);
+        Err("fullscreen is android-only".into())
     }
 }

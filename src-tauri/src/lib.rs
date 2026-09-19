@@ -19,7 +19,7 @@ use net::usb::{
     usb_close_channel, usb_list_devices, usb_listen_start, usb_listen_stop, usb_open_channel,
     usb_send,
 };
-use orientation::{init as orientation_plugin, lock_orientation};
+use orientation::{init as orientation_plugin, set_fullscreen};
 use std::sync::Arc;
 use tauri::Manager;
 
@@ -72,7 +72,7 @@ pub fn run() {
             usb_close_channel,
             usb_listen_start,
             usb_listen_stop,
-            lock_orientation,
+            set_fullscreen,
             get_platform,
             get_host_info,
             list_installed_extensions,
