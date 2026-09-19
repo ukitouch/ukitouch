@@ -18,10 +18,16 @@ export interface CastSettings {
   cursor: boolean;
 }
 
+/** The connection status. */
+export type Connection =
+  | { status: "idle" }
+  | { status: "connecting"; peerId: string }
+  | { status: "connected"; peerId: string; info: ScreenInfo | null };
+
 export interface CastState {
   devices: DeviceRecord[];
-  /** Viewer side: peer whose screen we asked for, until the stream ends. */
-  watching: { peerId: string; info: ScreenInfo | null } | null;
+  /** The connection status of the viewer side. */
+  connection: Connection;
   /** Host side: shape of the screen we are sending out. */
   sharing: ScreenInfo | null;
   settings: CastSettings;
@@ -31,7 +37,7 @@ export interface CastState {
 
 export const castStore = createStore<CastState>({
   devices: [],
-  watching: null,
+  connection: { status: "idle" },
   sharing: null,
   settings: { cursor: true },
   platform: null,
@@ -89,7 +95,7 @@ function layout(watching: boolean): void {
 /** Reset viewer state and put the layout back. */
 function clearWatching(): void {
   pending = null;
-  castStore.set({ watching: null });
+  castStore.set({ connection: { status: "idle" } });
   layout(false);
   void applyFullscreen(false);
 }
@@ -118,10 +124,9 @@ export async function watch(target: string, label: string): Promise<void> {
   watchChannel = null;
   const seq = ++watchSeq;
   castStore.set({
-    watching: { peerId: label, info: null },
+    connection: { status: "connecting", peerId: label },
     error: null,
   });
-  layout(true);
   try {
     const channel = await ctx.openChannel({ transport: "webrtc", target });
     if (seq !== watchSeq) {
@@ -131,12 +136,27 @@ export async function watch(target: string, label: string): Promise<void> {
     watchChannel = channel;
     bindViewer(channel);
     sendOptions();
+    castStore.set({
+      connection: { status: "connected", peerId: label, info: null },
+    });
+    layout(true);
     void applyFullscreen(true);
   } catch (err) {
     if (seq !== watchSeq) return;
-    castStore.set({ error: `connect failed: ${String(err)}` });
-    clearWatching();
+    castStore.set({
+      connection: { status: "idle" },
+      error: `connect failed: ${String(err)}`,
+    });
   }
+}
+
+/** Abort a connect that has not landed yet. */
+export function cancelWatch(): void {
+  watchSeq++;
+  void ctx?.cancelOpenChannel().catch(() => { });
+  watchChannel?.close();
+  watchChannel = null;
+  castStore.set({ connection: { status: "idle" } });
 }
 
 /** Stop watching and drop the layout back to the sidebar. */
@@ -161,8 +181,10 @@ function bindViewer(channel: Channel): void {
       const screen = parseScreen(ev.data);
       if (screen) {
         pending = null;
-        const w = castStore.get().watching;
-        castStore.set({ watching: w ? { ...w, info: screen } : w });
+        const c = castStore.get().connection;
+        if (c.status === "connected") {
+          castStore.set({ connection: { ...c, info: screen } });
+        }
         viewer?.resize(screen.width, screen.height);
         return;
       }

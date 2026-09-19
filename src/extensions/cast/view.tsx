@@ -1,6 +1,7 @@
 import { useEffect, useRef, useSyncExternalStore, useState } from "react";
 import { Button, PageHeader, PeerDeviceSearch } from "../../api";
 import {
+  cancelWatch,
   castStore,
   setViewer,
   stopSharing,
@@ -15,7 +16,8 @@ const IDLE_MS = 3000;
 
 export default function CastView() {
   const state = useSyncExternalStore(castStore.subscribe, castStore.get);
-  const { devices, watching, sharing, error } = state;
+  const { devices, connection, sharing, error } = state;
+  const watching = connection.status === "connected" ? connection : null;
   const isWatching = watching !== null;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [selectedUuid, setSelectedUuid] = useState<string | null>(null);
@@ -161,7 +163,7 @@ export default function CastView() {
         />
 
         <div
-          className={`absolute top-0 right-0 z-30 h-full w-80 max-w-full flex flex-col bg-white dark:bg-gray-900 shadow-xl transition-transform duration-300 ${settingsOpen ? "translate-x-0" : "translate-x-full"
+          className={`absolute top-0 z-30 h-full w-80 max-w-full flex flex-col bg-white dark:bg-gray-900 shadow-xl transition-[right] duration-300 ${settingsOpen ? "right-0" : "-right-80"
             }`}
         >
           <div className="p-4 border-b border-gray-200 dark:border-gray-800">
@@ -211,17 +213,20 @@ export default function CastView() {
           }}
         />
         <Button
+          variant={"primary"}
           onClick={() => {
-            if (selected) {
+            if (connection.status === "connecting") {
+              cancelWatch();
+            } else if (selected) {
               void watch(
                 selected.uuid,
                 selected.remark ?? selected.name ?? "Unknown device"
               );
             }
           }}
-          disabled={!selected}
+          disabled={connection.status !== "connecting" && !selected}
         >
-          Watch
+          {connection.status === "connecting" ? "Cancel" : "Connect"}
         </Button>
       </div>
     </div>
