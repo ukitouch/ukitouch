@@ -82,17 +82,14 @@ export function getHostPlatform(): Promise<HostPlatform> {
   return platformPromise;
 }
 
-/** A window orientation to hold the app in. */
-export type Orientation = "landscape" | "portrait" | "auto";
-
 /**
- * Lock the app window to an orientation.
+ * Hold the app fullscreen.
  *
- * Android only: the command rejects elsewhere, where the window is the user's
- * to size.
+ * Android only: the command rejects elsewhere, where the window belongs to the
+ * user.
  *
- * @param orientation The orientation to hold; `auto` hands it back.
+ * @param enabled Whether to hold the fullscreen mode.
  */
-export async function lockOrientation(orientation: Orientation): Promise<void> {
-  await invoke("lock_orientation", { orientation });
+export async function setFullscreen(enabled: boolean): Promise<void> {
+  await invoke("set_fullscreen", { enabled });
 }
