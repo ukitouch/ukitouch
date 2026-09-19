@@ -16,6 +16,13 @@ const BPP: usize = 4;
 /// Diff granularity.
 const TILE: usize = 64;
 
+/// A rectangle as `[x0, y0, x1, y1]`, exclusive on the far edges.
+type Bounds = [usize; 4];
+
+/// Damage rectangles are filled out to their bounding box while the gap costs
+/// less than the decoder call it saves.
+const MERGE_BUDGET: usize = 100_000;
+
 pub struct X11Capture {
     conn: RustConnection,
     root: u32,
@@ -209,6 +216,7 @@ impl X11Capture {
         // Merge the dirty tiles into as few rectangles as possible, growing each
         // one right and then down while every tile it would cover is dirty.
         self.covered.fill(false);
+        let mut rects: Vec<Bounds> = Vec::new();
         for ty in 0..tiles_y {
             for tx in 0..tiles_x {
                 let idx = ty * tiles_x + tx;
@@ -245,35 +253,35 @@ impl X11Capture {
                 let y0 = ty * TILE;
                 let x1 = (x0 + wide * TILE).min(self.width as usize);
                 let y1 = (y0 + tall * TILE).min(self.height as usize);
-                let (w, h) = ((x1 - x0) as u16, (y1 - y0) as u16);
-
-                // Copy the rectangle out, converting BGRA (X11's byte order for
-                // a depth-24 root) into the RGBA we promise callers.
-                let mut px = Vec::with_capacity(w as usize * h as usize * BPP);
-                for y in y0..y1 {
-                    let row = y * stride;
-                    // Walk pixel indices, not bytes: `o` addresses a pixel, and
-                    // the channels are read relative to it.
-                    for x in x0..x1 {
-                        let o = row + x * BPP;
-                        px.extend_from_slice(&[
-                            self.cur[o + 2],
-                            self.cur[o + 1],
-                            self.cur[o],
-                            0xff,
-                        ]);
-                    }
-                }
-                self.out.push((
-                    Damage {
-                        x: x0 as u16,
-                        y: y0 as u16,
-                        width: w,
-                        height: h,
-                    },
-                    px,
-                ));
+                rects.push([x0, y0, x1, y1]);
             }
+        }
+
+        coalesce(&mut rects);
+
+        for [x0, y0, x1, y1] in rects {
+            let (w, h) = ((x1 - x0) as u16, (y1 - y0) as u16);
+            // Copy the rectangle out, converting BGRA (X11's byte order for a
+            // depth-24 root) into the RGBA we promise callers. Walk pixel
+            // indices, not bytes: `o` addresses a pixel, and the channels are
+            // read relative to it.
+            let mut px = Vec::with_capacity(w as usize * h as usize * BPP);
+            for y in y0..y1 {
+                let row = y * stride;
+                for x in x0..x1 {
+                    let o = row + x * BPP;
+                    px.extend_from_slice(&[self.cur[o + 2], self.cur[o + 1], self.cur[o], 0xff]);
+                }
+            }
+            self.out.push((
+                Damage {
+                    x: x0 as u16,
+                    y: y0 as u16,
+                    width: w,
+                    height: h,
+                },
+                px,
+            ));
         }
     }
 
@@ -293,6 +301,55 @@ impl X11Capture {
             },
             px,
         ));
+    }
+}
+
+/// Pixels a merge would add, zero when the two already overlap.
+fn added_area(a: &Bounds, b: &Bounds) -> usize {
+    let union = area(&merge(a, b)) as isize;
+    let parts = (area(a) + area(b)) as isize;
+    (union - parts).max(0) as usize
+}
+
+fn area(r: &Bounds) -> usize {
+    (r[2] - r[0]) * (r[3] - r[1])
+}
+
+/// The smallest rectangle containing both.
+fn merge(a: &Bounds, b: &Bounds) -> Bounds {
+    [
+        a[0].min(b[0]),
+        a[1].min(b[1]),
+        a[2].max(b[2]),
+        a[3].max(b[3]),
+    ]
+}
+
+/// Whether `a` covers all of `b`.
+fn covers(a: &Bounds, b: &Bounds) -> bool {
+    a[0] <= b[0] && a[1] <= b[1] && b[2] <= a[2] && b[3] <= a[3]
+}
+
+/// Fill the gaps between damage rectangles while that is cheaper than the extra
+/// decoder calls they cost, taking the cheapest merge first.
+fn coalesce(rects: &mut Vec<Bounds>) {
+    loop {
+        let mut best: Option<(usize, Bounds)> = None;
+        for (i, a) in rects.iter().enumerate() {
+            for b in &rects[i + 1..] {
+                let cost = added_area(a, b);
+                if best.as_ref().map_or(true, |(cheapest, _)| cost < *cheapest) {
+                    best = Some((cost, merge(a, b)));
+                }
+            }
+        }
+        let Some((cost, union)) = best else { return };
+        if cost > MERGE_BUDGET {
+            return;
+        }
+        // Whatever the union swallows no longer needs a rectangle of its own.
+        rects.retain(|r| !covers(&union, r));
+        rects.push(union);
     }
 }
 
@@ -477,6 +534,32 @@ mod tests {
         let (d, px) = &c.out[0];
         assert_eq!((d.x, d.y, d.width, d.height), (0, 0, w, h));
         assert_eq!(px.len(), w as usize * h as usize * 4);
+    }
+
+    /// A gap cheaper to re-encode than to pay for the extra decoder call is
+    /// filled in.
+    #[test]
+    fn scratches_close_together_merge() {
+        let mut rects = vec![[0, 0, 64, 64], [128, 0, 192, 64]];
+        coalesce(&mut rects);
+        assert_eq!(rects, vec![[0, 0, 192, 64]]);
+    }
+
+    /// Filling between these costs more than the call it removes, should stay
+    /// apart.
+    #[test]
+    fn distant_scratches_stay_apart() {
+        let mut rects = vec![[0, 0, 64, 64], [1000, 1000, 1064, 1064]];
+        coalesce(&mut rects);
+        assert_eq!(rects.len(), 2);
+    }
+
+    /// Whatever a merge swallows no longer needs a rectangle of its own.
+    #[test]
+    fn a_merge_swallows_rectangles_inside_it() {
+        let mut rects = vec![[0, 0, 64, 64], [64, 0, 128, 64], [0, 0, 128, 64]];
+        coalesce(&mut rects);
+        assert_eq!(rects, vec![[0, 0, 128, 64]]);
     }
 
     /// Pixels must be RGBA, not X11's native BGRA. Checking the alpha byte
