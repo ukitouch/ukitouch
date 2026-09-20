@@ -14,7 +14,7 @@ use tauri::State;
 
 use super::{create, CaptureBackend, CaptureOptions, Damage};
 
-/// How often to ask the backend for changes.
+/// Interval to ask the backend for changes.
 ///
 /// This is a poll interval, not a frame rate: an idle screen costs one cheap
 /// check per tick and produces nothing. 16ms keeps the worst case at roughly
@@ -29,31 +29,25 @@ struct RectSpan {
     y: u16,
     width: u16,
     height: u16,
-    /// Byte offset of this rectangle's pixels in the blob that follows.
+    /// byte offset of this rectangle's pixels in the blob that follows
     offset: usize,
-    /// Byte length, so a caller can tell a truncated blob from a complete one.
+    /// byte length
     len: usize,
 }
 
 /// What a monitor reports.
-///
-/// Pixels never appear here. A frame's rectangles are described in one JSON
-/// message and all of their pixels follow in one raw message. A message per
-/// rectangle turns a full-screen repaint into hundreds of round trips, which
-/// is the difference between a fast frame and a slow one.
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 enum MonitorEvent {
-    /// One frame's rectangles, whose concatenated pixels follow as raw bytes.
+    /// one frame's rectangles
     Frame { rects: Vec<RectSpan>, total: usize },
-    /// Capture stopped. `reason` is absent for a normal stop.
+    /// capture stopped, `reason` is absent for a normal stop
     Stopped {
         #[serde(skip_serializing_if = "Option::is_none")]
         reason: Option<String>,
     },
 }
 
-/// What {@link capture_start} returns.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MonitorStarted {
@@ -73,11 +67,10 @@ pub struct CaptureState {
 /// Shared control flags for one running monitor.
 #[derive(Default)]
 struct MonitorHandle {
-    /// Cleared to ask the task to stop.
     running: AtomicBool,
-    /// Set to ask the task for a full frame.
+    /// set to ask the task for a full frame
     resync: AtomicBool,
-    /// Options from a `capture_configure`, taken by the task on its next turn.
+    /// capture options, taken by the task on its next turn
     pending: std::sync::Mutex<Option<CaptureOptions>>,
 }
 
@@ -88,14 +81,12 @@ pub async fn capture_start(
     on_event: Channel<InvokeResponseBody>,
     options: Option<CaptureOptions>,
 ) -> Result<MonitorStarted, String> {
-    // The backend is opened here so a failure — no display, no extension, a
-    // refusal — reaches the caller as a rejection instead of a dead monitor.
     let mut backend = create().map_err(|e| e.to_string())?;
     if let Some(options) = &options {
         backend.configure(options);
     }
-    let info = backend.info();
 
+    let info = backend.info();
     let id = state
         .next_id
         .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -154,8 +145,7 @@ async fn run_monitor(
         };
 
         if let Some(rects) = batch {
-            // Gather the whole frame: one header describing every rectangle, and
-            // one blob holding all of their pixels back to back.
+            // gather the whole frame
             let mut spans = Vec::with_capacity(rects.len());
             let mut blob = Vec::new();
             for (d, px) in rects {
@@ -180,8 +170,6 @@ async fn run_monitor(
                     total,
                 };
                 if let Err(e) = send_json(&on_event, &header) {
-                    // Losing the channel is not the same as a stop request, so say
-                    // so rather than exiting quietly.
                     let _ = send_json(
                         &on_event,
                         &MonitorEvent::Stopped {
@@ -190,7 +178,7 @@ async fn run_monitor(
                     );
                     return;
                 }
-                // Raw to takes the channel's fetch path.
+
                 if let Err(e) = on_event.send(InvokeResponseBody::Raw(blob)) {
                     let _ = send_json(
                         &on_event,
@@ -207,10 +195,7 @@ async fn run_monitor(
     let _ = send_json(&on_event, &MonitorEvent::Stopped { reason: None });
 }
 
-/// Run one poll, turning both an error and a panic into a reason to stop.
-///
-/// A panicking backend would otherwise unwind out of the task and leave a
-/// monitor that looks alive and never delivers again.
+/// Run one poll.
 fn poll_once(
     backend: &mut Box<dyn CaptureBackend>,
 ) -> Result<Option<Vec<(Damage, Vec<u8>)>>, String> {
@@ -236,9 +221,6 @@ fn panic_message(payload: &(dyn std::any::Any + Send)) -> &str {
 }
 
 /// Ask a monitor for the whole screen again.
-///
-/// Damage is incremental, so a viewer with no baseline — one that just
-/// connected, or that dropped a frame — needs one full frame to resume from.
 #[tauri::command]
 pub fn capture_resync(state: State<'_, CaptureState>, id: u64) -> Result<(), String> {
     if let Some(handle) = state.monitors.lock().unwrap().get(&id) {

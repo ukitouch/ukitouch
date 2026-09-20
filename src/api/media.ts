@@ -1,13 +1,4 @@
-/**
- * Screen capture API.
- *
- * A monitor is a full-screen pixel source that reports only what changed. It is
- * not tied to any particular use: showing a screen, or driving one, both start
- * from the same rectangles.
- *
- * The host does the platform work. Callers only see rectangles and pixels, and
- * never have to know which display server or OS they are on.
- */
+/** Host-side: Screen streaming API */
 import { Channel, invoke } from "@tauri-apps/api/core";
 import {
   toDisposable,
@@ -23,13 +14,9 @@ export interface Damage {
   height: number;
 }
 
-/**
- * A rectangle's pixels, as delivered by the host.
- *
- * `data` is exactly `width * height * 4` bytes, row-major, RGBA.
- * This is the layout `ImageData` wants.
- */
+/** A rectangle's pixels, as delivered by the host. */
 export interface DamageFrame extends Damage {
+  /** `width * height * 4` bytes, row-major, RGBA. */
   data: Uint8Array;
 }
 
@@ -49,29 +36,22 @@ export interface ScreenSize {
   height: number;
 }
 
-/**
- * What a caller can ask of a screen source.
- */
+/** Capture options to the screen collector. */
 export interface CaptureOptions {
-  /** Include the pointer in the frames. */
+  /** Include the cursor in the frames. */
   cursor?: boolean;
 }
 
-/**
- * Options to tell sender how a frame be like.
- */
+/** Options to tell streamer how a frame be like. */
 export interface StreamOptions extends CaptureOptions {
-  /** Fraction of the screen to send, up to 1. */
-  scale?: number;
+  /** Resolution scale, up to 1. */
+  resolutionScale?: number;
 }
 
-/** Reasons of capture could not start or stopped on its own. */
+/** Reasons of capture could not start or stopped. */
 export type CaptureFailure =
-  /** The user refused the capture request. */
   | "denied"
-  /** The user dismissed the capture request without deciding. */
   | "cancelled"
-  /** This platform has no capture backend. */
   | "unsupported";
 
 /** Result of trying to start a monitor. */
@@ -79,29 +59,29 @@ export type StartResult =
   | { ok: true; monitor: ScreenMonitor }
   | { ok: false; reason: CaptureFailure; detail?: string };
 
-/** A running screen source. */
+/** Screen collector's interface */
 export interface ScreenMonitor {
   /** Dimensions and layout of the captured screen. */
   readonly info: ScreenInfo;
   /**
    * Subscribe to changed rectangles.
    *
-   * @param handler Receives each batch of changed rectangles.
-   * @returns A `Disposable` that unsubscribes the handler.
+   * @param handler receives each batch of changed rectangles
+   * @returns a `Disposable` that unsubscribes the handler
    */
   onDamage(handler: (frames: DamageFrame[]) => void): Disposable;
   /**
    * Subscribe to the monitor stopping.
    *
-   * @param handler Called once, with a reason if capture failed on its own.
-   * @returns A `Disposable` that unsubscribes the handler.
+   * @param handler called once, with a reason if capture failed on its own
+   * @returns a `Disposable` that unsubscribes the handler
    */
   onStop(handler: (reason?: string) => void): Disposable;
-  /** Ask for the whole screen again, for a viewer that lost its baseline. */
+  /** Ask for the whole screen again. */
   resync(): Promise<void>;
-  /** Change how the screen is captured. */
+  /** Configure the capture options of the following frames. */
   configure(options: CaptureOptions): Promise<void>;
-  /** Stop capturing and release the platform resources. */
+  /** Stop capturing. */
   stop(): Promise<void>;
 }
 
@@ -117,37 +97,37 @@ interface RectSpan {
   len: number;
 }
 
-/** Host-side message shapes. `kind` is the tag. */
+/** Host-side message shapes. */
 type HostEvent =
   | { kind: "frame"; rects: RectSpan[]; total: number }
   | { kind: "stopped"; reason?: string };
+
 /**
  * Start capturing the screen.
  *
- * @param options How to capture, if the caller cares.
- * @returns The started monitor, or why it could not start.
+ * @param options capture options to the screen collector
+ * @returns the started monitor, or why it could not start
  */
-export async function createScreenMonitor(
-  options?: CaptureOptions
-): Promise<StartResult> {
+export async function createScreenMonitor(options?: CaptureOptions): Promise<StartResult> {
   const damageHandlers = new Set<(frames: DamageFrame[]) => void>();
   const stopHandlers = new Set<(reason?: string) => void>();
   let pending: { rects: RectSpan[]; total: number } | null = null;
   let stopped = false;
-  // A frame's rectangles arrive described in JSON, then all of their pixels in
-  // one raw message.
+
   const on_event = new Channel<HostEvent | ArrayBuffer>();
   on_event.onmessage = (message) => {
     if (message instanceof ArrayBuffer) {
       if (!pending) return;
       const { rects, total } = pending;
       pending = null;
+
       if (message.byteLength !== total) {
         // A truncated blob means the baseline is now suspect, drop the frame
         // and the caller can ask for the screen again.
         return;
       }
-      // Each rectangle is a view into the one blob, nothing is copied.
+
+      // handle the frame
       const frames: DamageFrame[] = rects.map((r) => ({
         x: r.x,
         y: r.y,
@@ -156,6 +136,7 @@ export async function createScreenMonitor(
         data: new Uint8Array(message, r.offset, r.len),
       }));
       if (frames.length > 0) damageHandlers.forEach((h) => h(frames));
+
       return;
     }
 
@@ -177,6 +158,7 @@ export async function createScreenMonitor(
     return { ok: false, reason: classify(String(err)), detail: String(err) };
   }
 
+  // init info
   const screen: ScreenInfo = {
     width: started.width,
     height: started.height,
@@ -184,6 +166,7 @@ export async function createScreenMonitor(
   };
   const monitorId = started.id;
 
+  // create the monitor
   const monitor: ScreenMonitor = {
     info: screen,
     onDamage(handler) {
@@ -208,25 +191,25 @@ export async function createScreenMonitor(
   return { ok: true, monitor };
 }
 
-/** A running screen stream to a peer. */
+/** A running screen stream to the viewer. */
 export interface ScreenStream {
   readonly id: number;
   /** Shape of the screen being sent. */
   readonly info: ScreenInfo;
-  /** Change how the screen is captured; the peer is told the new shape. */
+  /** Configure the capture options of the following frames. */
   configure(options: StreamOptions): Promise<void>;
-  /** Stop sending. */
+  /** Stop streaming. */
   stop(): Promise<void>;
 }
 
 /**
- * Stream this screen onto an already-open WebRTC channel.
+ * Stream this screen onto an channel.
  *
- * TODO: WebRTC only for now; other transports open up once this path holds.
+ * TODO: WebRTC only for now
  *
- * @param channel An open channel from `openChannel({ transport: "webrtc" })`.
- * @param options How to capture, if the caller cares.
- * @returns The running stream, for stats and to stop it.
+ * @param channel an opened channel
+ * @param options capture options
+ * @returns the running stream
  */
 export async function startScreenStream(
   channel: ScreenChannel,
@@ -239,12 +222,14 @@ export async function startScreenStream(
   if (!token || channelId === undefined) {
     throw new Error("screen streaming needs a WebRTC channel");
   }
+
   const started = await invoke<{
     id: number;
     width: number;
     height: number;
     format: "rgba";
   }>("start_screen_stream", { token, channelId, options });
+
   return {
     id: started.id,
     info: { width: started.width, height: started.height, format: started.format },
@@ -257,8 +242,8 @@ export async function startScreenStream(
 /**
  * Map a host error message to a failure kind.
  *
- * @param message The error text from the host.
- * @returns The matching failure kind.
+ * @param message the error text from the host
+ * @returns the matching failure kind
  */
 function classify(message: string): CaptureFailure {
   const m = message.toLowerCase();

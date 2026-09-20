@@ -10,20 +10,19 @@ use super::{create, CaptureBackend, CaptureOptions, Damage, ScreenInfo};
 use crate::net::sink::{ChannelSink, Rect};
 use crate::net::state::NetState;
 
-/// Poll cadence: an idle screen costs one cheap check per tick.
 const POLL_INTERVAL: Duration = Duration::from_millis(16);
 
-/// The smallest fraction of the screen a viewer may ask for.
+/// The smallest resolution scale of the screen a viewer may ask for.
 const MIN_SCALE: f32 = 0.05;
 
-/// What a viewer can ask of a stream: how to capture, and how small to deliver.
+/// Capture options to the screen collector.
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct StreamOptions {
     #[serde(flatten)]
     pub capture: CaptureOptions,
-    /// Fraction of the screen to deliver.
-    pub scale: Option<f32>,
+    /// Resolution scale of the screen to deliver.
+    pub resolution_scale: Option<f32>,
 }
 
 /// Where frames go out at, and how much of the screen they keep.
@@ -87,11 +86,13 @@ pub async fn start_screen_stream(
 ) -> Result<StreamStarted, String> {
     let sink = ChannelSink::new(net.inner(), &token, channel_id)?;
     let mut backend = create().map_err(|e| e.to_string())?;
+
     if let Some(options) = &options {
         backend.configure(&options.capture);
     }
+
     let info = backend.info();
-    let out = Output::of(info, options.and_then(|o| o.scale));
+    let out = Output::of(info, options.and_then(|o| o.resolution_scale));
 
     let id = state.next_id.fetch_add(1, Ordering::Relaxed);
     let handle = Arc::new(StreamHandle {
@@ -143,12 +144,11 @@ async fn run_stream(
         return;
     }
     while handle.running.load(Ordering::Relaxed) {
-        // Apply any options asked for since the last turn. A new shape has to be
-        // announced before the rectangles that follow it.
+        // Apply any options asked for since the last turn.
         let pending = handle.pending.lock().unwrap().take();
         if let Some(options) = pending {
             backend.configure(&options.capture);
-            let next = Output::of(backend.info(), options.scale);
+            let next = Output::of(backend.info(), options.resolution_scale);
             if !out.same_shape(&next) {
                 out = next;
                 // The viewer is about to clear its canvas for the new shape, and
@@ -165,6 +165,7 @@ async fn run_stream(
             continue;
         }
 
+        // poll the backend
         let batch = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| backend.poll()));
         let rects = match batch {
             Ok(Ok(Some(rects))) => rects,
@@ -175,11 +176,13 @@ async fn run_stream(
             Ok(Err(_)) | Err(_) => return,
         };
 
+        // render the rects
         let mut blocks: Vec<(Rect, Vec<u8>)> = Vec::new();
         for (d, px) in &rects {
             if d.width == 0 || d.height == 0 {
                 continue;
             }
+
             let shaped;
             let (d, px) = if out.factor < 1.0 {
                 shaped = resample(*d, px, out);
@@ -187,6 +190,8 @@ async fn run_stream(
             } else {
                 (d, px.as_slice())
             };
+
+            // encode
             if let Some(payload) = encode_webp(d, px) {
                 blocks.push((
                     Rect {
@@ -199,6 +204,8 @@ async fn run_stream(
                 ));
             }
         }
+
+        // group the blocks
         let frame: Vec<(Rect, &[u8])> = blocks
             .iter()
             .map(|(rect, payload)| (*rect, payload.as_slice()))
@@ -206,6 +213,7 @@ async fn run_stream(
         if sink.push(&frame).await.is_err() {
             return;
         }
+
         tokio::time::sleep(POLL_INTERVAL).await;
     }
 }
@@ -238,10 +246,11 @@ fn resample(rect: Damage, px: &[u8], out: Output) -> (Damage, Vec<u8>) {
     let y1 =
         (((rect.y as f32 + rect.height as f32) * factor).ceil() as u16).clamp(y0 + 1, out.height);
     let (w, h) = ((x1 - x0) as usize, (y1 - y0) as usize);
-
     let (left, right) = (rect.x as usize, rect.x as usize + rect.width as usize);
     let (top, bottom) = (rect.y as usize, rect.y as usize + rect.height as usize);
     let mut dst = vec![0u8; w * h * 4];
+
+    // iterate over the spanned rows
     for oy in 0..h {
         let (sy0, sy1) = span(y0 as usize + oy, factor, top, bottom);
         for ox in 0..w {
