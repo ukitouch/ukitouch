@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
-import { loadInstalledExtensions } from "../core/loader";
-import { unregisterExtension } from "../core/registry";
+import { loadExtensionDir, unloadExtensionDir } from "../core/loader";
 import { useToast } from "../components/Toast";
+import { useConfirm } from "../components/Confirm";
 
 interface InstalledExt {
   id: string;
@@ -15,6 +15,10 @@ interface InstalledExt {
   dir: string;
 }
 
+type InstallOutcome =
+  | { status: "installed"; meta: InstalledExt }
+  | { status: "needsConfirm"; id: string; existing: string; incoming: string };
+
 function toBase64(bytes: Uint8Array): string {
   let binary = "";
   for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
@@ -24,8 +28,8 @@ function toBase64(bytes: Uint8Array): string {
 export function ExtensionsManager() {
   const [list, setList] = useState<InstalledExt[] | null>(null);
   const [installing, setInstalling] = useState(false);
-  const [uninstallConfirm, setUninstallConfirm] = useState<string | null>(null);
   const { show } = useToast();
+  const confirm = useConfirm();
 
   const refresh = useCallback(async () => {
     try {
@@ -48,11 +52,29 @@ export function ExtensionsManager() {
     setInstalling(true);
     try {
       const bytes = await readFile(String(picked));
-      const meta = await invoke<InstalledExt>("install_extension", {
-        zipBase64: toBase64(bytes),
+      const zipBase64 = toBase64(bytes);
+      let outcome = await invoke<InstallOutcome>("install_extension", {
+        zipBase64,
+        force: false,
       });
-      await loadInstalledExtensions();
-      show(`installed ${meta.name} v${meta.version}`);
+      if (outcome.status === "needsConfirm") {
+        const ok = await confirm({
+          title: "Overwrite extension",
+          message: outcome.existing
+            ? `${outcome.id} v${outcome.existing} is installed. Overwrite with v${outcome.incoming}?`
+            : `${outcome.id} is already installed. Overwrite with v${outcome.incoming}?`,
+          confirmText: "Overwrite",
+          danger: true,
+        });
+        if (!ok) return;
+        outcome = await invoke<InstallOutcome>("install_extension", {
+          zipBase64,
+          force: true,
+        });
+      }
+      if (outcome.status !== "installed") return;
+      await loadExtensionDir(outcome.meta.dir);
+      show(`installed ${outcome.meta.name} v${outcome.meta.version}`);
       await refresh();
     } catch (e) {
       show(`install failed: ${e}`, "error");
@@ -61,11 +83,18 @@ export function ExtensionsManager() {
     }
   }
 
-  async function uninstall(id: string) {
+  async function uninstall(ext: InstalledExt) {
+    const ok = await confirm({
+      title: "Uninstall extension",
+      message: `Uninstall ${ext.name} (${ext.id})?`,
+      confirmText: "Uninstall",
+      danger: true,
+    });
+    if (!ok) return;
     try {
-      await invoke("uninstall_extension", { id });
-      unregisterExtension(id);
-      show(`uninstalled ${id}`);
+      await invoke("uninstall_extension", { id: ext.id });
+      unloadExtensionDir(ext.dir);
+      show(`uninstalled ${ext.id}`);
       await refresh();
     } catch (e) {
       show(`uninstall failed: ${e}`, "error");
@@ -94,21 +123,10 @@ export function ExtensionsManager() {
             <span className="flex items-center gap-2">
               <span className="text-gray-400">v{ext.version}</span>
               <button
-                onClick={() => {
-                  if (uninstallConfirm === ext.id) {
-                    setUninstallConfirm(null);
-                    void uninstall(ext.id);
-                  } else {
-                    setUninstallConfirm(ext.id);
-                  }
-                }}
-                className={
-                  uninstallConfirm === ext.id
-                    ? "text-red-500 font-semibold"
-                    : "text-gray-400 hover:text-red-500"
-                }
+                onClick={() => void uninstall(ext)}
+                className="text-gray-400 hover:text-red-500"
               >
-                {uninstallConfirm === ext.id ? "Confirm?" : "Uninstall"}
+                Uninstall
               </button>
             </span>
           </li>

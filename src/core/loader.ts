@@ -1,25 +1,52 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listExtensions, unregisterExtension } from "./registry";
 
 interface InstalledExt {
-  id: string;
-  name: string;
-  version: string;
-  permissions: string[];
-  platforms: string[];
   dir: string;
 }
 
+/** Extension ids registered by each loaded directory. */
+const loadedIds = new Map<string, string[]>();
+
 export async function loadInstalledExtensions(): Promise<void> {
   const list = await invoke<InstalledExt[]>("list_installed_extensions");
-  await Promise.all(list.map(loadOne));
+  await Promise.all(list.map(({ dir }) => loadExtensionDir(dir)));
 }
 
-async function loadOne(ext: InstalledExt): Promise<void> {
+/**
+ * Load an extension directory, replacing whatever was loaded from it before.
+ *
+ * @param dir The extension directory on disk.
+ */
+export async function loadExtensionDir(dir: string): Promise<void> {
+  unloadExtensionDir(dir);
+  const before = new Set(registryIds());
   const code = await invoke<string>("read_extension_file", {
-    dir: ext.dir,
+    dir,
     file: "index.js",
   });
   const url = URL.createObjectURL(new Blob([code], { type: "text/javascript" }));
-  await import(/* @vite-ignore */ url);
-  URL.revokeObjectURL(url);
+  try {
+    await import(/* @vite-ignore */ url);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+  loadedIds.set(
+    dir,
+    registryIds().filter((id) => !before.has(id))
+  );
+}
+
+/**
+ * Unregister every extension loaded from a directory.
+ *
+ * @param dir The extension directory on disk.
+ */
+export function unloadExtensionDir(dir: string): void {
+  for (const id of loadedIds.get(dir) ?? []) unregisterExtension(id);
+  loadedIds.delete(dir);
+}
+
+function registryIds(): string[] {
+  return listExtensions().map((ext) => ext.id);
 }

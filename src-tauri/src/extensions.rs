@@ -32,6 +32,20 @@ pub struct ExtensionMeta {
     pub dir: String,
 }
 
+/// Result of an install attempt: written, blocked
+#[derive(Serialize)]
+#[serde(tag = "status", rename_all = "camelCase")]
+pub enum InstallOutcome {
+    Installed {
+        meta: ExtensionMeta,
+    },
+    NeedsConfirm {
+        id: String,
+        existing: String,
+        incoming: String,
+    },
+}
+
 /// List extensions installed under `<appDataDir>/extensions/`.
 #[tauri::command]
 pub fn list_installed_extensions(app: AppHandle) -> Result<Vec<ExtensionMeta>, String> {
@@ -52,6 +66,32 @@ pub fn read_extension_file(dir: String, file: String) -> Result<String, String> 
     fs::read_to_string(&path).map_err(|e| e.to_string())
 }
 
+fn valid_ext_id(id: &str) -> bool {
+    !id.is_empty()
+        && !id.starts_with('.')
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.')
+}
+
+/// Versions are `x.x.x`. Returns `None` if that shape is not met.
+fn parse_version(v: &str) -> Option<[u32; 3]> {
+    let mut parts = v.trim().split('.');
+    let out = [
+        parts.next()?.parse().ok()?,
+        parts.next()?.parse().ok()?,
+        parts.next()?.parse().ok()?,
+    ];
+    parts.next().is_none().then_some(out)
+}
+
+fn version_gt(a: &str, b: &str) -> bool {
+    match (parse_version(a), parse_version(b)) {
+        (Some(a), Some(b)) => a > b,
+        _ => false,
+    }
+}
+
 fn scan_extensions(dir: &Path) -> Result<Vec<ExtensionMeta>, std::io::Error> {
     let mut out = Vec::new();
     if !dir.is_dir() {
@@ -60,7 +100,12 @@ fn scan_extensions(dir: &Path) -> Result<Vec<ExtensionMeta>, std::io::Error> {
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
         let path: PathBuf = entry.path();
-        if !path.is_dir() || !path.join("index.js").is_file() {
+        let hidden = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(|n| n.starts_with('.'))
+            .unwrap_or(true);
+        if hidden || !path.is_dir() || !path.join("index.js").is_file() {
             continue;
         }
         let manifest_path = path.join("manifest.json");
@@ -84,7 +129,11 @@ fn scan_extensions(dir: &Path) -> Result<Vec<ExtensionMeta>, std::io::Error> {
 
 /// Install an extension from a zip into `<appDataDir>/extensions/<id>/`.
 #[tauri::command]
-pub fn install_extension(app: AppHandle, zip_base64: String) -> Result<ExtensionMeta, String> {
+pub fn install_extension(
+    app: AppHandle,
+    zip_base64: String,
+    force: bool,
+) -> Result<InstallOutcome, String> {
     let exts_dir = app
         .path()
         .app_data_dir()
@@ -107,13 +156,30 @@ pub fn install_extension(app: AppHandle, zip_base64: String) -> Result<Extension
     };
     let mf: ExtensionManifest =
         serde_json::from_str(&manifest_text).map_err(|e| format!("bad manifest: {e}"))?;
-    if mf.id.trim().is_empty() {
-        return Err("manifest id empty".into());
+    if !valid_ext_id(&mf.id) {
+        return Err(format!("invalid extension id: {}", mf.id));
     }
     zip.by_name("index.js")
         .map_err(|_| "missing index.js".to_string())?;
 
     let dest = exts_dir.join(&mf.id);
+    let existing = fs::read_to_string(dest.join("manifest.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str::<ExtensionManifest>(&t).ok())
+        .map(|m| m.version);
+    if !force
+        && dest.exists()
+        && !existing
+            .as_deref()
+            .is_some_and(|v| version_gt(&mf.version, v))
+    {
+        return Ok(InstallOutcome::NeedsConfirm {
+            id: mf.id,
+            existing: existing.unwrap_or_default(),
+            incoming: mf.version,
+        });
+    }
+
     let tmp = exts_dir.join(format!(".tmp-{}", mf.id));
     if tmp.exists() {
         fs::remove_dir_all(&tmp).map_err(|e| format!("clean tmp: {e}"))?;
@@ -142,34 +208,33 @@ pub fn install_extension(app: AppHandle, zip_base64: String) -> Result<Extension
     }
     fs::rename(&tmp, &dest).map_err(|e| format!("install: {e}"))?;
 
-    Ok(ExtensionMeta {
-        id: mf.id,
-        name: mf.name,
-        version: mf.version,
-        permissions: mf.permissions,
-        platforms: mf.platforms,
-        dir: dest.to_string_lossy().into_owned(),
+    Ok(InstallOutcome::Installed {
+        meta: ExtensionMeta {
+            id: mf.id,
+            name: mf.name,
+            version: mf.version,
+            permissions: mf.permissions,
+            platforms: mf.platforms,
+            dir: dest.to_string_lossy().into_owned(),
+        },
     })
 }
 
 /// Remove an installed extension from `<appDataDir>/extensions/<id>/`.
 #[tauri::command]
 pub fn uninstall_extension(app: AppHandle, id: String) -> Result<(), String> {
-    if id.is_empty()
-        || !id
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
-    {
+    if !valid_ext_id(&id) {
         return Err("invalid extension id".into());
     }
-    let dir = app
+    let exts_dir = app
         .path()
         .app_data_dir()
         .map_err(|e| format!("app data dir: {e}"))?
-        .join("extensions")
-        .join(&id);
-    if dir.exists() {
-        fs::remove_dir_all(&dir).map_err(|e| format!("remove {id}: {e}"))?;
+        .join("extensions");
+    for dir in [exts_dir.join(&id), exts_dir.join(format!(".tmp-{id}"))] {
+        if dir.exists() {
+            fs::remove_dir_all(&dir).map_err(|e| format!("remove {id}: {e}"))?;
+        }
     }
     Ok(())
 }
