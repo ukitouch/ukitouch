@@ -10,7 +10,7 @@ const loadedIds = new Map<string, string[]>();
 
 export async function loadInstalledExtensions(): Promise<void> {
   const list = await invoke<InstalledExt[]>("list_installed_extensions");
-  await Promise.all(list.map(({ dir }) => loadExtensionDir(dir)));
+  for (const { dir } of list) await loadExtensionDir(dir);
 }
 
 /**
