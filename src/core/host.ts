@@ -1,5 +1,4 @@
 import { invoke } from "@tauri-apps/api/core";
-import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import type { ExtensionContext, HostPlatform, Layout } from "./types";
 
 /** Toast severity. */
@@ -38,38 +37,6 @@ export function setToastSink(fn: ((message: string, kind?: ToastKind) => void) |
  */
 export function showToast(message: string, kind?: ToastKind): void {
   toastImpl?.(message, kind);
-}
-
-/**
- * Read the system clipboard as plain text.
- *
- * Falls back to `navigator.clipboard` when the Tauri command is unavailable
- *
- * @returns The clipboard text, or an empty string if it is empty/unreadable.
- */
-export async function readClipboardText(): Promise<string> {
-  try {
-    return await readText();
-  } catch {
-    try {
-      return await navigator.clipboard.readText();
-    } catch {
-      return "";
-    }
-  }
-}
-
-/**
- * Write plain text to the system clipboard.
- *
- * @param text The text to place on the clipboard.
- */
-export async function writeClipboardText(text: string): Promise<void> {
-  try {
-    await writeText(text);
-  } catch {
-    await navigator.clipboard.writeText(text);
-  }
 }
 
 let platformPromise: Promise<HostPlatform> | null = null;

@@ -295,6 +295,9 @@ pub async fn open_channel(
     Ok(channel_id)
 }
 
+/// The peer's data channel reader takes at most `u16::MAX` bytes per message.
+const MAX_MESSAGE: usize = u16::MAX as usize;
+
 async fn send_now(handle: &ChannelHandle, data: Vec<u8>, text: bool) -> Result<(), String> {
     let res: Result<usize, webrtc::Error> = if text {
         handle
@@ -315,6 +318,9 @@ pub async fn send(
     data: Vec<u8>,
     text: bool,
 ) -> Result<(), String> {
+    if data.len() > MAX_MESSAGE {
+        return Err(format!("message too large: {} bytes", data.len()));
+    }
     let peer = find_by_token(state, &token)?;
     let handle = peer
         .channels

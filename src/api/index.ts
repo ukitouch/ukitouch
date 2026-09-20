@@ -6,7 +6,7 @@
  */
 import * as React from "react";
 import { registerExtension } from "../core/registry";
-import { getHostPlatform, readClipboardText, setFullscreen, showToast, writeClipboardText } from "../core/host";
+import { getHostPlatform, setFullscreen, showToast } from "../core/host";
 import { getHostInfo } from "../core/hostinfo";
 import { refreshUsbDevices, usbStore } from "../core/usb";
 import { createStore } from "../core/store";
@@ -46,8 +46,6 @@ export {
   getHostPlatform,
   getHostInfo,
   setFullscreen,
-  readClipboardText,
-  writeClipboardText,
   refreshUsbDevices,
   usbStore,
   createStore,
@@ -153,10 +151,6 @@ export interface YatouchRuntime {
   getHostInfo: typeof getHostInfo;
   /** Hold the app fullscreen (Android only). */
   setFullscreen: typeof setFullscreen;
-  /** Read the system clipboard as plain text. */
-  readClipboardText: typeof readClipboardText;
-  /** Write plain text to the system clipboard. */
-  writeClipboardText: typeof writeClipboardText;
   /** Refresh the connected USB device list. */
   refreshUsbDevices: typeof refreshUsbDevices;
   /** Reactive USB device store. */
@@ -197,8 +191,6 @@ export function installBridge(): void {
     getHostPlatform,
     getHostInfo,
     setFullscreen,
-    readClipboardText,
-    writeClipboardText,
     refreshUsbDevices,
     usbStore,
     createStore,
