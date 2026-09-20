@@ -10,6 +10,7 @@ import { getHostPlatform, setFullscreen, showToast } from "../core/host";
 import { getHostInfo } from "../core/hostinfo";
 import { refreshUsbDevices, usbStore } from "../core/usb";
 import { createStore } from "../core/store";
+import { createScreenMonitor, startScreenStream } from "./media";
 import type {
   ExtensionContext,
   ExtensionDefinition as CoreExtensionDefinition,
@@ -50,6 +51,8 @@ export {
   usbStore,
   createStore,
   showToast,
+  createScreenMonitor,
+  startScreenStream,
 };
 
 export type {
@@ -63,7 +66,21 @@ export type {
   HelloInfo,
 };
 
+export type {
+  Damage,
+  DamageFrame,
+  ScreenInfo,
+  ScreenMonitor,
+  ScreenStream,
+  StartResult,
+  CaptureFailure,
+  CaptureOptions,
+  StreamOptions,
+  ScreenSize,
+} from "./media";
+
 export type { SearchOption } from "../components/SearchSelect";
+export type { SelectOption } from "../components/Select";
 export type { UsbDevice } from "../core/usb";
 export type { Store } from "../core/store";
 export type { ToastKind } from "../core/host";
@@ -157,6 +174,10 @@ export interface YatouchRuntime {
   usbStore: typeof usbStore;
   /** In-memory store factory. */
   createStore: typeof createStore;
+  /** Start capturing the screen. */
+  createScreenMonitor: typeof createScreenMonitor;
+  /** Stream the screen onto an open channel. */
+  startScreenStream: typeof startScreenStream;
   /** Show a toast (works outside React). */
   showToast: typeof showToast;
 }
@@ -195,5 +216,7 @@ export function installBridge(): void {
     usbStore,
     createStore,
     showToast,
+    createScreenMonitor,
+    startScreenStream,
   };
 }

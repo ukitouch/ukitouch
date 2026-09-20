@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { Channel as IpcChannel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { serverConfig } from "./config";
 import { deviceUuid, genTempId } from "./identity";
@@ -217,12 +217,6 @@ export async function disableTempId(): Promise<void> {
 //#endregion
 //#region P2P data channels
 
-interface ChannelDataEvent {
-  token: string;
-  channel_id: number;
-  data: string; // base64
-  text: boolean;
-}
 interface ChannelOpenEvent {
   token: string;
   channel_id: number;
@@ -251,10 +245,6 @@ function ensureChannelListeners(): Promise<void> {
       channels.set(key(e.payload.token, e.payload.channel_id), ch);
       // Route by label (the dialing extension's id), unmatched labels stay inert.
       incomingHandlers.get(e.payload.label)?.forEach((h) => h(ch));
-    }),
-    listen<ChannelDataEvent>("channel-data", (e) => {
-      const ch = channels.get(key(e.payload.token, e.payload.channel_id));
-      ch?.deliver(e.payload.data, e.payload.text);
     }),
     listen<ChannelCloseEvent>("channel-close", (e) => {
       const k = key(e.payload.token, e.payload.channel_id);
@@ -288,11 +278,19 @@ class P2PChannel implements Channel {
   onclose: ((ev: Event) => void) | null = null;
   onopen: ((ev: Event) => void) | null = null;
   onerror: ((ev: Event) => void) | null = null;
+  /** Frontend end of the inbound stream. */
+  private ipc = new IpcChannel<string | ArrayBuffer>();
 
   constructor(token: string, channelId: number, label: string) {
     this.token = token;
     this.channelId = channelId;
     this.label = label;
+    this.ipc.onmessage = (data) => this.deliver(data);
+    void invoke("p2p_bind", {
+      token,
+      channelId,
+      onData: this.ipc,
+    }).catch((e) => console.error("[p2p] bind failed", e));
   }
 
   send(data: string | ArrayBuffer | ArrayBufferView | Blob): void {
@@ -317,14 +315,14 @@ class P2PChannel implements Channel {
     this.readyState = "closed";
   }
 
-  /** Deliver an incoming message. */
-  deliver(dataB64: string, text: boolean): void {
+  /** Deliver an incoming message: text as a string, bytes as raw. */
+  deliver(data: string | ArrayBuffer): void {
     if (!this.onmessage) return;
-    const bytes = Uint8Array.from(atob(dataB64), (c) => c.charCodeAt(0));
-    const data: string | Uint8Array = text
-      ? new TextDecoder().decode(bytes)
-      : bytes;
-    this.onmessage(new MessageEvent("message", { data }));
+    this.onmessage(
+      new MessageEvent("message", {
+        data: typeof data === "string" ? data : new Uint8Array(data),
+      })
+    );
   }
 
   handleClose(): void {

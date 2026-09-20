@@ -1,3 +1,4 @@
+mod capture;
 mod extensions;
 mod host;
 mod net;
@@ -5,13 +6,17 @@ mod orientation;
 #[cfg(desktop)]
 mod tray;
 
+use capture::bridge::{
+    capture_configure, capture_resync, capture_start, capture_stop, CaptureState,
+};
+use capture::stream::{start_screen_stream, stop_screen_stream, stream_configure, StreamState};
 use extensions::{
     install_extension, list_installed_extensions, read_extension_file, uninstall_extension,
 };
 use host::get_host_info;
 use net::bridge::{
-    net_configure, p2p_cancel, p2p_close_channel, p2p_connect, p2p_open_channel, p2p_send,
-    sig_connect, sig_disconnect, sig_query, sig_send,
+    net_configure, p2p_bind, p2p_cancel, p2p_close_channel, p2p_connect, p2p_open_channel,
+    p2p_send, sig_connect, sig_disconnect, sig_query, sig_send,
 };
 use net::host::get_platform;
 use net::state::NetState;
@@ -32,6 +37,8 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             app.manage(Arc::new(NetState::new(app.handle().clone())));
+            app.manage(CaptureState::default());
+            app.manage(StreamState::default());
             #[cfg(desktop)]
             {
                 tray::init(app)?;
@@ -64,6 +71,7 @@ pub fn run() {
             p2p_connect,
             p2p_open_channel,
             p2p_send,
+            p2p_bind,
             p2p_close_channel,
             p2p_cancel,
             usb_list_devices,
@@ -72,6 +80,14 @@ pub fn run() {
             usb_close_channel,
             usb_listen_start,
             usb_listen_stop,
+            capture_start,
+            capture_stop,
+            capture_resync,
+            capture_configure,
+            start_screen_stream,
+            stop_screen_stream,
+            set_fullscreen,
+            stream_configure,
             set_fullscreen,
             get_platform,
             get_host_info,

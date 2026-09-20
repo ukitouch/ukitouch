@@ -163,6 +163,17 @@ pub async fn p2p_send(
     webrtc::send(&state, token, channel_id, data, text).await
 }
 
+/// Point a channel's inbound data at a frontend IPC sink, skipping `emit`.
+#[tauri::command]
+pub async fn p2p_bind(
+    state: State<'_, Arc<NetState>>,
+    token: String,
+    channel_id: u64,
+    on_data: tauri::ipc::Channel<tauri::ipc::InvokeResponseBody>,
+) -> Result<(), String> {
+    webrtc::bind(&state, &token, channel_id, on_data)
+}
+
 /// Abort an in-progress connection to `target`.
 #[tauri::command]
 pub async fn p2p_cancel(state: State<'_, Arc<NetState>>, target: String) -> Result<(), String> {
