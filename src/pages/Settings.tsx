@@ -8,6 +8,7 @@ import { deviceStore } from "../core/devices";
 import { Select } from "../components/Select";
 import { useToast } from "../components/Toast";
 import { Button } from "../components/Button";
+import { useConfirm } from "../components/Confirm";
 import { PageHeader } from "../components/PageHeader";
 import { SectionHeader } from "../components/SectionHeader";
 import type {
@@ -97,9 +98,8 @@ function DeviceDetail({
   onDelete: (uuid: string) => void;
   onClose: () => void;
 }) {
-  const [remark, setRemark] = useState(device.remark ?? device.name ?? "");
+  const [remark, setRemark] = useState(device.remark ?? "");
   const [expanded, setExpanded] = useState<number | null>(null);
-  const [deleteArmed, setDeleteArmed] = useState(false);
   const history = useMemo(
     () =>
       events
@@ -111,7 +111,7 @@ function DeviceDetail({
 
   const commitRemark = () => {
     const v = remark.trim();
-    onSetRemark(device.uuid, v === "" ? "" : v); // empty = clear remark, fall back to hostname/Unknown device
+    if (v !== (device.remark ?? "")) onSetRemark(device.uuid, v);
   };
 
   const name = displayNameOf(device);
@@ -152,12 +152,20 @@ function DeviceDetail({
           <dt className="text-gray-500 dark:text-gray-400">First connected</dt>
           <dd className="text-gray-900 dark:text-gray-100">{fmtDateTime(device.firstSeen)}</dd>
         </div>
-        <div className="flex justify-between">
+        <div className="flex justify-between gap-2">
           <dt className="text-gray-500 dark:text-gray-400">Last connected</dt>
           <dd className="text-gray-900 dark:text-gray-100">
             {device.lastSeen ? fmtDateTime(device.lastSeen) : "—"}
           </dd>
         </div>
+        {device.remark && device.name && (
+          <div className="flex justify-between gap-2">
+            <dt className="text-gray-500 dark:text-gray-400">Hostname</dt>
+            <dd className="min-w-0 truncate text-gray-900 dark:text-gray-100">
+              {device.name}
+            </dd>
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <dt className="text-gray-500 dark:text-gray-400">Remark</dt>
           <input
@@ -165,9 +173,9 @@ function DeviceDetail({
             onChange={(e) => setRemark(e.target.value)}
             onBlur={commitRemark}
             onKeyDown={(e) => {
-              if (e.key === "Enter") commitRemark();
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
               if (e.key === "Escape") {
-                setRemark(device.remark ?? device.name ?? "");
+                setRemark(device.remark ?? "");
                 (e.target as HTMLInputElement).blur();
               }
             }}
@@ -233,17 +241,10 @@ function DeviceDetail({
 
       <Button
         variant="danger"
-        className={`mt-4 w-full${deleteArmed ? " font-semibold bg-red-500/10" : ""}`}
-        onClick={() => {
-          if (deleteArmed) {
-            setDeleteArmed(false);
-            onDelete(device.uuid);
-          } else {
-            setDeleteArmed(true);
-          }
-        }}
+        className="mt-4 w-full"
+        onClick={() => onDelete(device.uuid)}
       >
-        {deleteArmed ? "Confirm?" : "Delete device record"}
+        Delete device record
       </Button>
     </aside>
   );
@@ -262,6 +263,7 @@ function Devices() {
   const [selectedUuid, setSelectedUuid] = useState<string | null>(null);
   const [recentOpen, setRecentOpen] = useState(false); // Recent collapsed by default
   const { show } = useToast();
+  const confirm = useConfirm();
 
   const q = query.trim().toLowerCase();
   const filtered = useMemo(() => {
@@ -305,11 +307,19 @@ function Devices() {
 
   const setRemark = (uuid: string, value: string) => {
     void deviceStore.setRemark(uuid, value === "" ? null : value); // empty = clear remark, fall back to hostname/Unknown device
-    show("Remark saved");
+    show(value === "" ? "Remark cleared" : "Remark saved");
   };
 
-  const removeDevice = (uuid: string) => {
-    void deviceStore.removeDevice(uuid);
+  const removeDevice = async (uuid: string) => {
+    const d = devices.find((x) => x.uuid === uuid);
+    const ok = await confirm({
+      title: "Delete device record",
+      message: `Delete ${d ? displayNameOf(d) : "this device"} and its connection history?`,
+      confirmText: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
+    await deviceStore.removeDevice(uuid);
     if (selectedUuid === uuid) setSelectedUuid(null);
     show("Device record deleted");
   };
