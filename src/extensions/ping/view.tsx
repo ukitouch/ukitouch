@@ -38,11 +38,7 @@ export default function PingView() {
     void getHostPlatform().then(setPlatform);
   }, []);
 
-  const status = state.connecting
-    ? "connecting"
-    : state.peerId
-      ? "connected"
-      : "idle";
+  const status = state.connection.status;
 
   const canConnect = selectedUuid !== null || query.trim() !== "";
 

@@ -7,15 +7,20 @@ import {
 
 export interface PingState {
   logs: string[];
-  peerId: string | null;
-  connecting: boolean;
+  /** The connection status. */
+  connection: Connection;
   devices: DeviceRecord[];
 }
 
+/** The connection status. */
+export type Connection =
+  | { status: "idle" }
+  | { status: "connecting"; peerId: string }
+  | { status: "connected"; peerId: string };
+
 export const pingStore = createStore<PingState>({
   logs: [],
-  peerId: null,
-  connecting: false,
+  connection: { status: "idle" },
   devices: [],
 });
 
@@ -35,7 +40,7 @@ let lastPingAt = 0;
 function bindChannel(ch: Channel, peerLabel: string): void {
   if (channel && channel !== ch) channel.close();
   channel = ch;
-  pingStore.set({ peerId: peerLabel, connecting: false });
+  pingStore.set({ connection: { status: "connected", peerId: peerLabel } });
 
   ch.onmessage = (e) => {
     const text =
@@ -55,7 +60,7 @@ function bindChannel(ch: Channel, peerLabel: string): void {
   ch.onclose = () => {
     if (channel === ch) {
       channel = null;
-      pingStore.set({ peerId: null, connecting: false });
+      pingStore.set({ connection: { status: "idle" } });
     }
     log("channel closed");
   };
@@ -82,7 +87,7 @@ async function dialWebRtc(target: string, label: string): Promise<void> {
   if (!ctxRef || !target) return;
   if (channel) channel.close();
   cancelled = false;
-  pingStore.set({ connecting: true, peerId: null });
+  pingStore.set({ connection: { status: "connecting", peerId: label } });
   log(`connecting...`);
   try {
     const ch = await ctxRef.openChannel({ transport: "webrtc", target });
@@ -95,7 +100,7 @@ async function dialWebRtc(target: string, label: string): Promise<void> {
     log("connected");
   } catch (err) {
     if (!cancelled) log(`connect failed: ${String(err)}`);
-    pingStore.set({ connecting: false });
+    pingStore.set({ connection: { status: "idle" } });
   }
 }
 
@@ -114,7 +119,7 @@ export async function openUsbPingChannel(serial: string): Promise<void> {
   if (!ctxRef || !serial) return;
   if (channel) channel.close();
   cancelled = false;
-  pingStore.set({ connecting: true, peerId: null });
+  pingStore.set({ connection: { status: "connecting", peerId: serial } });
   log(`connecting to ${serial} (usb)...`);
   try {
     const ch = await ctxRef.openChannel({ transport: "usb", serial });
@@ -127,14 +132,14 @@ export async function openUsbPingChannel(serial: string): Promise<void> {
     log("connected (usb)");
   } catch (err) {
     if (!cancelled) log(`connect failed: ${String(err)}`);
-    pingStore.set({ connecting: false });
+    pingStore.set({ connection: { status: "idle" } });
   }
 }
 
 /** Cancel an in-progress connect. */
 export function cancelConnect(): void {
   cancelled = true;
-  pingStore.set({ connecting: false });
+  pingStore.set({ connection: { status: "idle" } });
   log("cancelling...");
   // Tear down the pending connection at the network level.
   if (ctxRef) {
@@ -146,7 +151,7 @@ export function cancelConnect(): void {
 export function disconnect(): void {
   if (channel) channel.close();
   channel = null;
-  pingStore.set({ peerId: null, connecting: false });
+  pingStore.set({ connection: { status: "idle" } });
   log("disconnected");
 }
 

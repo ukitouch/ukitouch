@@ -88,6 +88,7 @@ pub fn run() {
             stop_screen_stream,
             set_fullscreen,
             stream_configure,
+            set_fullscreen,
             get_platform,
             get_host_info,
             list_installed_extensions,
