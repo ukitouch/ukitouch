@@ -514,3 +514,5 @@ impl Drop for X11Capture {
         }
     }
 }
+
+unsafe impl Send for X11Capture {}
