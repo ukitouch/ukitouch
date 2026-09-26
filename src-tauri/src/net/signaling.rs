@@ -24,6 +24,7 @@ pub enum Event {
     Forward { from: String, value: Value },
     /// Bare-string server notice / error.
     Notice(String),
+    Error(Value),
     /// Connection lifecycle change.
     Status(Status),
 }
@@ -126,33 +127,50 @@ async fn handle_text(
     text: String,
     tx: &mpsc::Sender<Event>,
     pending_queries: &std::sync::Mutex<HashMap<String, oneshot::Sender<bool>>>,
+    write: &Mutex<Option<WriteHalf>>,
 ) {
-    if let Ok(v) = serde_json::from_str::<Value>(&text) {
-        // query reply: {"id": ..., "registered": bool}
-        if let (Some(id), Some(registered)) = (
-            v.get("id").and_then(Value::as_str),
-            v.get("registered").and_then(Value::as_bool),
-        ) {
-            if let Some(tx) = pending_queries.lock().unwrap().remove(id) {
-                let _ = tx.send(registered);
-            }
-            return;
-        }
-        // forwarded message carries from/to
-        if let Some(from) = v.get("from").and_then(Value::as_str) {
-            let ev = Event::Forward {
-                from: from.to_string(),
-                value: v,
-            };
-            let _ = tx.send(ev).await;
-            return;
-        }
-        // unknown JSON -> treat as notice
-        let _ = tx.send(Event::Notice(text)).await;
-    } else {
+    let Ok(v) = serde_json::from_str::<Value>(&text) else {
         // bare-string errors/notices
         let _ = tx.send(Event::Notice(text)).await;
+        return;
+    };
+
+    // query reply: {"id": ..., "registered": bool}
+    if let (Some(id), Some(registered)) = (
+        v.get("id").and_then(Value::as_str),
+        v.get("registered").and_then(Value::as_bool),
+    ) {
+        if let Some(tx) = pending_queries.lock().unwrap().remove(id) {
+            let _ = tx.send(registered);
+        }
+        return;
     }
+
+    // heartbeat
+    if v.get("ping").is_some() {
+        if let Some(w) = write.lock().await.as_mut() {
+            let _ = w
+                .send(Message::Text(serde_json::json!({ "pong": true }).to_string().into()))
+                .await;
+        }
+        return;
+    }
+    if v.get("error").is_some() {
+        let _ = tx.send(Event::Error(v)).await;
+        return;
+    }
+
+    // forwarded message carries from/to
+    if let Some(from) = v.get("from").and_then(Value::as_str) {
+        let ev = Event::Forward {
+            from: from.to_string(),
+            value: v,
+        };
+        let _ = tx.send(ev).await;
+        return;
+    }
+    // unknown JSON -> treat as notice
+    let _ = tx.send(Event::Notice(text)).await;
 }
 
 /// Start connecting and registering `id` on the server.
@@ -174,8 +192,6 @@ pub fn connect(url: &str, id: String, force: bool) -> (SignalingSender, Signalin
     let id_mgr = id.clone();
     tokio::spawn(async move {
         // One attempt per iteration: connect, register, drain, then retry.
-        // The caller's `force` only applies to the first registration.
-        let mut force = force;
         loop {
             if closed_mgr.load(Ordering::SeqCst) {
                 break;
@@ -202,7 +218,6 @@ pub fn connect(url: &str, id: String, force: bool) -> (SignalingSender, Signalin
                 tokio::time::sleep(RETRY).await;
                 continue;
             }
-            force = true;
             *write_mgr.lock().await = Some(write);
             let _ = tx_mgr.send(Event::Status(Status::Connected)).await;
 
@@ -211,7 +226,7 @@ pub fn connect(url: &str, id: String, force: bool) -> (SignalingSender, Signalin
                     break;
                 }
                 if let Ok(Message::Text(t)) = msg {
-                    handle_text(t.to_string(), &tx_mgr, &pq).await;
+                    handle_text(t.to_string(), &tx_mgr, &pq, &write_mgr).await;
                 }
             }
 

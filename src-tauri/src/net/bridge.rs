@@ -58,6 +58,12 @@ pub async fn sig_connect(
                         serde_json::json!({ "name": name, "message": msg }),
                     );
                 }
+                Event::Error(value) => {
+                    let _ = app.emit(
+                        "sig-error",
+                        serde_json::json!({ "name": name, "error": value }),
+                    );
+                }
                 Event::Status(status) => {
                     let _ = app.emit(
                         "sig-status",

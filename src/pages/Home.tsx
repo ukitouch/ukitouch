@@ -45,6 +45,8 @@ function Home() {
       } else {
         await enableTempId();
       }
+    } catch (e) {
+      console.error("[tempid] toggle failed", e);
     } finally {
       window.setTimeout(() => setToggling(false), 500);
     }

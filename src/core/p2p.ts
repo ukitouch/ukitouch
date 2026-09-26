@@ -1,6 +1,7 @@
 import { Channel as IpcChannel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { serverConfig } from "./config";
+import { showToast } from "./host";
 import { deviceUuid, genTempId } from "./identity";
 import type { Channel } from "./types";
 import { createStore } from "./store";
@@ -20,6 +21,11 @@ export interface Forwarded {
   value: Record<string, unknown>;
 }
 
+export interface SignalingError {
+  error: string;
+  [key: string]: unknown;
+}
+
 export interface SignalingApi {
   connect(url: string, id: string, force?: boolean): Promise<void>;
   send(to: string, payload: Record<string, unknown>): Promise<void>;
@@ -27,6 +33,7 @@ export interface SignalingApi {
   disconnect(): Promise<void>;
   onForward(h: (f: Forwarded) => void): () => void;
   onNotice(h: (message: string) => void): () => void;
+  onError(h: (e: SignalingError) => void): () => void;
   onStatus(h: (status: SignalingStatus) => void): () => void;
 }
 
@@ -42,6 +49,10 @@ interface NoticeEvent {
   name: string;
   message: string;
 }
+interface ErrorEvent {
+  name: string;
+  error: SignalingError;
+}
 interface StatusEvent {
   name: string;
   status: SignalingStatus;
@@ -53,13 +64,14 @@ interface StatusEvent {
 export function createSignaling(name: string): SignalingApi {
   const forwardHandlers = new Set<(f: Forwarded) => void>();
   const noticeHandlers = new Set<(message: string) => void>();
+  const errorHandlers = new Set<(e: SignalingError) => void>();
   const statusHandlers = new Set<(status: SignalingStatus) => void>();
   let unlisten: Promise<UnlistenFn> | null = null;
 
   /** Listen event from backend. */
   async function initSigListener(): Promise<void> {
     if (unlisten) return;
-    const [f, n, s] = await Promise.all([
+    const [f, n, err, s] = await Promise.all([
       listen<ForwardEvent>("sig-forward", (e) => {
         if (e.payload.name === name) {
           forwardHandlers.forEach((h) =>
@@ -72,6 +84,11 @@ export function createSignaling(name: string): SignalingApi {
           noticeHandlers.forEach((h) => h(e.payload.message));
         }
       }),
+      listen<ErrorEvent>("sig-error", (e) => {
+        if (e.payload.name === name) {
+          errorHandlers.forEach((h) => h(e.payload.error));
+        }
+      }),
       listen<StatusEvent>("sig-status", (e) => {
         if (e.payload.name === name) {
           statusHandlers.forEach((h) => h(e.payload.status));
@@ -81,6 +98,7 @@ export function createSignaling(name: string): SignalingApi {
     unlisten = Promise.resolve(() => {
       f();
       n();
+      err();
       s();
     });
   }
@@ -111,6 +129,12 @@ export function createSignaling(name: string): SignalingApi {
         noticeHandlers.delete(h);
       };
     },
+    onError(h) {
+      errorHandlers.add(h);
+      return () => {
+        errorHandlers.delete(h);
+      };
+    },
     onStatus(h) {
       statusHandlers.add(h);
       return () => {
@@ -128,6 +152,7 @@ export async function startSignaling(): Promise<void> {
   await invoke("net_configure", { iceServers: serverConfig.iceServers });
   await ensureChannelListeners();
   signaling.onNotice((m) => console.warn("[sig]", m));
+  signaling.onError((e) => console.warn("[sig]", e));
   signaling.onStatus((s) => console.log("[sig] primary", s));
   await signaling.connect(serverConfig.signaling, deviceUuid, true);
 }
@@ -183,29 +208,76 @@ export function isTempIdOn(): boolean {
   return tempIdStore.get().enabled;
 }
 
+/** Collisions tolerated before giving up on a temp id. */
+const TEMP_ID_ATTEMPTS = 5;
+
+/** Pick a temp id no one holds. */
+async function pickTempId(): Promise<string> {
+  for (let i = 0; i < 20; i++) {
+    const id = genTempId();
+    if (!(await signaling.query(id))) return id;
+  }
+  throw new Error("no free temp id");
+}
+
 export async function enableTempId(): Promise<string> {
-  if (!serverConfig.signaling) throw new Error("no signaling configured");
+  if (!serverConfig.signaling) {
+    showToast("no signaling server configured", "error");
+    throw new Error("no signaling configured");
+  }
   if (signalingTemp) {
     await signalingTemp.disconnect();
     signalingTemp = null;
   }
 
-  // Pick a temp id the server doesn't already hold.
-  let tempId = genTempId();
-  for (let i = 0; i < 20; i++) {
-    if (!(await signaling.query(tempId))) break;
-    tempId = genTempId();
-  }
+  const sig = createSignaling("temp");
+  signalingTemp = sig;
 
-  signalingTemp = createSignaling("temp");
-  signalingTemp.onForward((f) => {
+  /** Id this connection is trying to hold. */
+  let current = "";
+  let collisions = 0;
+
+  sig.onForward((f) => {
     if (f.value.resolve === true) {
-      signalingTemp?.send(f.from, { uuid: deviceUuid }).catch(console.error);
+      sig.send(f.from, { uuid: deviceUuid }).catch(console.error);
     }
   });
-  await signalingTemp.connect(serverConfig.signaling, tempId);
-  tempIdStore.set({ enabled: true, id: tempId });
-  return tempId;
+  sig.onNotice((m) => console.warn("[sig] temp", m));
+  sig.onError((e) => {
+    console.warn("[sig] temp", e);
+    if (e.error !== "id_taken") {
+      showToast(e.error, "error");
+      return;
+    }
+
+    if (e.id !== current || signalingTemp !== sig) return;
+
+    if (collisions++ >= TEMP_ID_ATTEMPTS) {
+      showToast("temporary id unavailable", "error");
+      void disableTempId();
+      return;
+    }
+
+    void register();
+  });
+
+  /** Register a fresh id. */
+  async function register(): Promise<string | null> {
+    try {
+      current = await pickTempId();
+      tempIdStore.set({ enabled: true, id: current });
+      await sig.connect(serverConfig.signaling, current);
+      return current;
+    } catch (e) {
+      showToast(`temporary id unavailable: ${e}`, "error");
+      await disableTempId();
+      return null;
+    }
+  }
+
+  const id = await register();
+  if (id === null) throw new Error("temporary id unavailable");
+  return id;
 }
 
 export async function disableTempId(): Promise<void> {
