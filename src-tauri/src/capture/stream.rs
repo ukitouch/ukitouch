@@ -298,8 +298,7 @@ fn encode_webp(src: &Damage, px: &[u8]) -> Option<Vec<u8>> {
     }
     let mut config = WebPConfig::new().ok()?;
     config.lossless = 0;
-    config.quality = 80.0;
-    config.method = 0;
+    config.quality = 70.0;
     Encoder::from_rgb(&rgb, bw as u32, bh as u32)
         .encode_advanced(&config)
         .ok()
