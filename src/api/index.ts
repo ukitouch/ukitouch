@@ -31,6 +31,7 @@ import { Button } from "../components/Button";
 import { SettingRow } from "../components/SettingRow";
 import { PageHeader } from "../components/PageHeader";
 import { SectionHeader } from "../components/SectionHeader";
+import { PinchArea } from "../components/PinchArea";
 
 export { React };
 export {
@@ -44,6 +45,7 @@ export {
   SettingRow,
   PageHeader,
   SectionHeader,
+  PinchArea,
   getHostPlatform,
   getHostInfo,
   setFullscreen,
@@ -84,6 +86,7 @@ export type { SelectOption } from "../components/Select";
 export type { UsbDevice } from "../core/usb";
 export type { Store } from "../core/store";
 export type { ToastKind } from "../core/host";
+export type { PinchTransform, PinchAreaProps } from "../components/PinchArea";
 
 export { toDisposable };
 
@@ -159,6 +162,7 @@ export interface YatouchRuntime {
     SettingRow: typeof SettingRow;
     PageHeader: typeof PageHeader;
     SectionHeader: typeof SectionHeader;
+    PinchArea: typeof PinchArea;
   };
   /** Register an extension at runtime (same as {@link defineExtension}). */
   defineExtension: typeof defineExtension;
@@ -207,6 +211,7 @@ export function installBridge(): void {
       SettingRow,
       PageHeader,
       SectionHeader,
+      PinchArea,
     },
     defineExtension,
     getHostPlatform,
