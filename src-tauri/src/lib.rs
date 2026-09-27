@@ -3,6 +3,8 @@ mod extensions;
 mod host;
 mod net;
 mod orientation;
+#[cfg(target_os = "linux")]
+mod pinch;
 #[cfg(desktop)]
 mod tray;
 
@@ -28,40 +30,6 @@ use orientation::{init as orientation_plugin, set_fullscreen};
 use std::sync::Arc;
 use tauri::Manager;
 
-/// TODO: replace with the upstream switch once it exists: WebKitGTK
-/// `enable-pinch-zoom-gesture` (bugs.webkit.org 273304) or a wry option
-/// (tauri-apps/wry#544, tauri-apps/tauri#13115).
-#[cfg(target_os = "linux")]
-fn disable_pinch_zoom(app: &tauri::AppHandle) {
-    use gtk::glib::gobject_ffi as gobject;
-    use gtk::prelude::*;
-
-    let Some(window) = app.get_webview_window("main") else {
-        return;
-    };
-    let _ = window.with_webview(|webview| {
-        let widget: gtk::Widget = webview.inner().upcast();
-        unsafe {
-            let gesture = gobject::g_object_get_data(
-                widget.as_ptr() as *mut gobject::GObject,
-                c"wk-view-zoom-gesture".as_ptr(),
-            );
-            if gesture.is_null() {
-                return;
-            }
-            gobject::g_signal_handlers_disconnect_matched(
-                gesture as *mut gobject::GObject,
-                gobject::G_SIGNAL_MATCH_DATA,
-                0,
-                0,
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
-                widget.as_ptr() as *mut _,
-            );
-        }
-    });
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -74,7 +42,7 @@ pub fn run() {
             app.manage(CaptureState::default());
             app.manage(StreamState::default());
             #[cfg(target_os = "linux")]
-            disable_pinch_zoom(app.handle());
+            pinch::attach(app.handle());
             #[cfg(desktop)]
             {
                 tray::init(app)?;

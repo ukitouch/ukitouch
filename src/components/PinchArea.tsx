@@ -1,9 +1,10 @@
 import { useEffect, useRef } from "react";
-import type {
+import {
   CSSProperties,
   PointerEvent as ReactPointerEvent,
   ReactNode,
 } from "react";
+import { watchPinch } from "../core/pinch";
 
 /** Where a {@link PinchArea}'s content sits after a gesture, in area pixels. */
 export interface PinchTransform {
@@ -84,6 +85,12 @@ export function PinchArea({
   const area = useRef({ w: 0, h: 0 });
   /** content box: size plus its layout offset inside the layer */
   const box = useRef({ w: 0, h: 0, ox: 0, oy: 0 });
+  /** the transform and pinch origin a native gesture started from */
+  const native = useRef<{ t: PinchTransform; from: Point } | null>(null);
+  /** set once the native source has fired; touches belong to it from then on */
+  const nativeSeen = useRef(false);
+  const commit = useRef(onCommit);
+  commit.current = onCommit;
 
   const measure = () => {
     const root = rootRef.current;
@@ -117,6 +124,31 @@ export function PinchArea({
     };
   };
 
+  /** Move `from` to `to` while scaling about it. */
+  const gesture = (
+    from: Point,
+    to: Point,
+    scale: number,
+    base: PinchTransform
+  ): PinchTransform => {
+    const ratio = scale / base.scale;
+    return clamp({
+      scale,
+      x: to.x - (from.x - base.x) * ratio,
+      y: to.y - (from.y - base.y) * ratio,
+    });
+  };
+
+  /** Close the running gesture, reporting it when it moved. */
+  const settle = () => {
+    const from = started.current;
+    started.current = null;
+    rect.current = null;
+    const now = view.current;
+    if (from && (from.scale !== now.scale || from.x !== now.x || from.y !== now.y))
+      commit.current?.(now);
+  };
+
   /** Take the pointers and transform as they are now. */
   const rebase = () => {
     base.current = view.current;
@@ -134,16 +166,7 @@ export function PinchArea({
         Math.max((base.current.scale * distance(a, b)) / span, min),
         max
       );
-      const ratio = scale / base.current.scale;
-      const from = midpoint(a0, b0);
-      const to = midpoint(a, b);
-      apply(
-        clamp({
-          scale,
-          x: to.x - (from.x - base.current.x) * ratio,
-          y: to.y - (from.y - base.current.y) * ratio,
-        })
-      );
+      apply(gesture(midpoint(a0, b0), midpoint(a, b), scale, base.current));
       return;
     }
     if (ids.length === 1) {
@@ -158,8 +181,8 @@ export function PinchArea({
       );
     }
   };
-
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (nativeSeen.current && e.pointerType !== "mouse") return;
     measure();
     const frame = (rect.current = e.currentTarget.getBoundingClientRect());
     if (!started.current) started.current = view.current;
@@ -187,17 +210,33 @@ export function PinchArea({
       rebase();
       return;
     }
-    const s0 = started.current;
-    started.current = null;
-    rect.current = null;
-    if (
-      s0 &&
-      (view.current.scale !== s0.scale ||
-        view.current.x !== s0.x ||
-        view.current.y !== s0.y)
-    )
-      onCommit?.(view.current);
+    settle();
   };
+
+  // for WebkitGTK
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    return watchPinch(root, (pinch) => {
+      nativeSeen.current = true;
+      if (pinch.phase === "end") {
+        native.current = null;
+        settle();
+        return;
+      }
+      measure();
+      const frame = (rect.current = root.getBoundingClientRect());
+      const to = { x: pinch.x - frame.left, y: pinch.y - frame.top };
+      if (!native.current) {
+        native.current = { t: view.current, from: to };
+        started.current = view.current;
+        return;
+      }
+      const { t, from } = native.current;
+      apply(gesture(from, to, Math.min(Math.max(t.scale * pinch.scale, min), max), t));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [min, max]);
 
   // Center the content up front, and again whenever the area or the content box
   // changes size without a pointer being involved.
