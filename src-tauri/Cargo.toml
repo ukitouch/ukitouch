@@ -41,3 +41,6 @@ webp = { version = "0.3", default-features = false }
 x11rb = { version = "0.14", features = ["shm", "damage", "xfixes"] }
 libc = "0.2"
 
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+
