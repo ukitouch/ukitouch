@@ -6596,6 +6596,7 @@ dependencies = [
  "base64 0.23.1",
  "bytes",
  "futures-util",
+ "gtk",
  "hostname",
  "libc",
  "os_info",

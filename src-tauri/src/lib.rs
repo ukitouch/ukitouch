@@ -3,6 +3,8 @@ mod extensions;
 mod host;
 mod net;
 mod orientation;
+#[cfg(target_os = "linux")]
+mod pinch;
 #[cfg(desktop)]
 mod tray;
 
@@ -39,6 +41,8 @@ pub fn run() {
             app.manage(Arc::new(NetState::new(app.handle().clone())));
             app.manage(CaptureState::default());
             app.manage(StreamState::default());
+            #[cfg(target_os = "linux")]
+            pinch::attach(app.handle());
             #[cfg(desktop)]
             {
                 tray::init(app)?;
