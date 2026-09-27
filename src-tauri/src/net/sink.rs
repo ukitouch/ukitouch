@@ -1,7 +1,11 @@
 use std::sync::Arc;
 
+use base64::engine::general_purpose::STANDARD as B64;
+use base64::Engine;
 use bytes::Bytes;
 use webrtc::data_channel::RTCDataChannel;
+
+use crate::capture::CursorImage;
 
 use super::state::NetState;
 
@@ -63,6 +67,24 @@ impl ChannelSink {
         );
         self.dc
             .send_text(msg)
+            .await
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+
+    /// Tell the peer what the pointer looks like.
+    pub async fn cursor(&self, image: &CursorImage) -> Result<(), String> {
+        let msg = serde_json::json!({
+            "cursor": {
+                "width": image.width,
+                "height": image.height,
+                "xhot": image.xhot,
+                "yhot": image.yhot,
+                "data": B64.encode(&image.pixels),
+            }
+        });
+        self.dc
+            .send_text(msg.to_string())
             .await
             .map(|_| ())
             .map_err(|e| e.to_string())

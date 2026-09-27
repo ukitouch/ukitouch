@@ -160,6 +160,12 @@ async fn run_stream(
             }
         }
 
+        if let Ok(Some(image)) = backend.cursor_image() {
+            if sink.cursor(&image).await.is_err() {
+                return;
+            }
+        }
+
         if sink.congested().await {
             tokio::time::sleep(POLL_INTERVAL).await;
             continue;

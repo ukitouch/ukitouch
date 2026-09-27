@@ -8,7 +8,9 @@ use x11rb::protocol::xproto::ImageFormat;
 use x11rb::protocol::Event;
 use x11rb::rust_connection::RustConnection;
 
-use super::{CaptureBackend, CaptureError, CaptureOptions, Damage, ScreenInfo};
+use super::{
+    CaptureBackend, CaptureError, CaptureOptions, Cursor, CursorImage, Damage, ScreenInfo,
+};
 
 /// Bytes per pixel in the root window's image. Depth 24 arrives padded to 32.
 const BPP: usize = 4;
@@ -61,10 +63,12 @@ pub struct X11Capture {
     region: u32,
     /// Set when the next poll must report everything.
     force_full: bool,
-    /// Composite the pointer into frames.
-    cursor_on: bool,
+    /// How the pointer appears in the stream.
+    cursor: Cursor,
     /// `(serial, x, y)` of the pointer last composited.
     cursor_stamp: Option<(u32, i16, i16)>,
+    /// Serial of the pointer image last reported.
+    cursor_serial: Option<u32>,
     /// Reused buffer for the outgoing rectangles.
     out: Vec<(Damage, Vec<u8>)>,
 }
@@ -145,15 +149,16 @@ impl X11Capture {
             damage_id,
             region,
             force_full: true,
-            cursor_on: false,
+            cursor: Cursor::Off,
             cursor_stamp: None,
+            cursor_serial: None,
             out: Vec::new(),
         })
     }
 
     /// Read the pointer, or `None` when it is not wanted.
     fn pointer(&mut self) -> Result<Option<Pointer>, CaptureError> {
-        if !self.cursor_on {
+        if self.cursor != Cursor::Composite {
             return Ok(None);
         }
 
@@ -492,15 +497,51 @@ impl CaptureBackend for X11Capture {
     }
 
     fn configure(&mut self, options: &CaptureOptions) -> bool {
-        if options.cursor == self.cursor_on {
+        if options.cursor == self.cursor {
             return false;
         }
 
-        self.cursor_on = options.cursor;
-        // Turning it off has to repaint where it was, and turning it on must not
-        // wait for unrelated damage, or the next frame is full.
+        self.cursor = options.cursor;
+        // A pointer drawn into the pixels has to be repainted away, and a new
+        // representation must not wait for unrelated damage.
         self.force_full = true;
         false
+    }
+
+    fn cursor_image(&mut self) -> Result<Option<CursorImage>, CaptureError> {
+        if self.cursor != Cursor::Raw {
+            return Ok(None);
+        }
+
+        let reply = self
+            .conn
+            .xfixes_get_cursor_image()
+            .map_err(|e| self.fail(format!("cursor image: {e}")))?
+            .reply()
+            .map_err(|e| self.fail(format!("cursor image: {e}")))?;
+        if self.cursor_serial == Some(reply.cursor_serial) {
+            return Ok(None);
+        }
+        self.cursor_serial = Some(reply.cursor_serial);
+        let pixels = reply
+            .cursor_image
+            .iter()
+            .flat_map(|&px| {
+                [
+                    (px >> 16) as u8,
+                    (px >> 8) as u8,
+                    px as u8,
+                    (px >> 24) as u8,
+                ]
+            })
+            .collect();
+        Ok(Some(CursorImage {
+            width: reply.width,
+            height: reply.height,
+            xhot: reply.xhot,
+            yhot: reply.yhot,
+            pixels,
+        }))
     }
 }
 

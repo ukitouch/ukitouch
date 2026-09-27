@@ -28,6 +28,13 @@ export interface PinchAreaProps {
   /** appended to the area's classes */
   className?: string;
   children?: ReactNode;
+  /**
+   * Take over pointer handling.
+   */
+  onPointerDown?: (e: ReactPointerEvent<HTMLDivElement>) => void;
+  onPointerMove?: (e: ReactPointerEvent<HTMLDivElement>) => void;
+  onPointerUp?: (e: ReactPointerEvent<HTMLDivElement>) => void;
+  onPointerCancel?: (e: ReactPointerEvent<HTMLDivElement>) => void;
 }
 
 interface Point {
@@ -67,6 +74,10 @@ export function PinchArea({
   onCommit,
   className = "",
   children,
+  onPointerDown: handedDown,
+  onPointerMove: handedMove,
+  onPointerUp: handedUp,
+  onPointerCancel: handedCancel,
 }: PinchAreaProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const layerRef = useRef<HTMLDivElement | null>(null);
@@ -260,10 +271,10 @@ export function PinchArea({
     <div
       ref={rootRef}
       className={`relative overflow-hidden select-none touch-none ${className}`}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerEnd}
-      onPointerCancel={onPointerEnd}
+      onPointerDown={handedDown ?? onPointerDown}
+      onPointerMove={handedMove ?? onPointerMove}
+      onPointerUp={handedUp ?? onPointerEnd}
+      onPointerCancel={handedCancel ?? onPointerEnd}
     >
       <div ref={layerRef} style={LAYER_STYLE}>
         {children}

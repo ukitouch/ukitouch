@@ -36,10 +36,13 @@ export interface ScreenSize {
   height: number;
 }
 
+/** How the pointer appears in the stream. */
+export type Cursor = "off" | "composite" | "raw";
+
 /** Capture options to the screen collector. */
 export interface CaptureOptions {
-  /** Include the cursor in the frames. */
-  cursor?: boolean;
+  /** How the pointer appears in the stream. */
+  cursor?: Cursor;
 }
 
 /** Options to tell streamer how a frame be like. */

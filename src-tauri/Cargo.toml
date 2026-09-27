@@ -38,7 +38,7 @@ zip = "2"
 webp = { version = "0.3", default-features = false }
 
 [target.'cfg(all(unix, not(target_os = "android")))'.dependencies]
-x11rb = { version = "0.14", features = ["shm", "damage", "xfixes"] }
+x11rb = { version = "0.14", features = ["shm", "damage", "xfixes", "xtest"] }
 libc = "0.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
