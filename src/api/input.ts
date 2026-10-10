@@ -14,7 +14,8 @@ export type InputEvent =
   | { kind: "move"; x: number; y: number }
   | { kind: "button"; at?: Point; button: MouseButton; pressed: boolean }
   | { kind: "scroll"; at?: Point; dx: number; dy: number }
-  | { kind: "key"; keysym: number; pressed: boolean };
+  | { kind: "key"; code: string; pressed: boolean }
+  | { kind: "text"; text: string };
 
 /** Bring the input backend up. Idempotent. */
 export async function startInput(): Promise<void> {

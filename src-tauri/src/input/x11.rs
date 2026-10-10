@@ -1,10 +1,13 @@
 use std::collections::HashMap;
+use std::thread::sleep;
+use std::time::Duration;
 
 use x11rb::connection::Connection;
 use x11rb::errors::ReplyError;
 use x11rb::protocol::xproto::{ConnectionExt as _, Window};
 use x11rb::protocol::xtest::ConnectionExt as _;
 use x11rb::rust_connection::RustConnection;
+use x11rb::wrapper::ConnectionExt as _;
 
 use super::{InputBackend, InputEvent, MouseButton, Point};
 
@@ -24,11 +27,16 @@ const WHEEL_RIGHT: u8 = 7;
 /// Notches one event is allowed to turn into.
 const MAX_CLICKS: i32 = 10;
 
+/// Timeout to type the next char.
+const TYPE_DELAY: Duration = Duration::from_millis(6);
+
 pub struct X11Input {
     conn: RustConnection,
     root: Window,
     /// keysym to keycode, read from the server once.
     keysyms: HashMap<u32, u8>,
+    /// A keycode with no keysyms, temporarily bound to type other characters.
+    scratch: Option<u8>,
     /// Buttons and keys currently down, for `release`.
     buttons: Vec<u8>,
     keys: Vec<u8>,
@@ -49,11 +57,12 @@ impl X11Input {
             .reply()
             .map_err(|e| format!("xtest version: {e}"))?;
 
-        let keysyms = keymap(&conn)?;
+        let (keysyms, scratch) = keymap(&conn)?;
         Ok(Self {
             conn,
             root,
             keysyms,
+            scratch,
             buttons: Vec::new(),
             keys: Vec::new(),
         })
@@ -87,6 +96,42 @@ impl X11Input {
             self.fake(BUTTON_RELEASE, button, 0, 0)?;
         }
         Ok(())
+    }
+
+    /// Type every character in order.
+    fn type_text(&mut self, text: &str) -> Result<(), String> {
+        for ch in text.chars() {
+            let keysym = keysym_of(ch);
+            match self.keysyms.get(&keysym).copied() {
+                Some(keycode) => {
+                    self.fake(KEY_PRESS, keycode, 0, 0)?;
+                    self.fake(KEY_RELEASE, keycode, 0, 0)?;
+                }
+                None => self.type_unbound(keysym)?,
+            }
+        }
+        Ok(())
+    }
+
+    /// Bind the spare keycode to a character the layout cannot type.
+    fn type_unbound(&mut self, keysym: u32) -> Result<(), String> {
+        let scratch = self.scratch.ok_or("no unused keycode to bind")?;
+        self.rebind(scratch, keysym)?;
+        self.fake(KEY_PRESS, scratch, 0, 0)?;
+        sleep(TYPE_DELAY);
+        self.fake(KEY_RELEASE, scratch, 0, 0)?;
+        sleep(TYPE_DELAY);
+        self.rebind(scratch, x11rb::NO_SYMBOL)
+    }
+
+    /// Point a keycode at a keysym, or back at nothing.
+    fn rebind(&mut self, keycode: u8, keysym: u32) -> Result<(), String> {
+        self.conn
+            .change_keyboard_mapping(1, keycode, 1, &[keysym])
+            .map_err(|e| format!("rebind: {e}"))?
+            .check()
+            .map_err(|e| format!("rebind: {e}"))?;
+        self.conn.sync().map_err(|e| format!("rebind sync: {e}"))
     }
 }
 
@@ -125,6 +170,7 @@ impl InputBackend for X11Input {
                         track(&mut self.keys, keycode, *pressed);
                     }
                 }
+                InputEvent::Text { text } => self.type_text(text)?,
             }
         }
         self.conn.flush().map_err(|e| format!("flush: {e}"))
@@ -247,6 +293,16 @@ fn keysym(code: &str) -> Option<u32> {
     })
 }
 
+/// A character's keysym: Latin-1 is its code point, the rest are flagged.
+fn keysym_of(ch: char) -> u32 {
+    let c = ch as u32;
+    if c < 0x100 {
+        c
+    } else {
+        c | 0x0100_0000
+    }
+}
+
 /// Keep a pressed set in step with the events.
 fn track(held: &mut Vec<u8>, code: u8, pressed: bool) {
     if pressed {
@@ -258,8 +314,8 @@ fn track(held: &mut Vec<u8>, code: u8, pressed: bool) {
     }
 }
 
-/// Read the server's keysym and convert to keycode mapping.
-fn keymap(conn: &RustConnection) -> Result<HashMap<u32, u8>, String> {
+/// Read the first level of each key, and find a keycode with no keysyms.
+fn keymap(conn: &RustConnection) -> Result<(HashMap<u32, u8>, Option<u8>), String> {
     let setup = conn.setup();
     let first = setup.min_keycode;
     let count = setup.max_keycode - setup.min_keycode + 1;
@@ -269,18 +325,18 @@ fn keymap(conn: &RustConnection) -> Result<HashMap<u32, u8>, String> {
         .reply()
         .map_err(|e| format!("keymap: {e}"))?;
 
+    let per = reply.keysyms_per_keycode as usize;
     let mut keysyms = HashMap::new();
-    for (i, row) in reply
-        .keysyms
-        .chunks(reply.keysyms_per_keycode as usize)
-        .enumerate()
-    {
+    let mut scratch = None;
+    for (i, row) in reply.keysyms.chunks(per).enumerate() {
         let code = first + i as u8;
-        for &keysym in row {
-            if keysym != x11rb::NO_SYMBOL {
-                keysyms.entry(keysym).or_insert(code);
+        if row.iter().all(|&s| s == x11rb::NO_SYMBOL) {
+            if scratch.is_none() {
+                scratch = Some(code);
             }
+        } else if row[0] != x11rb::NO_SYMBOL {
+            keysyms.entry(row[0]).or_insert(code);
         }
     }
-    Ok(keysyms)
+    Ok((keysyms, scratch))
 }
