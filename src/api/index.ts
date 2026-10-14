@@ -11,6 +11,7 @@ import { getHostInfo } from "../core/hostinfo";
 import { refreshUsbDevices, usbStore } from "../core/usb";
 import { createStore } from "../core/store";
 import { createScreenMonitor, startScreenStream } from "./media";
+import { injectInput, releaseInput, startInput, stopInput } from "./input";
 import type {
   ExtensionContext,
   ExtensionDefinition as CoreExtensionDefinition,
@@ -55,6 +56,10 @@ export {
   showToast,
   createScreenMonitor,
   startScreenStream,
+  startInput,
+  injectInput,
+  releaseInput,
+  stopInput,
 };
 
 export type {
@@ -79,11 +84,13 @@ export type {
   CaptureOptions,
   StreamOptions,
   ScreenSize,
+  Cursor,
 } from "./media";
 
 export type { SearchOption } from "../components/SearchSelect";
 export type { SelectOption } from "../components/Select";
 export type { UsbDevice } from "../core/usb";
+export type { InputEvent, MouseButton, Point } from "./input";
 export type { Store } from "../core/store";
 export type { ToastKind } from "../core/host";
 export type { PinchTransform, PinchAreaProps } from "../components/PinchArea";
@@ -182,6 +189,14 @@ export interface YatouchRuntime {
   createScreenMonitor: typeof createScreenMonitor;
   /** Stream the screen onto an open channel. */
   startScreenStream: typeof startScreenStream;
+  /** Bring the input backend up. */
+  startInput: typeof startInput;
+  /** Synthesize a batch of input events. */
+  injectInput: typeof injectInput;
+  /** Release everything the backend is holding down. */
+  releaseInput: typeof releaseInput;
+  /** Release and drop the input backend. */
+  stopInput: typeof stopInput;
   /** Show a toast (works outside React). */
   showToast: typeof showToast;
 }
@@ -223,5 +238,9 @@ export function installBridge(): void {
     showToast,
     createScreenMonitor,
     startScreenStream,
+    startInput,
+    injectInput,
+    releaseInput,
+    stopInput,
   };
 }

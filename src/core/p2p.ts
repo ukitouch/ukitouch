@@ -352,6 +352,8 @@ class P2PChannel implements Channel {
   onerror: ((ev: Event) => void) | null = null;
   /** Frontend end of the inbound stream. */
   private ipc = new IpcChannel<string | ArrayBuffer>();
+  /** Sends must be queued to keep their order. */
+  private outbox: Promise<unknown> = Promise.resolve();
 
   constructor(token: string, channelId: number, label: string) {
     this.token = token;
@@ -368,15 +370,22 @@ class P2PChannel implements Channel {
   send(data: string | ArrayBuffer | ArrayBufferView | Blob): void {
     const bytes = toBytes(data);
     const text = typeof data === "string";
-    invoke("p2p_send", {
-      token: this.token,
-      channelId: this.channelId,
-      data: bytes,
-      text,
-    }).catch((e) => {
-      console.error("[p2p] send failed", e);
-      this.onerror?.(new Event("error"));
-    });
+    this.bufferedAmount += bytes.byteLength;
+    this.outbox = this.outbox.then(() =>
+      invoke("p2p_send", {
+        token: this.token,
+        channelId: this.channelId,
+        data: bytes,
+        text,
+      })
+        .catch((e) => {
+          console.error("[p2p] send failed", e);
+          this.onerror?.(new Event("error"));
+        })
+        .finally(() => {
+          this.bufferedAmount -= bytes.byteLength;
+        })
+    );
   }
 
   close(): void {

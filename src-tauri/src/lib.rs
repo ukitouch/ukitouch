@@ -1,6 +1,7 @@
 mod capture;
 mod extensions;
 mod host;
+mod input;
 mod net;
 mod orientation;
 #[cfg(target_os = "linux")]
@@ -16,6 +17,7 @@ use extensions::{
     install_extension, list_installed_extensions, read_extension_file, uninstall_extension,
 };
 use host::get_host_info;
+use input::bridge::{input_inject, input_release, input_start, input_stop, InputState};
 use net::bridge::{
     net_configure, p2p_bind, p2p_cancel, p2p_close_channel, p2p_connect, p2p_open_channel,
     p2p_send, sig_connect, sig_disconnect, sig_query, sig_send,
@@ -41,8 +43,11 @@ pub fn run() {
             app.manage(Arc::new(NetState::new(app.handle().clone())));
             app.manage(CaptureState::default());
             app.manage(StreamState::default());
+            app.manage(InputState::default());
+
             #[cfg(target_os = "linux")]
             pinch::attach(app.handle());
+
             #[cfg(desktop)]
             {
                 tray::init(app)?;
@@ -90,6 +95,10 @@ pub fn run() {
             capture_configure,
             start_screen_stream,
             stop_screen_stream,
+            input_start,
+            input_inject,
+            input_release,
+            input_stop,
             set_fullscreen,
             stream_configure,
             set_fullscreen,

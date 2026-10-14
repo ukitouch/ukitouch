@@ -27,7 +27,9 @@ pub enum CaptureError {
     Denied,
     Cancelled,
     /// this platform has no backend
-    Unsupported { reason: String },
+    Unsupported {
+        reason: String,
+    },
 }
 
 impl std::fmt::Display for CaptureError {
@@ -42,12 +44,35 @@ impl std::fmt::Display for CaptureError {
 
 impl std::error::Error for CaptureError {}
 
+/// How the pointer appears in the stream.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Cursor {
+    #[default]
+    Off,
+    /// Drawn into the frames' pixels.
+    Composite,
+    /// The pointer's own image, sent for the peer to draw.
+    Raw,
+}
+
 /// Capture options to the screen collector.
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct CaptureOptions {
-    /// Include the cursor in the frames.
-    pub cursor: bool,
+    /// How the pointer appears in the stream.
+    pub cursor: Cursor,
+}
+
+/// The pointer's own image.
+pub struct CursorImage {
+    pub width: u16,
+    pub height: u16,
+    /// The pointer's own position within the image.
+    pub xhot: u16,
+    pub yhot: u16,
+    /// Row-major premultiplied RGBA.
+    pub pixels: Vec<u8>,
 }
 
 /// Screen collector's backend.
@@ -69,6 +94,13 @@ pub trait CaptureBackend: Send {
     /// Apply options. Returning `true` means the screen's shape changed.
     fn configure(&mut self, _options: &CaptureOptions) -> bool {
         false
+    }
+
+    /// The pointer's own image, when the backend was asked to report it.
+    ///
+    /// Returns `Some` only when the image changed since the last call.
+    fn cursor_image(&mut self) -> Result<Option<CursorImage>, CaptureError> {
+        Ok(None)
     }
 }
 
