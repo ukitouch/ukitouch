@@ -6,10 +6,9 @@
  */
 import * as React from "react";
 import { registerExtension } from "../extensions/registry";
-import { setFullscreen } from "../core/ui/utils";
+import { setFullscreen } from "../core/utils/ui";
 import { getHostInfo } from "../core/hostinfo";
-import { refreshUsbDevices, usbStore } from "../core/usb";
-import { createStore } from "../core/store";
+import { createStore } from "../core/utils/store";
 import { createScreenMonitor, startScreenStream } from "./media";
 import { injectInput, releaseInput, startInput, stopInput } from "./input";
 import type {
@@ -17,10 +16,8 @@ import type {
   Platform,
   Layout,
   Disposable,
-  Channel,
 } from "../core/types";
 import { toDisposable } from "../core/types";
-import type { OpenSpec } from "../core/transport";
 import type { DeviceRecord } from "../core/db";
 import { Select } from "../components/Select";
 import { SearchSelect } from "../components/SearchSelect";
@@ -32,6 +29,8 @@ import { SettingRow } from "../components/SettingRow";
 import { PageHeader } from "../components/PageHeader";
 import { SectionHeader } from "../components/SectionHeader";
 import { PinchArea } from "../components/PinchArea";
+import { refreshUsbDevices, usbStore } from "../core/transport/usb";
+import { Channel, OpenSpec } from "../core/transport";
 
 export { React };
 export {
@@ -86,9 +85,9 @@ export type {
 
 export type { SearchOption } from "../components/SearchSelect";
 export type { SelectOption } from "../components/Select";
-export type { UsbDevice } from "../core/usb";
+export type { UsbDevice } from "../core/transport/usb";
 export type { InputEvent, MouseButton, Point } from "./input";
-export type { Store } from "../core/store";
+export type { Store } from "../core/utils/store";
 export type { ToastKind } from "../components/Toast";
 export type { PinchTransform, PinchAreaProps } from "../components/PinchArea";
 

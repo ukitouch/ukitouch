@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { listExtensions, unregisterExtension } from "../extensions/registry";
+import { listExtensions, unregisterExtension } from "./registry";
 
 interface InstalledExt {
   dir: string;

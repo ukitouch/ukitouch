@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { createStore } from "./store";
-import type { Channel } from "./types";
+import { createStore } from "../utils/store";
+import { Channel } from ".";
 
 export interface UsbDevice {
   serial: string;

@@ -1,5 +1,3 @@
-import type { Channel } from "./types";
-
 /**
  * Transport abstraction.
  *
@@ -8,6 +6,22 @@ import type { Channel } from "./types";
  * and implement their own data interface.
  */
 export type TransportKind = "webrtc" | "usb" | "ble";
+
+/**
+ * TODO: Current implementation is a WebRTC DataChannel, USB / Bluetooth transports will implement
+ * the same shape, invisible to extensions.
+ */
+export interface Channel {
+  readonly label: string;
+  readonly readyState: string;
+  readonly bufferedAmount: number;
+  send(data: string | ArrayBuffer | ArrayBufferView | Blob): void;
+  close(): void;
+  onmessage: ((ev: MessageEvent) => void) | null;
+  onclose: ((ev: Event) => void) | null;
+  onopen: ((ev: Event) => void) | null;
+  onerror: ((ev: Event) => void) | null;
+}
 
 /** Arguments specific to the WebRTC transport. */
 export interface WebRtcOpenSpec {

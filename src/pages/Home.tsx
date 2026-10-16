@@ -1,15 +1,11 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { disableTempId, enableTempId, tempIdStore } from "../core/p2p";
-import {
-  disableUsbListener,
-  enableUsbListener,
-  usbListenerStore,
-} from "../core/usb";
+import { disableTempId, enableTempId, tempIdStore } from "../core/transport/p2p";
 import type { Platform } from "../core/types";
 import { Button } from "../components/Button";
 import { PageHeader } from "../components/PageHeader";
 import { SettingRow } from "../components/SettingRow";
 import { getHostInfo } from "../api";
+import { disableUsbListener, enableUsbListener, usbListenerStore } from "../core/transport/usb";
 
 async function copyText(text: string): Promise<void> {
   try {

@@ -1,6 +1,6 @@
 import { useEffect, useSyncExternalStore, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
-import { bindLayout } from "./core/ui/utils";
+import { bindLayout } from "./core/utils/ui";
 import { listExtensions, subscribeExtensions } from "./extensions/registry";
 import type { Layout } from "./core/types";
 import "./extensions";

@@ -1,13 +1,13 @@
-import { hostCapabilities } from "./ui/utils";
-import { deviceStore } from "./devices";
-import { getHostInfo, HostInfo } from "./hostinfo";
+import { hostCapabilities } from "../utils/ui";
+import { deviceStore } from "../devices";
+import { getHostInfo, HostInfo } from "../hostinfo";
 import { onChannel, openChannel, cancelConnection } from "./p2p";
 import { onUsbChannel, openUsbChannel } from "./usb";
-import { deviceUuid } from "./identity";
-import type { CoreProtocol } from "./db";
-import type { OpenSpec } from "./transport";
-import type { Channel, Disposable, NetContext as NetContext } from "./types";
-import { toDisposable } from "./types";
+import { deviceUuid } from "../identity";
+import type { CoreProtocol } from "../db";
+import type { Channel, OpenSpec } from ".";
+import type { Disposable, NetContext as NetContext } from "../types";
+import { toDisposable } from "../types";
 
 /** In-band hello: both ends send one over the opened channel. */
 interface HelloMsg {
@@ -89,7 +89,7 @@ export function makeContext(extId: string): NetContext {
   return {
     ...hostCapabilities,
     subscriptions,
-    openChannel: (request: OpenSpec) => {
+    openChannel: async (request: OpenSpec) => {
       const { transport } = request;
       if (transport === "usb") {
         return openUsbChannel(request.serial ?? "", extId).then((ch) =>

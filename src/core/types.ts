@@ -1,4 +1,4 @@
-import type { OpenSpec } from "./transport";
+import type { Channel, OpenSpec } from "./transport";
 import type { DeviceRecord } from "./db/types";
 
 /** A handle that can be released to free a subscription or listener. */
@@ -21,22 +21,6 @@ export type Layout = "withSidebar" | "fullscreen";
 
 /** Host platforms, matched against an extension's platform matrix. */
 export type Platform = "windows" | "linux" | "android";
-
-/**
- * TODO: Current implementation is a WebRTC DataChannel, USB / Bluetooth transports will implement
- * the same shape, invisible to extensions.
- */
-export interface Channel {
-  readonly label: string;
-  readonly readyState: string;
-  readonly bufferedAmount: number;
-  send(data: string | ArrayBuffer | ArrayBufferView | Blob): void;
-  close(): void;
-  onmessage: ((ev: MessageEvent) => void) | null;
-  onclose: ((ev: Event) => void) | null;
-  onopen: ((ev: Event) => void) | null;
-  onerror: ((ev: Event) => void) | null;
-}
 
 /** API the host hands to an extension's logic layer (activate). */
 export interface NetContext {

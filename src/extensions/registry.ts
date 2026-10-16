@@ -1,5 +1,5 @@
 import { ExtensionDefinition } from "../api";
-import { makeContext } from "../core/net";
+import { makeContext } from "../core/transport/net";
 
 const registry = new Map<string, ExtensionDefinition>();
 let activated = false;

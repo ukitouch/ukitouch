@@ -3,10 +3,10 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { ToastProvider } from "./components/Toast";
 import { ConfirmProvider } from "./components/Confirm";
-import { startSignaling } from "./core/p2p";
+import { startSignaling } from "./core/transport/p2p";
 import { deviceStore } from "./core/devices";
 import { activateExtensions } from "./extensions/registry";
-import { loadInstalledExtensions } from "./core/loader";
+import { loadInstalledExtensions } from "./extensions/loader";
 import { installBridge } from "./api";
 import "./index.css";
 
