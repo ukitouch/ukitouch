@@ -57,7 +57,7 @@ function App() {
               extensions.map((ext) => (
                 <SidebarButton
                   key={ext.id}
-                  title={ext.title}
+                  title={ext.title ?? ext.id}
                   active={active?.id === ext.id}
                   onClick={() => setActiveId(ext.id)}
                   icon={ext.icon}

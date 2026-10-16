@@ -90,7 +90,7 @@ export function ExtensionsManager() {
   async function uninstall(ext: InstalledExt) {
     const ok = await confirm({
       title: "Uninstall extension",
-      message: `Uninstall ${ext.name} (${ext.id})?`,
+      message: `Uninstall ${ext.name}?`,
       confirmText: "Uninstall",
       danger: true,
     });
@@ -121,9 +121,7 @@ export function ExtensionsManager() {
             key={ext.id}
             className="flex items-center justify-between bg-gray-100 dark:bg-gray-800 rounded-md px-3 py-2 text-sm"
           >
-            <span>
-              {ext.name} <span className="text-gray-400">({ext.id})</span>
-            </span>
+            <span>{ext.name}</span>
             <span className="flex items-center gap-2">
               <span className="text-gray-400">v{ext.version}</span>
               <button
