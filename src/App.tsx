@@ -1,7 +1,7 @@
 import { useEffect, useSyncExternalStore, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import { bindHost } from "./core/host";
-import { listExtensions, subscribeExtensions } from "./core/registry";
+import { listExtensions, subscribeExtensions } from "./extensions/registry";
 import type { Layout } from "./core/types";
 import "./extensions";
 import HomePage from "./pages/Home";

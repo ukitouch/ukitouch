@@ -2,7 +2,7 @@ import {
   createStore,
   type Channel,
   type DeviceRecord,
-  type ExtensionContext,
+  type NetContext,
 } from "../../api";
 
 export interface PingState {
@@ -31,7 +31,7 @@ function log(line: string): void {
   });
 }
 
-let ctxRef: ExtensionContext | null = null;
+let ctxRef: NetContext | null = null;
 let channel: Channel | null = null;
 let cancelled = false;
 let lastPingAt = 0;
@@ -69,7 +69,7 @@ function bindChannel(ch: Channel, peerLabel: string): void {
 }
 
 /** Logic entry */
-export function initPing(ctx: ExtensionContext): void {
+export function initPing(ctx: NetContext): void {
   ctxRef = ctx;
 
   pingStore.set({ devices: ctx.getKnownDevices() });

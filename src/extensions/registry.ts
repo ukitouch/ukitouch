@@ -1,5 +1,5 @@
-import { makeContext } from "./net";
-import type { ExtensionDefinition } from "./types";
+import { ExtensionDefinition } from "../api";
+import { makeContext } from "../core/net";
 
 const registry = new Map<string, ExtensionDefinition>();
 let activated = false;
@@ -15,6 +15,7 @@ export function registerExtension(
   if (registry.has(def.id)) {
     throw new Error(`duplicate extension id: ${def.id}`);
   }
+
   registry.set(def.id, def);
   dirty = true;
   listeners.forEach((l) => l());
@@ -61,7 +62,7 @@ export function subscribeExtensions(cb: () => void): () => void {
 }
 
 /**
- * Activate a single extension: hand it a context and record its cleanup.
+ * Activate a single extension.
  *
  * @param def The extension to activate.
  */

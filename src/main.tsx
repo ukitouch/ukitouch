@@ -5,7 +5,7 @@ import { ToastProvider } from "./components/Toast";
 import { ConfirmProvider } from "./components/Confirm";
 import { startSignaling } from "./core/p2p";
 import { deviceStore } from "./core/devices";
-import { activateExtensions } from "./core/registry";
+import { activateExtensions } from "./extensions/registry";
 import { loadInstalledExtensions } from "./core/loader";
 import { installBridge } from "./api";
 import "./index.css";

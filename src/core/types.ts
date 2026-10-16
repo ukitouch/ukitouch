@@ -1,4 +1,3 @@
-import type { ComponentType, ReactNode } from "react";
 import type { OpenSpec } from "./transport";
 import type { DeviceRecord } from "./db/types";
 
@@ -40,7 +39,7 @@ export interface Channel {
 }
 
 /** API the host hands to an extension's logic layer (activate). */
-export interface ExtensionContext {
+export interface NetContext {
   /**
    * Disposables to release together when the extension is deactivated or
    * uninstalled. Subscribe APIs return a `Disposable`; push it here.
@@ -86,24 +85,4 @@ export interface ExtensionContext {
    * @returns A `Disposable` that unsubscribes the handler.
    */
   onDeviceSeen(handler: (devices: DeviceRecord[]) => void): Disposable;
-}
-
-export interface ExtensionDefinition {
-  /** Unique id. Doubles as the channel label. */
-  id: string;
-  /** Display name (sidebar tooltip, page title). */
-  title: string;
-  /** Sidebar icon. */
-  icon: ReactNode;
-  /** Supported platforms; undefined = all. */
-  platforms?: HostPlatform[];
-  /**
-   * Logic layer entry. Called once at app startup, independent of the view lifecycle.
-   * May return a cleanup function.
-   */
-  activate?: (ctx: ExtensionContext) => void | (() => void);
-  /**
-   * The whole page layout that will be shown to the main view area when active.
-   */
-  component: ComponentType;
 }

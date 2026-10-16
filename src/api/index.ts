@@ -5,7 +5,7 @@
  * installed (zip) extensions use the same surface at runtime through `window.yatouch`.
  */
 import * as React from "react";
-import { registerExtension } from "../core/registry";
+import { registerExtension } from "../extensions/registry";
 import { getHostPlatform, setFullscreen, showToast } from "../core/host";
 import { getHostInfo } from "../core/hostinfo";
 import { refreshUsbDevices, usbStore } from "../core/usb";
@@ -13,8 +13,7 @@ import { createStore } from "../core/store";
 import { createScreenMonitor, startScreenStream } from "./media";
 import { injectInput, releaseInput, startInput, stopInput } from "./input";
 import type {
-  ExtensionContext,
-  ExtensionDefinition as CoreExtensionDefinition,
+  NetContext,
   HostPlatform,
   Layout,
   Disposable,
@@ -63,7 +62,7 @@ export {
 };
 
 export type {
-  ExtensionContext,
+  NetContext,
   HostPlatform,
   Layout,
   Disposable,
@@ -115,7 +114,7 @@ export interface ExtensionDefinition {
    * 
    * @returns a cleanup function
    */
-  activate?: (ctx: ExtensionContext) => void | (() => void);
+  activate?: (ctx: NetContext) => void | (() => void);
   /** View layer, rendered in the main area when active. */
   component?: React.ComponentType;
   /** Back-compat alias for `component`. */
@@ -128,7 +127,7 @@ export interface ExtensionDefinition {
  * @param def The definition written by the extension author.
  * @returns The host-side definition with defaults applied.
  */
-function normalize(def: ExtensionDefinition): CoreExtensionDefinition {
+function normalize(def: ExtensionDefinition): ExtensionDefinition {
   return {
     id: def.id,
     title: def.title ?? def.id,
@@ -147,7 +146,7 @@ function normalize(def: ExtensionDefinition): CoreExtensionDefinition {
  */
 export function defineExtension(
   def: ExtensionDefinition
-): CoreExtensionDefinition {
+): ExtensionDefinition {
   const normalized = normalize(def);
   registerExtension(normalized);
   return normalized;

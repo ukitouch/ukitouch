@@ -17,7 +17,7 @@ interface InstalledExt {
 
 type InstallOutcome =
   | { status: "installed"; meta: InstalledExt }
-  | { status: "needsConfirm"; id: string; existing: string; incoming: string };
+  | { status: "overrideConfirm"; id: string; existingVersion: string; incomingVersion: string };
 
 function toBase64(bytes: Uint8Array): string {
   let binary = "";
@@ -49,29 +49,33 @@ export function ExtensionsManager() {
       filters: [{ name: "Extension", extensions: ["zip"] }],
     });
     if (!picked) return;
+
     setInstalling(true);
     try {
-      const bytes = await readFile(String(picked));
+      const bytes = await readFile(picked);
       const zipBase64 = toBase64(bytes);
       let outcome = await invoke<InstallOutcome>("install_extension", {
         zipBase64,
         force: false,
       });
-      if (outcome.status === "needsConfirm") {
+
+      if (outcome.status === "overrideConfirm") {
         const ok = await confirm({
           title: "Overwrite extension",
-          message: outcome.existing
-            ? `${outcome.id} v${outcome.existing} is installed. Overwrite with v${outcome.incoming}?`
-            : `${outcome.id} is already installed. Overwrite with v${outcome.incoming}?`,
+          message: outcome.existingVersion
+            ? `${outcome.id} v${outcome.existingVersion} is installed. Overwrite with v${outcome.incomingVersion}?`
+            : `${outcome.id} is already installed. Overwrite with v${outcome.incomingVersion}?`,
           confirmText: "Overwrite",
           danger: true,
         });
+
         if (!ok) return;
         outcome = await invoke<InstallOutcome>("install_extension", {
           zipBase64,
           force: true,
         });
       }
+
       if (outcome.status !== "installed") return;
       await loadExtensionDir(outcome.meta.dir);
       show(`installed ${outcome.meta.name} v${outcome.meta.version}`);

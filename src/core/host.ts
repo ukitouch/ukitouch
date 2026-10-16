@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ExtensionContext, HostPlatform, Layout } from "./types";
+import type { NetContext, HostPlatform, Layout } from "./types";
 
 /** Toast severity. */
 export type ToastKind = "info" | "error";
@@ -9,7 +9,7 @@ let setLayoutImpl: (layout: Layout) => void = () => {
 };
 
 /** The shell-provided slice of the extension context (see net.makeContext). */
-export const hostCapabilities: Pick<ExtensionContext, "setLayout"> = {
+export const hostCapabilities: Pick<NetContext, "setLayout"> = {
   setLayout: (layout) => setLayoutImpl(layout),
 };
 

@@ -6,7 +6,7 @@ import { onUsbChannel, openUsbChannel } from "./usb";
 import { deviceUuid } from "./identity";
 import type { CoreProtocol, HelloInfo } from "./db";
 import type { OpenSpec } from "./transport";
-import type { Channel, Disposable, ExtensionContext } from "./types";
+import type { Channel, Disposable, NetContext as NetContext } from "./types";
 import { toDisposable } from "./types";
 
 /** In-band hello: both ends send one over the opened channel. */
@@ -84,7 +84,7 @@ function attachHello(
   });
 }
 
-export function makeContext(extId: string): ExtensionContext {
+export function makeContext(extId: string): NetContext {
   const subscriptions: Disposable[] = [];
   return {
     ...hostCapabilities,

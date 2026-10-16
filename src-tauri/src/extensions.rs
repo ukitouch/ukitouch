@@ -39,10 +39,10 @@ pub enum InstallOutcome {
     Installed {
         meta: ExtensionMeta,
     },
-    NeedsConfirm {
+    OverrideConfirm {
         id: String,
-        existing: String,
-        incoming: String,
+        existing_version: String,
+        incoming_version: String,
     },
 }
 
@@ -58,45 +58,18 @@ pub fn list_installed_extensions(app: AppHandle) -> Result<Vec<ExtensionMeta>, S
 }
 
 #[tauri::command]
-pub fn read_extension_file(dir: String, file: String) -> Result<String, String> {
-    if file != "index.js" && file != "manifest.json" {
-        return Err("file not allowed".into());
-    }
-    let path = Path::new(&dir).join(&file);
+pub fn read_extension_script(dir: String) -> Result<String, String> {
+    let path = Path::new(&dir).join("index.js");
     fs::read_to_string(&path).map_err(|e| e.to_string())
 }
 
-fn valid_ext_id(id: &str) -> bool {
-    !id.is_empty()
-        && !id.starts_with('.')
-        && id
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.')
-}
-
-/// Versions are `x.x.x`. Returns `None` if that shape is not met.
-fn parse_version(v: &str) -> Option<[u32; 3]> {
-    let mut parts = v.trim().split('.');
-    let out = [
-        parts.next()?.parse().ok()?,
-        parts.next()?.parse().ok()?,
-        parts.next()?.parse().ok()?,
-    ];
-    parts.next().is_none().then_some(out)
-}
-
-fn version_gt(a: &str, b: &str) -> bool {
-    match (parse_version(a), parse_version(b)) {
-        (Some(a), Some(b)) => a > b,
-        _ => false,
-    }
-}
-
+/// Scan extensions in given `dir`.
 fn scan_extensions(dir: &Path) -> Result<Vec<ExtensionMeta>, std::io::Error> {
     let mut out = Vec::new();
     if !dir.is_dir() {
         return Ok(out);
     }
+
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
         let path: PathBuf = entry.path();
@@ -108,13 +81,16 @@ fn scan_extensions(dir: &Path) -> Result<Vec<ExtensionMeta>, std::io::Error> {
         if hidden || !path.is_dir() || !path.join("index.js").is_file() {
             continue;
         }
+
         let manifest_path = path.join("manifest.json");
         let Ok(text) = fs::read_to_string(&manifest_path) else {
             continue;
         };
+
         let Ok(mf) = serde_json::from_str::<ExtensionManifest>(&text) else {
             continue;
         };
+
         out.push(ExtensionMeta {
             id: mf.id,
             name: mf.name,
@@ -139,12 +115,12 @@ pub fn install_extension(
         .app_data_dir()
         .map_err(|e| format!("app data dir: {e}"))?
         .join("extensions");
-
     let bytes = STANDARD
         .decode(&zip_base64)
         .map_err(|e| format!("decode zip: {e}"))?;
     let mut zip = ZipArchive::new(Cursor::new(bytes)).map_err(|e| format!("read zip: {e}"))?;
 
+    // validity check
     let manifest_text = {
         let mut f = zip
             .by_name("manifest.json")
@@ -162,24 +138,26 @@ pub fn install_extension(
     zip.by_name("index.js")
         .map_err(|_| "missing index.js".to_string())?;
 
+    // lower version handle
     let dest = exts_dir.join(&mf.id);
-    let existing = fs::read_to_string(dest.join("manifest.json"))
+    let existing_version = fs::read_to_string(dest.join("manifest.json"))
         .ok()
         .and_then(|t| serde_json::from_str::<ExtensionManifest>(&t).ok())
         .map(|m| m.version);
     if !force
-        && dest.exists()
-        && !existing
+        && !existing_version
             .as_deref()
-            .is_some_and(|v| version_gt(&mf.version, v))
+            .is_none_or(|v| version_gt(&mf.version, v))
     {
-        return Ok(InstallOutcome::NeedsConfirm {
+        return Ok(InstallOutcome::OverrideConfirm {
             id: mf.id,
-            existing: existing.unwrap_or_default(),
-            incoming: mf.version,
+            existing_version: existing_version.unwrap_or_default(),
+            incoming_version: mf.version,
         });
     }
 
+    // install new
+    // TODO: is there any memory-only way?
     let tmp = exts_dir.join(format!(".tmp-{}", mf.id));
     if tmp.exists() {
         fs::remove_dir_all(&tmp).map_err(|e| format!("clean tmp: {e}"))?;
@@ -226,6 +204,7 @@ pub fn uninstall_extension(app: AppHandle, id: String) -> Result<(), String> {
     if !valid_ext_id(&id) {
         return Err("invalid extension id".into());
     }
+
     let exts_dir = app
         .path()
         .app_data_dir()
@@ -237,4 +216,31 @@ pub fn uninstall_extension(app: AppHandle, id: String) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn valid_ext_id(id: &str) -> bool {
+    !id.is_empty()
+        && !id.starts_with('.')
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.')
+}
+
+/// Versions are `x.x.x`. Returns `None` if that shape is not met.
+fn parse_version(v: &str) -> Option<[u32; 3]> {
+    let mut parts = v.trim().split('.');
+    let out = [
+        parts.next()?.parse().ok()?,
+        parts.next()?.parse().ok()?,
+        parts.next()?.parse().ok()?,
+    ];
+    parts.next().is_none().then_some(out)
+}
+
+/// Whether `a`'s version is greater than `b`.
+fn version_gt(a: &str, b: &str) -> bool {
+    match (parse_version(a), parse_version(b)) {
+        (Some(a), Some(b)) => a > b,
+        _ => false,
+    }
 }
