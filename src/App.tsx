@@ -1,6 +1,6 @@
 import { useEffect, useSyncExternalStore, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
-import { bindHost } from "./core/host";
+import { bindLayout } from "./core/ui/utils";
 import { listExtensions, subscribeExtensions } from "./extensions/registry";
 import type { Layout } from "./core/types";
 import "./extensions";
@@ -18,7 +18,7 @@ function App() {
   const [activeId, setActiveId] = useState<string | null>("home");
   const [layout, setLayout] = useState<Layout>("withSidebar");
 
-  useEffect(() => bindHost({ setLayout }), [setLayout]);
+  useEffect(() => bindLayout({ setLayout }), [setLayout]);
 
   // Switching pages always show sidebar at first.
   useEffect(() => setLayout("withSidebar"), [activeId]);

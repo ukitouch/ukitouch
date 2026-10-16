@@ -4,11 +4,11 @@
  * projection (lastSeen / protocol / hello info) is updated here in the same
  * transaction via `recordConnection`.
  */
+import { HostInfo } from "../hostinfo";
 import { eachCursor, req, withTx } from "./db";
 import {
   MAX_CONNECTION_EVENTS,
   type ConnectionEvent,
-  type HelloInfo,
   type NewConnectionEvent,
   type StoredDevice,
 } from "./types";
@@ -32,7 +32,7 @@ export async function appendEvent(
  */
 export async function recordConnection(
   ev: NewConnectionEvent,
-  hello?: HelloInfo
+  hello?: HostInfo
 ): Promise<{ device: StoredDevice; event: ConnectionEvent }> {
   return withTx(["devices", "connectionEvents"], "readwrite", async (tx) => {
     const deviceStore = tx.objectStore("devices");

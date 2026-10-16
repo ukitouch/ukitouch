@@ -10,18 +10,10 @@
  *   protocol (usb, ble, …) requires no schema change.
  */
 
+import { Platform } from "../types";
+
 /** Core transport protocol (extensible union). Current implementation is p2p (WebRTC DataChannel); usb direct link and others are planned. */
 export type CoreProtocol = "p2p" | "usb" | (string & {});
-
-/** Host platform reported by the hello handshake (aligned with HostPlatform in core/types.ts). */
-export type Platform = "windows" | "macos" | "linux" | "android" | "ios";
-
-/** System info a peer reports during the core handshake. */
-export interface HelloInfo {
-  name?: string | null;
-  platform?: Platform | null;
-  os?: string | null;
-}
 
 /**
  * Device profile (public contract). `uuid` is the permanent system identity and an

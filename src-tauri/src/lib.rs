@@ -22,7 +22,6 @@ use net::bridge::{
     net_configure, p2p_bind, p2p_cancel, p2p_close_channel, p2p_connect, p2p_open_channel,
     p2p_send, sig_connect, sig_disconnect, sig_query, sig_send,
 };
-use net::host::get_platform;
 use net::state::NetState;
 use net::usb::{
     usb_close_channel, usb_list_devices, usb_listen_start, usb_listen_stop, usb_open_channel,
@@ -102,7 +101,6 @@ pub fn run() {
             set_fullscreen,
             stream_configure,
             set_fullscreen,
-            get_platform,
             get_host_info,
             list_installed_extensions,
             read_extension_script,

@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { setToastSink } from "../core/host";
-import type { ToastKind } from "../core/host";
+
+/** Toast severity. */
+export type ToastKind = "info" | "error";
 
 interface Toast {
   id: number;
@@ -54,4 +55,25 @@ export function useToast(): ToastApi {
   const ctx = useContext(ToastContext);
   if (!ctx) throw new Error("useToast outside ToastProvider");
   return ctx;
+}
+
+let toastImpl: ((message: string, kind?: ToastKind) => void) | null = null;
+
+/**
+ * The React toast provider registers here.
+ *
+ * @param fn The toast function, or `null` to unregister.
+ */
+function setToastSink(fn: ((message: string, kind?: ToastKind) => void) | null): void {
+  toastImpl = fn;
+}
+
+/**
+ * Show a toast if a sink is wired.
+ *
+ * @param message The message to show.
+ * @param kind The severity, defaults to "info".
+ */
+export function showToast(message: string, kind?: ToastKind): void {
+  toastImpl?.(message, kind);
 }

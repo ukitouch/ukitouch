@@ -16,9 +16,9 @@ import {
   type ConnectionEvent,
   type CoreProtocol,
   type DeviceRecord,
-  type HelloInfo,
   type StoredDevice,
 } from "./db";
+import { HostInfo } from "./hostinfo";
 
 /** Connection registration input. `protocol` is required: it tags the core protocol the connection ran on. */
 export interface RecordConnectionInput {
@@ -30,7 +30,7 @@ export interface RecordConnectionInput {
   /** Connection time (epoch ms), defaults to now. */
   time?: number;
   /** System info reported by the peer's hello handshake, optional. */
-  hello?: HelloInfo;
+  hello?: HostInfo;
 }
 
 export interface DeviceStoreSnapshot {
@@ -75,7 +75,7 @@ class DeviceStore {
    * Patch a device profile with peer-reported hello info (late-arriving or
    * re-reported hello). Undefined fields keep the existing value.
    */
-  async updateHello(uuid: string, hello: HelloInfo): Promise<void> {
+  async updateHello(uuid: string, hello: HostInfo): Promise<void> {
     await this.init();
     const patch: Partial<Omit<StoredDevice, "uuid">> = {};
     if (hello.name !== undefined) patch.name = hello.name;

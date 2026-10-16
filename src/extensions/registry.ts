@@ -68,7 +68,15 @@ export function subscribeExtensions(cb: () => void): () => void {
  */
 function activateOne(def: ExtensionDefinition): void {
   const ctx = makeContext(def.id);
-  const cleanup = def.activate?.(ctx);
+  let cleanup: void | (() => void) | undefined;
+
+  try {
+    cleanup = def.activate?.(ctx);
+  } catch (e) {
+    // This error is caused by extension itself.
+    console.error(`[ext] activate failed: ${def.id}`, e);
+  }
+
   cleanups.set(def.id, () => {
     for (const d of ctx.subscriptions) d.dispose();
     if (typeof cleanup === "function") cleanup();

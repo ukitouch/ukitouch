@@ -1,10 +1,10 @@
-import { hostCapabilities } from "./host";
+import { hostCapabilities } from "./ui/utils";
 import { deviceStore } from "./devices";
-import { getHostInfo } from "./hostinfo";
+import { getHostInfo, HostInfo } from "./hostinfo";
 import { onChannel, openChannel, cancelConnection } from "./p2p";
 import { onUsbChannel, openUsbChannel } from "./usb";
 import { deviceUuid } from "./identity";
-import type { CoreProtocol, HelloInfo } from "./db";
+import type { CoreProtocol } from "./db";
 import type { OpenSpec } from "./transport";
 import type { Channel, Disposable, NetContext as NetContext } from "./types";
 import { toDisposable } from "./types";
@@ -12,7 +12,7 @@ import { toDisposable } from "./types";
 /** In-band hello: both ends send one over the opened channel. */
 interface HelloMsg {
   uuid: string;
-  hello: HelloInfo;
+  hello: HostInfo;
 }
 
 function parseHello(data: unknown): HelloMsg | null {
@@ -27,7 +27,7 @@ function parseHello(data: unknown): HelloMsg | null {
   const { uuid, hello } = parsed as { uuid?: unknown; hello?: unknown };
   if (typeof uuid !== "string" || typeof hello !== "object" || hello === null)
     return null;
-  return { uuid, hello: hello as HelloInfo };
+  return { uuid, hello: hello as HostInfo };
 }
 
 /**

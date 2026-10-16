@@ -5,11 +5,11 @@ import {
   enableUsbListener,
   usbListenerStore,
 } from "../core/usb";
-import { getHostPlatform } from "../core/host";
-import type { HostPlatform } from "../core/types";
+import type { Platform } from "../core/types";
 import { Button } from "../components/Button";
 import { PageHeader } from "../components/PageHeader";
 import { SettingRow } from "../components/SettingRow";
+import { getHostInfo } from "../api";
 
 async function copyText(text: string): Promise<void> {
   try {
@@ -132,9 +132,9 @@ function HomePage() {
  * Android-only USB listener toggle.
  */
 function UsbListenerSection() {
-  const [platform, setPlatform] = useState<HostPlatform | null>(null);
+  const [platform, setPlatform] = useState<Platform | null>(null);
   useEffect(() => {
-    void getHostPlatform().then(setPlatform);
+    void getHostInfo().then((i) => setPlatform(i.platform));
   }, []);
 
   const enabled = useSyncExternalStore(

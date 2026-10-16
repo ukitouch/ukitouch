@@ -6,7 +6,7 @@
  */
 import * as React from "react";
 import { registerExtension } from "../extensions/registry";
-import { getHostPlatform, setFullscreen, showToast } from "../core/host";
+import { setFullscreen } from "../core/ui/utils";
 import { getHostInfo } from "../core/hostinfo";
 import { refreshUsbDevices, usbStore } from "../core/usb";
 import { createStore } from "../core/store";
@@ -14,19 +14,19 @@ import { createScreenMonitor, startScreenStream } from "./media";
 import { injectInput, releaseInput, startInput, stopInput } from "./input";
 import type {
   NetContext,
-  HostPlatform,
+  Platform,
   Layout,
   Disposable,
   Channel,
 } from "../core/types";
 import { toDisposable } from "../core/types";
 import type { OpenSpec } from "../core/transport";
-import type { DeviceRecord, HelloInfo } from "../core/db";
+import type { DeviceRecord } from "../core/db";
 import { Select } from "../components/Select";
 import { SearchSelect } from "../components/SearchSelect";
 import { PeerDeviceSearch } from "../components/PeerDeviceSearch";
 import { UsbDeviceSelect } from "../components/UsbDeviceSelect";
-import { ToastProvider, useToast } from "../components/Toast";
+import { showToast, ToastProvider, useToast } from "../components/Toast";
 import { Button } from "../components/Button";
 import { SettingRow } from "../components/SettingRow";
 import { PageHeader } from "../components/PageHeader";
@@ -46,7 +46,6 @@ export {
   PageHeader,
   SectionHeader,
   PinchArea,
-  getHostPlatform,
   getHostInfo,
   setFullscreen,
   refreshUsbDevices,
@@ -63,13 +62,12 @@ export {
 
 export type {
   NetContext,
-  HostPlatform,
+  Platform,
   Layout,
   Disposable,
   Channel,
   OpenSpec,
   DeviceRecord,
-  HelloInfo,
 };
 
 export type {
@@ -91,7 +89,7 @@ export type { SelectOption } from "../components/Select";
 export type { UsbDevice } from "../core/usb";
 export type { InputEvent, MouseButton, Point } from "./input";
 export type { Store } from "../core/store";
-export type { ToastKind } from "../core/host";
+export type { ToastKind } from "../components/Toast";
 export type { PinchTransform, PinchAreaProps } from "../components/PinchArea";
 
 export { toDisposable };
@@ -107,7 +105,7 @@ export interface ExtensionDefinition {
   /** Sidebar icon. */
   icon?: React.ReactNode;
   /** Supported platforms; undefined = all. */
-  platforms?: HostPlatform[];
+  platforms?: Platform[];
   /**
    * Logic layer entry. Called once at app startup, independent of the view
    * lifecycle.
@@ -172,8 +170,6 @@ export interface YatouchRuntime {
   };
   /** Register an extension at runtime (same as {@link defineExtension}). */
   defineExtension: typeof defineExtension;
-  /** Resolve the current host platform. */
-  getHostPlatform: typeof getHostPlatform;
   /** Resolve the current host info. */
   getHostInfo: typeof getHostInfo;
   /** Hold the app fullscreen (Android only). */
@@ -228,7 +224,6 @@ export function installBridge(): void {
       PinchArea,
     },
     defineExtension,
-    getHostPlatform,
     getHostInfo,
     setFullscreen,
     refreshUsbDevices,

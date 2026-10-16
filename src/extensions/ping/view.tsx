@@ -10,13 +10,13 @@ import {
 } from "./api";
 import {
   Button,
-  getHostPlatform,
   PageHeader,
   PeerDeviceSearch,
   refreshUsbDevices,
-  type HostPlatform,
+  type Platform,
   UsbDeviceSelect,
   usbStore,
+  getHostInfo,
 } from "../../api";
 
 type Mode = "webrtc" | "usb" | "ble";
@@ -32,14 +32,14 @@ export default function PingView() {
     () => usbStore.get().devices
   );
 
-  const [platform, setPlatform] = useState<HostPlatform | null>(null);
+  const [platform, setPlatform] = useState<Platform | null>(null);
   const isDesktop = platform === "windows" || platform === "linux";
 
   const status = state.connection.status;
   const canConnect = selectedUuid !== null || query.trim() !== "";
 
   useEffect(() => {
-    void getHostPlatform().then(setPlatform);
+    void getHostInfo().then((i) => setPlatform(i.platform));
   }, []);
 
   function onWebrtcConnect() {

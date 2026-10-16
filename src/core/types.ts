@@ -20,7 +20,7 @@ export function toDisposable(fn: () => void): Disposable {
 export type Layout = "withSidebar" | "fullscreen";
 
 /** Host platforms, matched against an extension's platform matrix. */
-export type HostPlatform = "windows" | "linux" | "android";
+export type Platform = "windows" | "linux" | "android";
 
 /**
  * TODO: Current implementation is a WebRTC DataChannel, USB / Bluetooth transports will implement
