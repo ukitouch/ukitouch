@@ -4,6 +4,7 @@ function genUuid(): string {
   if (typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
   }
+
   // uuid v4 fallback (non-secure contexts where randomUUID is missing)
   const b = crypto.getRandomValues(new Uint8Array(16));
   b[6] = (b[6] & 0x0f) | 0x40;
@@ -30,7 +31,7 @@ function write(key: string, value: string): void {
 /**
  * This device's permanent identity (uuid4). Generated on first run and
  * persisted. It is the registration id on the signaling server and the
- * basis of every P2P connection. Never shown to the user.
+ * basis of every P2P connection.
  */
 export const deviceUuid: string = (() => {
   const existing = read(UUID_KEY);

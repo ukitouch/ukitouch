@@ -5,7 +5,7 @@ export interface NativePinch {
   phase: "start" | "move" | "end";
   /** cumulative scale since the gesture began */
   scale: number;
-  /** center of the pinch in CSS pixels of the page */
+  // center of the pinch in CSS pixels of the page
   x: number;
   y: number;
 }
