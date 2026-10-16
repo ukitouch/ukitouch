@@ -4,23 +4,23 @@ import { bindHost } from "./core/host";
 import { listExtensions, subscribeExtensions } from "./core/registry";
 import type { Layout } from "./core/types";
 import "./extensions";
-import Home from "./pages/Home";
+import HomePage from "./pages/Home";
 import SettingPage from "./pages/Settings";
 import { ExtensionsManager } from "./pages/ExtensionsManager";
 
 const BUILTIN_PAGES: Record<string, ComponentType> = {
   manager: ExtensionsManager,
   settings: SettingPage,
+  home: HomePage,
 };
 
 function App() {
-  const [activeId, setActiveId] = useState<string | null>(null); // null = home
+  const [activeId, setActiveId] = useState<string | null>("home");
   const [layout, setLayout] = useState<Layout>("withSidebar");
 
   useEffect(() => bindHost({ setLayout }), [setLayout]);
 
-  // Switching pages always drops back to the sidebar. An extension only raises
-  // its own layout while it is the active page.
+  // Switching pages always show sidebar at first.
   useEffect(() => setLayout("withSidebar"), [activeId]);
 
   const extensions = useSyncExternalStore(subscribeExtensions, listExtensions);
@@ -34,8 +34,8 @@ function App() {
           <div className="flex flex-1 flex-col overflow-auto scrollbar-hide pt-4 pb-2 gap-2">
             <SidebarButton
               title="Home"
-              active={activeId === null}
-              onClick={() => setActiveId(null)}
+              active={activeId === "home"}
+              onClick={() => setActiveId("home")}
               icon={
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -118,7 +118,7 @@ function App() {
 }
 
 /**
- * The page area.
+ * The page layout area.
  */
 function MainPageContent({
   activeId,
@@ -128,7 +128,7 @@ function MainPageContent({
   ActiveComponent?: ComponentType;
 }) {
   const Page =
-    (activeId ? BUILTIN_PAGES[activeId] : undefined) ?? ActiveComponent ?? Home;
+    (activeId ? BUILTIN_PAGES[activeId] : null) ?? ActiveComponent ?? HomePage;
   return (
     <main className="flex-1 min-w-0 overflow-y-auto">
       <Page />

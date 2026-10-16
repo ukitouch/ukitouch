@@ -103,7 +103,7 @@ export interface ExtensionDefinition {
    */
   activate?: (ctx: ExtensionContext) => void | (() => void);
   /**
-   * View layer: rendered in the main area when active.
+   * The whole page layout that will be shown to the main view area when active.
    */
   component: ComponentType;
 }

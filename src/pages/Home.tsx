@@ -24,7 +24,7 @@ async function copyText(text: string): Promise<void> {
   await navigator.clipboard.writeText(text);
 }
 
-function Home() {
+function HomePage() {
   const tmpEnabled = useSyncExternalStore(
     tempIdStore.subscribe,
     () => tempIdStore.get().enabled
@@ -183,4 +183,4 @@ function UsbListenerSection() {
   );
 }
 
-export default Home;
+export default HomePage;

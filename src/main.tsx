@@ -10,12 +10,12 @@ import { loadInstalledExtensions } from "./core/loader";
 import { installBridge } from "./api";
 import "./index.css";
 
-// Runtime surface for installed (zip) extensions.
-installBridge();
-
-startSignaling().catch((e) => console.error("[sig] start failed", e));
+// Load extensions.
+installBridge();  // runtime surface
 loadInstalledExtensions().catch((e) => console.error("[ext] load failed", e));
 activateExtensions();
+
+startSignaling().catch((e) => console.error("[sig] start failed", e));
 void deviceStore
   .init()
   .catch((err) => console.error("[devices] init failed:", err));
