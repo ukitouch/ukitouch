@@ -14,7 +14,9 @@ use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use super::state::NetState;
 
 const ADB_SERVER_ADDR: SocketAddrV4 = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 5037);
-/// Device-side gateway port the app's listener binds (constant for now).
+/// Device-side gateway port the app's listener binds.
+///
+/// TODO: constant for now
 const GATEWAY_PORT: u16 = 21000;
 
 /// List devices currently connected to the adb server.
@@ -46,7 +48,7 @@ pub fn usb_list_devices() -> Result<Vec<UsbDevice>, String> {
 pub struct UsbInner {
     pub channels: HashMap<u64, Arc<UsbChannel>>,
     next_channel_id: u64,
-    /// Sender used to stop the gateway listener, if running.
+    /// Sender used to stop the gateway listener if running.
     pub listen_tx: Option<tokio::sync::watch::Sender<bool>>,
 }
 
@@ -106,6 +108,7 @@ pub async fn usb_open_channel(
     .await
     .map_err(|_| "connect timed out")?
     .map_err(|e| e.to_string())?;
+
     // Send the label, then wait for the phone's ack.
     tokio::time::timeout(
         std::time::Duration::from_secs(5),
@@ -208,7 +211,7 @@ pub async fn usb_listen_start(
     Ok(())
 }
 
-/// Stop the device-side gateway listener, if running.
+/// Stop the device-side gateway listener if running.
 #[tauri::command]
 pub async fn usb_listen_stop(state: State<'_, Arc<NetState>>) -> Result<(), String> {
     let tx = state.usb.lock().unwrap().listen_tx.take();
@@ -261,6 +264,7 @@ async fn handle_accept(app: AppHandle, state: Arc<NetState>, mut stream: tokio::
         }
     }
     let label = String::from_utf8_lossy(&buf).to_string();
+
     // Ack the desktop's handshake so the forward tunnel is exercised bidirectionally.
     let _ = stream.write_all(b"\n").await;
     let (read, write) = stream.into_split();

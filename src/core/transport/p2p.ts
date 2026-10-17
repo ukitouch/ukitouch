@@ -2,7 +2,7 @@ import { Channel as IpcChannel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { serverConfig } from "../config";
 import { deviceUuid, genTempId } from "../identity";
-import type { Channel } from "../types";
+import type { Channel } from ".";
 import { createStore } from "../utils/store";
 import { showToast } from "../../api";
 

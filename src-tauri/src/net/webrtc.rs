@@ -98,7 +98,7 @@ fn forward(sink: &Channel<InvokeResponseBody>, data: &[u8], text: bool) {
     let _ = sink.send(body);
 }
 
-/// Forward one inbound message, or buffer it until `bind`.
+/// Forward one inbound message, or buffer it until [`bind`].
 fn push_inbound(handle: &Arc<ChannelHandle>, data: &[u8], text: bool) {
     let sink = {
         let mut inbound = handle.inbound.lock().unwrap();
@@ -121,6 +121,7 @@ fn push_inbound(handle: &Arc<ChannelHandle>, data: &[u8], text: bool) {
 }
 
 pub struct Peer {
+    /// A token keeps backend and frontend's communication.
     pub token: String,
     pub pc: Arc<RTCPeerConnection>,
     /// channel_id -> channel.
@@ -393,6 +394,7 @@ pub async fn send(
     if data.len() > MAX_MESSAGE {
         return Err(format!("message too large: {} bytes", data.len()));
     }
+
     let peer = find_by_token(state, &token)?;
     let handle = peer
         .channels
@@ -452,6 +454,7 @@ pub async fn handle_signal(
     if value.get("cancel").is_some() {
         return abort(state, from).await;
     }
+
     if let Some(desc) = value.get("description") {
         let desc: RTCSessionDescription =
             serde_json::from_value(desc.clone()).map_err(|e| e.to_string())?;

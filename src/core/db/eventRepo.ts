@@ -32,7 +32,7 @@ export async function appendEvent(
  */
 export async function recordConnection(
   ev: NewConnectionEvent,
-  hello?: HostInfo
+  hostInfo?: HostInfo
 ): Promise<{ device: StoredDevice; event: ConnectionEvent }> {
   return withTx(["devices", "connectionEvents"], "readwrite", async (tx) => {
     const deviceStore = tx.objectStore("devices");
@@ -44,18 +44,18 @@ export async function recordConnection(
     const device: StoredDevice = existing
       ? {
           ...existing,
-          name: hello?.name ?? existing.name,
-          platform: hello?.platform ?? existing.platform,
-          os: hello?.os ?? existing.os,
+          name: hostInfo?.name ?? existing.name,
+          platform: hostInfo?.platform ?? existing.platform,
+          os: hostInfo?.os ?? existing.os,
           lastSeen: ev.time,
           protocol: ev.protocol,
         }
       : {
           uuid: ev.uuid,
-          name: hello?.name ?? null,
+          name: hostInfo?.name ?? null,
           remark: null,
-          platform: hello?.platform ?? null,
-          os: hello?.os ?? null,
+          platform: hostInfo?.platform ?? null,
+          os: hostInfo?.os ?? null,
           firstSeen: ev.time,
           lastSeen: ev.time,
           protocol: ev.protocol,

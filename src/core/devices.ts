@@ -30,7 +30,7 @@ export interface RecordConnectionInput {
   /** Connection time (epoch ms), defaults to now. */
   time?: number;
   /** System info reported by the peer's hello handshake, optional. */
-  hello?: HostInfo;
+  hostInfo?: HostInfo;
 }
 
 export interface DeviceStoreSnapshot {
@@ -108,7 +108,7 @@ class DeviceStore {
         time: input.time ?? Date.now(),
         protocol: input.protocol,
       },
-      input.hello
+      input.hostInfo
     );
     const devices = [
       ...this.snapshot.devices.filter((d) => d.uuid !== device.uuid),
