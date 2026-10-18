@@ -4,6 +4,7 @@
  * Extensions code against this module. Bundled extensions import it directly;
  * installed (zip) extensions use the same surface at runtime through `window.yatouch`.
  */
+import * as React from "react";
 import { getHostInfo } from "../core/hostinfo";
 import { setFullscreen } from "../core/utils/ui";
 import { createStore } from "../core/utils/store";
@@ -16,7 +17,7 @@ import type { NetContext, Platform, Layout, Disposable } from "../core/types";
 import type { DeviceRecord } from "../core/db";
 import type { Channel, OpenSpec } from "../core/transport";
 
-export * as React from "react";
+export { React };
 export * from "./components";
 export { defineExtension } from "../extensions/registry";
 export type { ExtensionDefinition } from "../extensions/registry";
