@@ -1,4 +1,4 @@
-import type { UsbDevice } from "../core/usb";
+import { UsbDevice } from "../core/transport/usb";
 import { Select } from "./Select";
 
 export interface UsbDeviceSelectProps {

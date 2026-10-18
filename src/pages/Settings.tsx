@@ -14,8 +14,8 @@ import { SectionHeader } from "../components/SectionHeader";
 import type {
   ConnectionEvent,
   DeviceRecord,
-  Platform,
 } from "../core/db/types";
+import { Platform } from "../core/types";
 
 //#region Utils
 
@@ -57,10 +57,8 @@ function relTime(ts: number): string {
 
 const PLATFORM_LABEL: Record<Platform, string> = {
   windows: "Windows",
-  macos: "macOS",
   linux: "Linux",
   android: "Android",
-  ios: "iOS",
 };
 
 function systemOf(d: DeviceRecord): string {
