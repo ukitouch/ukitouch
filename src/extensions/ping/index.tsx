@@ -1,6 +1,6 @@
 import { defineExtension } from "../../api";
 import { initPing } from "./api";
-import PingView from "./view";
+import PingView from "./View";
 
 export default defineExtension({
   id: "ping",
