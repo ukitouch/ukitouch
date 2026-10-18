@@ -18,13 +18,11 @@ pub struct Damage {
     pub height: u16,
 }
 
-/// A screen's dimensions and the byte layout of the pixels.
+/// A screen's dimensions.
 #[derive(Debug, Clone, Copy, Serialize)]
 pub struct ScreenInfo {
     pub width: u16,
     pub height: u16,
-    /// Always `"rgba"`.
-    pub format: &'static str,
 }
 
 /// A started capture: the id and the screen's shape.
@@ -34,8 +32,6 @@ pub struct Started {
     pub id: u64,
     pub width: u16,
     pub height: u16,
-    /// Always `"rgba"`.
-    pub format: String,
 }
 
 /// Capture errors.

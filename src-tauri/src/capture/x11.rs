@@ -456,7 +456,6 @@ impl CaptureBackend for X11Capture {
         ScreenInfo {
             width: self.width,
             height: self.height,
-            format: "rgba",
         }
     }
 

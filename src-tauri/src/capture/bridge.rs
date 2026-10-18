@@ -84,7 +84,6 @@ pub async fn capture_start(
         id,
         width: info.width,
         height: info.height,
-        format: info.format.to_string(),
     })
 }
 
@@ -246,7 +245,6 @@ mod tests {
             ScreenInfo {
                 width: 1,
                 height: 1,
-                format: "rgba",
             }
         }
         fn poll(&mut self) -> Result<Option<Vec<(Damage, Vec<u8>)>>, CaptureError> {

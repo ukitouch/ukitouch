@@ -95,7 +95,6 @@ pub async fn start_screen_stream(
         id,
         width: out.width,
         height: out.height,
-        format: info.format.to_string(),
     })
 }
 
