@@ -4,11 +4,11 @@ use tauri::State;
 
 use super::{create, InputBackend, InputEvent};
 
-/// The backend, held between calls.
+/// The backend, kept alive across command calls.
 #[derive(Default)]
 pub struct InputState(Mutex<Option<Box<dyn InputBackend>>>);
 
-/// Bring the backend up. Idempotent.
+/// Bring the backend up.
 #[tauri::command]
 pub fn input_start(state: State<'_, InputState>) -> Result<(), String> {
     let mut held = state.0.lock().unwrap();
@@ -18,7 +18,7 @@ pub fn input_start(state: State<'_, InputState>) -> Result<(), String> {
     Ok(())
 }
 
-/// Synthesize a batch of events, in order.
+/// Synthesize a batch of events in order.
 #[tauri::command]
 pub fn input_inject(state: State<'_, InputState>, events: Vec<InputEvent>) -> Result<(), String> {
     let mut held = state.0.lock().unwrap();
