@@ -1,25 +1,23 @@
 //! Exposes screen capture to the frontend.
 //!
 //! Capture runs as a task: the frontend starts a monitor, gets a handle back,
-//! and receives changed rectangles on a `Channel` until it stops. The task owns
-//! the backend.
+//! and receives changed rectangles on a `Channel` until it stops.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
 
 use serde::Serialize;
 use tauri::ipc::{Channel, InvokeResponseBody};
 use tauri::State;
 
-use super::{create, CaptureBackend, CaptureOptions, Damage};
+use super::{create, CaptureBackend, CaptureOptions, Damage, Started, POLL_INTERVAL};
 
-/// Interval to ask the backend for changes.
-///
-/// This is a poll interval, not a frame rate: an idle screen costs one cheap
-/// check per tick and produces nothing. 16ms keeps the worst case at roughly
-/// 60fps without pretending we can guarantee it.
-const POLL_INTERVAL: Duration = Duration::from_millis(16);
+/// The backend, kept alive across command calls.
+#[derive(Default)]
+pub struct CaptureState {
+    monitors: std::sync::Mutex<std::collections::HashMap<u64, Arc<MonitorHandle>>>,
+    next_id: std::sync::atomic::AtomicU64,
+}
 
 /// One rectangle's place in a frame's pixel blob.
 #[derive(Serialize)]
@@ -35,7 +33,7 @@ struct RectSpan {
     len: usize,
 }
 
-/// What a monitor reports.
+/// Events a monitor reports.
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 enum MonitorEvent {
@@ -46,22 +44,6 @@ enum MonitorEvent {
         #[serde(skip_serializing_if = "Option::is_none")]
         reason: Option<String>,
     },
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MonitorStarted {
-    pub id: u64,
-    pub width: u16,
-    pub height: u16,
-    pub format: String,
-}
-
-/// Live monitors, a stop command can reach the right task.
-#[derive(Default)]
-pub struct CaptureState {
-    monitors: std::sync::Mutex<std::collections::HashMap<u64, Arc<MonitorHandle>>>,
-    next_id: std::sync::atomic::AtomicU64,
 }
 
 /// Shared control flags for one running monitor.
@@ -80,7 +62,7 @@ pub async fn capture_start(
     state: State<'_, CaptureState>,
     on_event: Channel<InvokeResponseBody>,
     options: Option<CaptureOptions>,
-) -> Result<MonitorStarted, String> {
+) -> Result<Started, String> {
     let mut backend = create().map_err(|e| e.to_string())?;
     if let Some(options) = &options {
         backend.configure(options);
@@ -98,19 +80,12 @@ pub async fn capture_start(
     state.monitors.lock().unwrap().insert(id, handle.clone());
 
     tauri::async_runtime::spawn(run_monitor(backend, on_event, handle));
-    Ok(MonitorStarted {
+    Ok(Started {
         id,
         width: info.width,
         height: info.height,
         format: info.format.to_string(),
     })
-}
-
-/// Send a JSON message on the channel.
-fn send_json<T: Serialize>(ch: &Channel<InvokeResponseBody>, msg: &T) -> Result<(), String> {
-    let json = serde_json::to_string(msg).map_err(|e| e.to_string())?;
-    ch.send(InvokeResponseBody::Json(json))
-        .map_err(|e| e.to_string())
 }
 
 /// Pump the backend until stopped, forwarding each batch to the frontend.
@@ -209,17 +184,6 @@ fn poll_once(
     }
 }
 
-/// Read the message out of a panic payload.
-fn panic_message(payload: &(dyn std::any::Any + Send)) -> &str {
-    if let Some(s) = payload.downcast_ref::<&str>() {
-        s
-    } else if let Some(s) = payload.downcast_ref::<String>() {
-        s.as_str()
-    } else {
-        "unknown panic"
-    }
-}
-
 /// Ask a monitor for the whole screen again.
 #[tauri::command]
 pub fn capture_resync(state: State<'_, CaptureState>, id: u64) -> Result<(), String> {
@@ -249,6 +213,24 @@ pub fn capture_stop(state: State<'_, CaptureState>, id: u64) -> Result<(), Strin
         handle.running.store(false, Ordering::Relaxed);
     }
     Ok(())
+}
+
+/// Send a JSON message on the channel.
+fn send_json<T: Serialize>(ch: &Channel<InvokeResponseBody>, msg: &T) -> Result<(), String> {
+    let json = serde_json::to_string(msg).map_err(|e| e.to_string())?;
+    ch.send(InvokeResponseBody::Json(json))
+        .map_err(|e| e.to_string())
+}
+
+/// Read the message out of a panic payload.
+fn panic_message(payload: &(dyn std::any::Any + Send)) -> &str {
+    if let Some(s) = payload.downcast_ref::<&str>() {
+        s
+    } else if let Some(s) = payload.downcast_ref::<String>() {
+        s.as_str()
+    } else {
+        "unknown panic"
+    }
 }
 
 #[cfg(test)]

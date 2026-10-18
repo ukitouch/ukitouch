@@ -79,6 +79,8 @@ impl X11Capture {
     }
 
     /// Connect to an X display. `display` of `None` follows `$DISPLAY`.
+    ///
+    /// TODO: support multiple displays?
     fn new_on(display: Option<&str>) -> Result<Self, String> {
         let (conn, screen) = x11rb::connect(display).map_err(|e| format!("connect: {e}"))?;
         let scr = &conn.setup().roots[screen];
@@ -87,12 +89,11 @@ impl X11Capture {
         let height = scr.height_in_pixels;
         let len = width as usize * height as usize * BPP;
 
-        // Without MIT-SHM there is no cheap path to pixels.
+        // MIT-SHM
         conn.shm_query_version()
             .map_err(|e| format!("shm query: {e}"))?
             .reply()
             .map_err(|e| format!("shm version: {e}"))?;
-
         let shmid = unsafe { libc::shmget(libc::IPC_PRIVATE, len, libc::IPC_CREAT | 0o600) };
         if shmid < 0 {
             return Err(format!("shmget: {}", std::io::Error::last_os_error()));
@@ -196,7 +197,8 @@ impl X11Capture {
                 0,
             )
             .map_err(|e| self.fail(format!("shm_get_image: {e}")))?;
-        // The reply is the sync point: the server has finished writing.
+
+        // The server finishes writing before it sends the reply.
         cookie
             .reply()
             .map_err(|e| self.fail(format!("shm_get_image: {e}")))?;
