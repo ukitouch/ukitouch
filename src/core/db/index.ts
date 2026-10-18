@@ -1,37 +1,22 @@
-/**
- * Storage-layer public surface: model types + repositories.
- * Transaction plumbing (db.ts) stays internal to the store.
- */
-export * from "./types";
-export * as deviceRepo from "./deviceRepo";
-export * as eventRepo from "./eventRepo";
-
-/**
- * IndexedDB connection and transaction infrastructure.
- *
- * - Singleton connection: openDB() caches the promise, one IDBDatabase per process;
- * - Schema evolution: bump DB_VERSION and add a branch in upgrade(), old data upgrades
- *   automatically on next open;
- * - Transactions: withTx() wraps completion/failure semantics so repository layers
- *   never touch raw IDB events.
- */
 import { DB_NAME, DB_VERSION } from "./types";
 
-/** Object stores involved in transactions. Extend when a store is added. */
-export type StoreName = "devices" | "connectionEvents";
+/** Store names that can be operated. */
+type StoreName = "devices" | "connectionEvents";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
-/** Open (upgrading if needed) the database; cached per process. */
+/** 
+ * Open (upgrading if needed) the database.
+ * 
+ * Cached per process.
+ */
 export function openDB(): Promise<IDBDatabase> {
   if (!dbPromise) {
     dbPromise = new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
-      request.onupgradeneeded = (ev) =>
-        upgrade(request.result, ev.oldVersion);
+      request.onupgradeneeded = (ev) => upgrade(request.result, ev.oldVersion);
       request.onsuccess = () => resolve(request.result);
-      request.onerror = () =>
-        reject(request.error ?? new Error("indexedDB open failed"));
+      request.onerror = () => reject(request.error ?? new Error("indexedDB open failed"));
     });
   }
   return dbPromise;
@@ -39,8 +24,9 @@ export function openDB(): Promise<IDBDatabase> {
 
 /**
  * Schema migrations, applied in order of oldVersion.
- * Example: adding a kv store later →
- *   `if (oldVersion < 2) { db.createObjectStore("kv", { keyPath: "key" }); }`
+ * 
+ * This is used when a new schema is needed. At the same time {@link DB_VERSION}
+ * should be raised.
  */
 function upgrade(db: IDBDatabase, oldVersion: number): void {
   if (oldVersion < 1) {
@@ -78,7 +64,7 @@ export async function withTx<T>(
     try {
       tx.abort();
     } catch {
-      // transaction already aborted by a failed request; nothing to do
+      // transaction already aborted by a failed request
     }
     throw err;
   }
@@ -107,6 +93,7 @@ export function eachCursor<T>(
         resolve();
         return;
       }
+
       if (visit(cursor.value as T)) {
         resolve();
         return;
@@ -117,3 +104,7 @@ export function eachCursor<T>(
       reject(request.error ?? new Error("indexedDB cursor failed"));
   });
 }
+
+export * from "./types";
+export * as deviceRepo from "./deviceRepo";
+export * as eventRepo from "./eventRepo";

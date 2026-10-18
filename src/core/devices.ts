@@ -1,36 +1,21 @@
-/**
- * DeviceStore — facade over the storage layer (data substrate for the
- * plugin-facing device context).
- *
- * - Single source of truth: IndexedDB via the store repositories;
- * - In-memory snapshot + change subscription (pub/sub); the UI consumes it
- *   through useSyncExternalStore;
- * - Write operations persist first, then refresh the snapshot and notify.
- *
- * Derived state (`online`) is carried in the public DeviceRecord but never
- * persisted; it is null (Unknown) until an online tracker lands.
- */
 import { deviceRepo, eventRepo } from "./db";
 import {
   MAX_CONNECTION_EVENTS,
   type ConnectionEvent,
   type CoreProtocol,
   type DeviceRecord,
-  type StoredDevice,
 } from "./db";
 import { HostInfo } from "./hostinfo";
 
-/** Connection registration input. `protocol` is required: it tags the core protocol the connection ran on. */
+/** Connection registration input. */
 export interface RecordConnectionInput {
   uuid: string;
   direction: "in" | "out";
   protocol: CoreProtocol;
-  /** Initiating extension id; omit for core (handshake) connections. */
-  extension?: string | null;
-  /** Connection time (epoch ms), defaults to now. */
-  time?: number;
+  /** Initiating extension id. */
+  extension: string;
   /** System info reported by the peer's hello handshake, optional. */
-  hostInfo?: HostInfo;
+  hostInfo: HostInfo;
 }
 
 export interface DeviceStoreSnapshot {
@@ -77,7 +62,7 @@ class DeviceStore {
    */
   async updateHello(uuid: string, hello: HostInfo): Promise<void> {
     await this.init();
-    const patch: Partial<Omit<StoredDevice, "uuid">> = {};
+    const patch: Partial<Omit<DeviceRecord, "uuid">> = {};
     if (hello.name !== undefined) patch.name = hello.name;
     if (hello.platform !== undefined) patch.platform = hello.platform;
     if (hello.os !== undefined) patch.os = hello.os;
@@ -104,15 +89,15 @@ class DeviceStore {
       {
         uuid: input.uuid,
         direction: input.direction,
-        extension: input.extension ?? null,
-        time: input.time ?? Date.now(),
+        extension: input.extension,
+        time: Date.now(),
         protocol: input.protocol,
       },
       input.hostInfo
     );
     const devices = [
       ...this.snapshot.devices.filter((d) => d.uuid !== device.uuid),
-      this.materialize(device),
+      device,
     ];
     const events = [...this.snapshot.events, event]
       .sort((a, b) => a.time - b.time)
@@ -130,7 +115,7 @@ class DeviceStore {
       eventRepo.listAllEvents(),
     ]);
     this.snapshot = {
-      devices: devices.map((d) => ({ ...d, online: null })),
+      devices,
       events: events.sort((a, b) => a.time - b.time),
     };
     console.info(
@@ -139,17 +124,11 @@ class DeviceStore {
     this.emit();
   }
 
-  /** Rebuild the public shape from the stored shape, keeping any derived online status. */
-  private materialize(stored: StoredDevice): DeviceRecord {
-    const prev = this.snapshot.devices.find((d) => d.uuid === stored.uuid);
-    return { ...stored, online: prev?.online ?? null };
-  }
-
-  private applyDevice(stored: StoredDevice): void {
+  private applyDevice(device: DeviceRecord): void {
     this.snapshot = {
       ...this.snapshot,
       devices: this.snapshot.devices.map((d) =>
-        d.uuid === stored.uuid ? this.materialize(stored) : d
+        d.uuid === device.uuid ? device : d
       ),
     };
     this.emit();

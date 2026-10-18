@@ -223,12 +223,12 @@ function DeviceDetail({
                     {relTime(e.time)}
                   </span>
                   <span className="ml-2 text-gray-500 dark:text-gray-400 text-xs">
-                    {e.direction === "out" ? "out" : "in"} · {e.extension ?? "core"}
+                    {e.direction === "out" ? "out" : "in"} · {e.extension}
                   </span>
                 </button>
                 {expanded === e.id && (
                   <div className="ml-2 px-2 pb-1 text-xs text-gray-500 dark:text-gray-400">
-                    Time: {fmtDateTime(e.time)} · Protocol: {e.protocol} · Extension: {e.extension ?? "core (handshake)"}
+                    Time: {fmtDateTime(e.time)} · Protocol: {e.protocol} · Extension: {e.extension}
                   </div>
                 )}
               </li>
@@ -389,7 +389,7 @@ function Devices() {
                           <span className="flex-1 min-w-0 truncate text-sm text-gray-900 dark:text-gray-100">
                             {displayNameOf(d)}
                             <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-                              {systemOf(d)} · {relTime(e.time)} · {e.extension ?? "core"}
+                              {systemOf(d)} · {relTime(e.time)} · {e.extension}
                             </span>
                           </span>
                         </li>

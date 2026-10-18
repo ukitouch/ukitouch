@@ -1,16 +1,14 @@
-/**
- * connectionEvents object store repository: append-only event log with bounded
- * retention. The event is the single source of truth; the device-profile
- * projection (lastSeen / protocol / hello info) is updated here in the same
- * transaction via `recordConnection`.
+/*
+ * connectionEvents object store repository.
  */
+
 import { HostInfo } from "../hostinfo";
 import { eachCursor, req, withTx } from ".";
 import {
   MAX_CONNECTION_EVENTS,
   type ConnectionEvent,
   type NewConnectionEvent,
-  type StoredDevice,
+  type DeviceRecord,
 } from "./types";
 
 /** Append one event and FIFO-trim the oldest entries beyond the cap. */
@@ -26,41 +24,38 @@ export async function appendEvent(
 }
 
 /**
- * Record a connection: append the event (fact source) and upsert the device
- * profile projection (firstSeen / lastSeen / protocol + optional hello system
- * info), atomically in one transaction.
+ * Record a connection: append the event and upsert the device profile projection.
  */
 export async function recordConnection(
   ev: NewConnectionEvent,
-  hostInfo?: HostInfo
-): Promise<{ device: StoredDevice; event: ConnectionEvent }> {
+  hostInfo: HostInfo
+): Promise<{ device: DeviceRecord; event: ConnectionEvent }> {
   return withTx(["devices", "connectionEvents"], "readwrite", async (tx) => {
     const deviceStore = tx.objectStore("devices");
     const eventStore = tx.objectStore("connectionEvents");
 
     const existing = await req(
-      deviceStore.get(ev.uuid) as IDBRequest<StoredDevice | undefined>
+      deviceStore.get(ev.uuid) as IDBRequest<DeviceRecord | undefined>
     );
-    const device: StoredDevice = existing
+    const device: DeviceRecord = existing
       ? {
-          ...existing,
-          name: hostInfo?.name ?? existing.name,
-          platform: hostInfo?.platform ?? existing.platform,
-          os: hostInfo?.os ?? existing.os,
-          lastSeen: ev.time,
-          protocol: ev.protocol,
-        }
+        ...existing,
+        name: hostInfo.name ?? existing.name,
+        platform: hostInfo.platform ?? existing.platform,
+        os: hostInfo.os ?? existing.os,
+        lastSeen: ev.time,
+        protocol: ev.protocol,
+      }
       : {
-          uuid: ev.uuid,
-          name: hostInfo?.name ?? null,
-          remark: null,
-          platform: hostInfo?.platform ?? null,
-          os: hostInfo?.os ?? null,
-          firstSeen: ev.time,
-          lastSeen: ev.time,
-          protocol: ev.protocol,
-          meta: {},
-        };
+        uuid: ev.uuid,
+        name: hostInfo.name,
+        remark: null,
+        platform: hostInfo.platform,
+        os: hostInfo.os,
+        firstSeen: ev.time,
+        lastSeen: ev.time,
+        protocol: ev.protocol,
+      };
     await req(deviceStore.put(device));
 
     const id = await req(eventStore.add(ev));
@@ -69,14 +64,14 @@ export async function recordConnection(
   });
 }
 
-/** All events, ascending by time (the DB layer keeps them ≤ MAX_CONNECTION_EVENTS). */
+/** All events, ascending by time. */
 export async function listAllEvents(): Promise<ConnectionEvent[]> {
   return withTx(["connectionEvents"], "readonly", async (tx) =>
     req(tx.objectStore("connectionEvents").getAll())
   );
 }
 
-/** A device's events, descending by time; limit optional. */
+/** A device's events, descending by time. */
 export async function listEventsByDevice(
   uuid: string,
   limit?: number
@@ -97,11 +92,12 @@ export async function listEventsByDevice(
   });
 }
 
-/** FIFO: delete the oldest entries once the count exceeds the cap. */
+/** Delete the oldest entries once the count exceeds the cap. */
 async function trimEvents(store: IDBObjectStore): Promise<void> {
   const index = store.index("byTime");
   const count = await req(index.count());
   if (count <= MAX_CONNECTION_EVENTS) return;
+
   const keys = await req(index.getAllKeys());
   const excess = keys.length - MAX_CONNECTION_EVENTS;
   for (let i = 0; i < excess; i++) {

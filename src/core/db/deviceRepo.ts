@@ -1,38 +1,38 @@
 /**
- * devices object store repository: device-profile CRUD.
- * Persisted shape is `StoredDevice` (derived `online` excluded).
+ * device-profile CRUD
  */
-import { req, withTx } from ".";
-import type { StoredDevice } from "./types";
 
-/** All device profiles; ordering is left to the caller. */
-export async function listDevices(): Promise<StoredDevice[]> {
+import { req, withTx } from ".";
+import type { DeviceRecord } from "./types";
+
+/** All device profiles (no order). */
+export async function listDevices(): Promise<DeviceRecord[]> {
   return withTx(["devices"], "readonly", async (tx) =>
     req(tx.objectStore("devices").getAll())
   );
 }
 
+/** Get a device profile by UUID. */
 export async function getDevice(
   uuid: string
-): Promise<StoredDevice | undefined> {
+): Promise<DeviceRecord | undefined> {
   return withTx(["devices"], "readonly", async (tx) =>
     req(tx.objectStore("devices").get(uuid))
   );
 }
 
 /**
- * Partial update (e.g. setRemark, hello info). Returns the updated row,
- * or undefined when the device does not exist.
+ * Partial update. Returns the updated row or undefined when the device does not exist.
  */
 export async function patchDevice(
   uuid: string,
-  patch: Partial<Omit<StoredDevice, "uuid">>
-): Promise<StoredDevice | undefined> {
+  patch: Partial<Omit<DeviceRecord, "uuid">>
+): Promise<DeviceRecord | undefined> {
   return withTx(["devices"], "readwrite", async (tx) => {
     const store = tx.objectStore("devices");
     const existing = await req(store.get(uuid));
     if (!existing) return undefined;
-    const next: StoredDevice = { ...existing, ...patch, uuid };
+    const next: DeviceRecord = { ...existing, ...patch, uuid };
     await req(store.put(next));
     return next;
   });
