@@ -2,8 +2,8 @@
  * connectionEvents object store repository.
  */
 
-import { HostInfo } from "../hostinfo";
 import { eachCursor, req, withTx } from ".";
+import { HostInfo } from "../types";
 import {
   MAX_CONNECTION_EVENTS,
   type ConnectionEvent,

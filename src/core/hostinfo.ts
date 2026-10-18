@@ -1,11 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Platform } from "./types";
-
-export interface HostInfo {
-  name: string | null;
-  platform: Platform | null;
-  os: string | null;
-}
+import { HostInfo, Platform } from "./types";
 
 let cached: HostInfo | null = null;
 

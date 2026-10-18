@@ -6,6 +6,13 @@ export interface Disposable {
   dispose(): void;
 }
 
+/** A host's information. */
+export interface HostInfo {
+  name: string | null;
+  platform: Platform | null;
+  os: string | null;
+}
+
 /**
  * Wrap a cleanup function as a `Disposable`.
  *

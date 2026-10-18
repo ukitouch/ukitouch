@@ -5,7 +5,7 @@ import {
   type CoreProtocol,
   type DeviceRecord,
 } from "./db";
-import { HostInfo } from "./hostinfo";
+import { HostInfo } from "./types";
 
 /** Connection registration input. */
 export interface RecordConnectionInput {

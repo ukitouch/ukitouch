@@ -1,3 +1,7 @@
+/*
+ * Built-in example extension.
+ */
+
 import { defineExtension } from "../../api";
 import { initPing } from "./api";
 import PingView from "./View";

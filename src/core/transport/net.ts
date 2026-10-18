@@ -1,12 +1,12 @@
 import { hostCapabilities } from "../utils/ui";
 import { deviceStore } from "../devices";
-import { getHostInfo, HostInfo } from "../hostinfo";
+import { getHostInfo } from "../hostinfo";
 import { onChannel, openChannel, cancelConnection } from "./p2p";
 import { onUsbChannel, openUsbChannel } from "./usb";
 import { deviceUuid } from "../identity";
 import type { CoreProtocol } from "../db";
 import type { Channel, OpenSpec } from ".";
-import type { Disposable, NetContext as NetContext } from "../types";
+import type { Disposable, HostInfo, NetContext as NetContext } from "../types";
 import { toDisposable } from "../types";
 
 /** A message to exchange two peers' host info. */
