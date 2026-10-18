@@ -2,7 +2,7 @@
  * devices object store repository: device-profile CRUD.
  * Persisted shape is `StoredDevice` (derived `online` excluded).
  */
-import { req, withTx } from "./db";
+import { req, withTx } from ".";
 import type { StoredDevice } from "./types";
 
 /** All device profiles; ordering is left to the caller. */

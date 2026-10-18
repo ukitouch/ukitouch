@@ -5,7 +5,7 @@
  * transaction via `recordConnection`.
  */
 import { HostInfo } from "../hostinfo";
-import { eachCursor, req, withTx } from "./db";
+import { eachCursor, req, withTx } from ".";
 import {
   MAX_CONNECTION_EVENTS,
   type ConnectionEvent,

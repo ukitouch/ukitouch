@@ -1,10 +1,10 @@
 /**
  * Storage-layer data model and public contracts.
  *
- * Physical storage: IndexedDB (database `yatouch`, schema migrations in db.ts).
+ * Physical storage: IndexedDB (database `yatouch`).
  *
  * Conventions:
- * - `online` is a derived field and is NEVER persisted (see `StoredDevice`);
+ * - `online` is a derived field and is NEVER persisted (see {@link StoredDevice});
  * - `DeviceRecord.protocol` / `ConnectionEvent.protocol` record the core protocol a
  *   connection used; the `CoreProtocol` type is an extensible union, so adding a new
  *   protocol (usb, ble, …) requires no schema change.
