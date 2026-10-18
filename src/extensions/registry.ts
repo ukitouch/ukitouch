@@ -1,5 +1,67 @@
-import { ExtensionDefinition } from "../api";
+import * as React from "react";
 import { makeContext } from "../core/transport/net";
+import type { NetContext, Platform } from "../core/types";
+
+//#region Definition
+
+/**
+ * What an extension declares.
+ */
+export interface ExtensionDefinition {
+  /** Unique id. Doubles as the channel label. */
+  id: string;
+  /** Display name (sidebar tooltip, page title). Defaults to `id`. */
+  title?: string;
+  /** Sidebar icon. */
+  icon?: React.ReactNode;
+  /** Supported platforms; undefined = all. */
+  platforms?: Platform[];
+  /**
+   * Logic layer entry. Called once at app startup, independent of the view
+   * lifecycle.
+   *
+   * @returns a cleanup function
+   */
+  activate?: (ctx: NetContext) => void | (() => void);
+  /** View layer, rendered in the main area when active. */
+  component?: React.ComponentType;
+  /** Back-compat alias for `component`. */
+  view?: React.ComponentType;
+}
+
+/**
+ * Fill defaults into a public definition.
+ *
+ * @param def The definition written by the extension author.
+ * @returns The host-side definition with defaults applied.
+ */
+function normalize(def: ExtensionDefinition): ExtensionDefinition {
+  return {
+    id: def.id,
+    title: def.title ?? def.id,
+    icon: def.icon ?? React.createElement(React.Fragment, null),
+    platforms: def.platforms,
+    component: def.component ?? def.view ?? (() => null),
+    activate: def.activate,
+  };
+}
+
+/**
+ * Register an extension. Bundled extensions call this at module top level.
+ *
+ * @param def The definition to register.
+ * @returns The normalized host-side definition.
+ */
+export function defineExtension(
+  def: ExtensionDefinition
+): ExtensionDefinition {
+  const normalized = normalize(def);
+  registerExtension(normalized);
+  return normalized;
+}
+
+//#endregion
+//#region Registry
 
 const registry = new Map<string, ExtensionDefinition>();
 let activated = false;
@@ -61,6 +123,9 @@ export function subscribeExtensions(cb: () => void): () => void {
   };
 }
 
+//#endregion
+//#region Activation
+
 /**
  * Activate a single extension.
  *
@@ -91,3 +156,5 @@ export function activateExtensions(): void {
   activated = true;
   for (const ext of registry.values()) activateOne(ext);
 }
+
+//#endregion

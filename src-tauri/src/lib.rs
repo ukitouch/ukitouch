@@ -98,7 +98,6 @@ pub fn run() {
             input_inject,
             input_release,
             input_stop,
-            set_fullscreen,
             stream_configure,
             set_fullscreen,
             get_host_info,

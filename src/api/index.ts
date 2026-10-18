@@ -4,47 +4,24 @@
  * Extensions code against this module. Bundled extensions import it directly;
  * installed (zip) extensions use the same surface at runtime through `window.yatouch`.
  */
-import * as React from "react";
-import { registerExtension } from "../extensions/registry";
-import { setFullscreen } from "../core/utils/ui";
 import { getHostInfo } from "../core/hostinfo";
+import { setFullscreen } from "../core/utils/ui";
 import { createStore } from "../core/utils/store";
+import { refreshUsbDevices, usbStore } from "../core/transport/usb";
+import { showToast } from "../components/Toast";
 import { createScreenMonitor, startScreenStream } from "./media";
 import { injectInput, releaseInput, startInput, stopInput } from "./input";
-import type {
-  NetContext,
-  Platform,
-  Layout,
-  Disposable,
-} from "../core/types";
 import { toDisposable } from "../core/types";
+import type { NetContext, Platform, Layout, Disposable } from "../core/types";
 import type { DeviceRecord } from "../core/db";
-import { Select } from "../components/Select";
-import { SearchSelect } from "../components/SearchSelect";
-import { PeerDeviceSearch } from "../components/PeerDeviceSearch";
-import { UsbDeviceSelect } from "../components/UsbDeviceSelect";
-import { showToast, ToastProvider, useToast } from "../components/Toast";
-import { Button } from "../components/Button";
-import { SettingRow } from "../components/SettingRow";
-import { PageHeader } from "../components/PageHeader";
-import { SectionHeader } from "../components/SectionHeader";
-import { PinchArea } from "../components/PinchArea";
-import { refreshUsbDevices, usbStore } from "../core/transport/usb";
-import { Channel, OpenSpec } from "../core/transport";
+import type { Channel, OpenSpec } from "../core/transport";
 
-export { React };
+export * as React from "react";
+export * from "./components";
+export { defineExtension } from "../extensions/registry";
+export type { ExtensionDefinition } from "../extensions/registry";
+
 export {
-  Select,
-  SearchSelect,
-  PeerDeviceSearch,
-  UsbDeviceSelect,
-  ToastProvider,
-  useToast,
-  Button,
-  SettingRow,
-  PageHeader,
-  SectionHeader,
-  PinchArea,
   getHostInfo,
   setFullscreen,
   refreshUsbDevices,
@@ -57,6 +34,7 @@ export {
   injectInput,
   releaseInput,
   stopInput,
+  toDisposable,
 };
 
 export type {
@@ -90,150 +68,3 @@ export type { InputEvent, MouseButton, Point } from "./input";
 export type { Store } from "../core/utils/store";
 export type { ToastKind } from "../components/Toast";
 export type { PinchTransform, PinchAreaProps } from "../components/PinchArea";
-
-export { toDisposable };
-
-/**
- * What an extension declares.
- */
-export interface ExtensionDefinition {
-  /** Unique id. Doubles as the channel label. */
-  id: string;
-  /** Display name (sidebar tooltip, page title). Defaults to `id`. */
-  title?: string;
-  /** Sidebar icon. */
-  icon?: React.ReactNode;
-  /** Supported platforms; undefined = all. */
-  platforms?: Platform[];
-  /**
-   * Logic layer entry. Called once at app startup, independent of the view
-   * lifecycle.
-   * 
-   * @returns a cleanup function
-   */
-  activate?: (ctx: NetContext) => void | (() => void);
-  /** View layer, rendered in the main area when active. */
-  component?: React.ComponentType;
-  /** Back-compat alias for `component`. */
-  view?: React.ComponentType;
-}
-
-/**
- * Fill defaults into a public definition.
- *
- * @param def The definition written by the extension author.
- * @returns The host-side definition with defaults applied.
- */
-function normalize(def: ExtensionDefinition): ExtensionDefinition {
-  return {
-    id: def.id,
-    title: def.title ?? def.id,
-    icon: def.icon ?? React.createElement(React.Fragment, null),
-    platforms: def.platforms,
-    component: def.component ?? def.view ?? (() => null),
-    activate: def.activate,
-  };
-}
-
-/**
- * Register an extension. Bundled extensions call this at module top level.
- *
- * @param def The definition to register.
- * @returns The normalized host-side definition.
- */
-export function defineExtension(
-  def: ExtensionDefinition
-): ExtensionDefinition {
-  const normalized = normalize(def);
-  registerExtension(normalized);
-  return normalized;
-}
-
-/** Runtime API exposed to installed (zip) extensions on `window.yatouch`. */
-export interface YatouchRuntime {
-  /** React instance for building views. */
-  React: typeof React;
-  /** Shared UI components reusable by extensions. */
-  components: {
-    Select: typeof Select;
-    SearchSelect: typeof SearchSelect;
-    PeerDeviceSearch: typeof PeerDeviceSearch;
-    UsbDeviceSelect: typeof UsbDeviceSelect;
-    ToastProvider: typeof ToastProvider;
-    useToast: typeof useToast;
-    Button: typeof Button;
-    SettingRow: typeof SettingRow;
-    PageHeader: typeof PageHeader;
-    SectionHeader: typeof SectionHeader;
-    PinchArea: typeof PinchArea;
-  };
-  /** Register an extension at runtime (same as {@link defineExtension}). */
-  defineExtension: typeof defineExtension;
-  /** Resolve the current host info. */
-  getHostInfo: typeof getHostInfo;
-  /** Hold the app fullscreen (Android only). */
-  setFullscreen: typeof setFullscreen;
-  /** Refresh the connected USB device list. */
-  refreshUsbDevices: typeof refreshUsbDevices;
-  /** Reactive USB device store. */
-  usbStore: typeof usbStore;
-  /** In-memory store factory. */
-  createStore: typeof createStore;
-  /** Start capturing the screen. */
-  createScreenMonitor: typeof createScreenMonitor;
-  /** Stream the screen onto an open channel. */
-  startScreenStream: typeof startScreenStream;
-  /** Bring the input backend up. */
-  startInput: typeof startInput;
-  /** Synthesize a batch of input events. */
-  injectInput: typeof injectInput;
-  /** Release everything the backend is holding down. */
-  releaseInput: typeof releaseInput;
-  /** Release and drop the input backend. */
-  stopInput: typeof stopInput;
-  /** Show a toast (works outside React). */
-  showToast: typeof showToast;
-}
-
-declare global {
-  interface Window {
-    /** Runtime entry point for installed (zip) extensions. */
-    yatouch?: YatouchRuntime;
-  }
-}
-
-/**
- * Wire the global `window.yatouch` used by installed (zip) extensions.
- * Called once by the shell before loading installed extensions.
- */
-export function installBridge(): void {
-  window.yatouch = {
-    React,
-    components: {
-      Select,
-      SearchSelect,
-      PeerDeviceSearch,
-      UsbDeviceSelect,
-      ToastProvider,
-      useToast,
-      Button,
-      SettingRow,
-      PageHeader,
-      SectionHeader,
-      PinchArea,
-    },
-    defineExtension,
-    getHostInfo,
-    setFullscreen,
-    refreshUsbDevices,
-    usbStore,
-    createStore,
-    showToast,
-    createScreenMonitor,
-    startScreenStream,
-    startInput,
-    injectInput,
-    releaseInput,
-    stopInput,
-  };
-}

@@ -5,8 +5,8 @@ use serde::Deserialize;
 use tauri::State;
 use webp::{Encoder, WebPConfig};
 
+use super::sink::ChannelSink;
 use super::{create, CaptureBackend, CaptureOptions, Damage, ScreenInfo, Started, POLL_INTERVAL};
-use crate::net::sink::{ChannelSink, Rect};
 use crate::net::state::NetState;
 
 /// The smallest resolution scale of the screen a viewer may ask for.
@@ -172,7 +172,7 @@ async fn run_stream(
         };
 
         // render the rects
-        let mut blocks: Vec<(Rect, Vec<u8>)> = Vec::new();
+        let mut blocks: Vec<(Damage, Vec<u8>)> = Vec::new();
         for (d, px) in &rects {
             if d.width == 0 || d.height == 0 {
                 continue;
@@ -188,20 +188,12 @@ async fn run_stream(
 
             // encode
             if let Some(payload) = encode_webp(d, px) {
-                blocks.push((
-                    Rect {
-                        x: d.x,
-                        y: d.y,
-                        width: d.width,
-                        height: d.height,
-                    },
-                    payload,
-                ));
+                blocks.push((*d, payload));
             }
         }
 
         // group the blocks
-        let frame: Vec<(Rect, &[u8])> = blocks
+        let frame: Vec<(Damage, &[u8])> = blocks
             .iter()
             .map(|(rect, payload)| (*rect, payload.as_slice()))
             .collect();

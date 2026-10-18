@@ -7,7 +7,7 @@ import { startSignaling } from "./core/transport/p2p";
 import { deviceStore } from "./core/devices";
 import { activateExtensions } from "./extensions/registry";
 import { loadInstalledExtensions } from "./extensions/loader";
-import { installBridge } from "./api";
+import { installBridge } from "./extensions";
 import "./index.css";
 
 // Load extensions.
