@@ -14,7 +14,7 @@ export interface RecordConnectionInput {
   protocol: CoreProtocol;
   /** Initiating extension id. */
   extension: string;
-  /** System info reported by the peer's hello handshake, optional. */
+  /** System info reported by the peer's hello handshake. */
   hostInfo: HostInfo;
 }
 
@@ -29,7 +29,8 @@ class DeviceStore {
   private initPromise: Promise<void> | null = null;
 
   /**
-   * Idempotent initialization: load full data once (safe to call repeatedly).
+   * Load full data once.
+   * 
    * A failed load resets the promise so a later call can retry.
    */
   init(): Promise<void> {
@@ -57,15 +58,16 @@ class DeviceStore {
   }
 
   /**
-   * Patch a device profile with peer-reported hello info (late-arriving or
-   * re-reported hello). Undefined fields keep the existing value.
+   * Patch a device profile with peer-reported hello info.
+   * 
+   * Null fields keep the existing value.
    */
   async updateHello(uuid: string, hello: HostInfo): Promise<void> {
     await this.init();
     const patch: Partial<Omit<DeviceRecord, "uuid">> = {};
-    if (hello.name !== undefined) patch.name = hello.name;
-    if (hello.platform !== undefined) patch.platform = hello.platform;
-    if (hello.os !== undefined) patch.os = hello.os;
+    if (hello.name !== null) patch.name = hello.name;
+    if (hello.platform !== null) patch.platform = hello.platform;
+    if (hello.os !== null) patch.os = hello.os;
     if (Object.keys(patch).length === 0) return;
     const next = await deviceRepo.patchDevice(uuid, patch);
     if (next) this.applyDevice(next);
@@ -82,7 +84,7 @@ class DeviceStore {
     this.emit();
   }
 
-  /** Record a connection: event (fact source) + device profile projection, atomically persisted. */
+  /** Record a connection to db. */
   async recordConnection(input: RecordConnectionInput): Promise<void> {
     await this.init();
     const { device, event } = await eventRepo.recordConnection(
@@ -124,6 +126,7 @@ class DeviceStore {
     this.emit();
   }
 
+  /** Apply a device profile update to the snapshot. */
   private applyDevice(device: DeviceRecord): void {
     this.snapshot = {
       ...this.snapshot,
