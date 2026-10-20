@@ -1,3 +1,5 @@
+// TODO: move it to user settings
+
 export interface ServerConfig {
   /** Full WebSocket URL of the signaling server */
   signaling: string;

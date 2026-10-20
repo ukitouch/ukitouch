@@ -1,18 +1,18 @@
-import { hostCapabilities } from "./host";
-import { deviceStore } from "./devices";
-import { getHostInfo } from "./hostinfo";
+import { hostCapabilities } from "../utils/ui";
+import { deviceStore } from "../devices";
+import { getHostInfo } from "../hostinfo";
 import { onChannel, openChannel, cancelConnection } from "./p2p";
 import { onUsbChannel, openUsbChannel } from "./usb";
-import { deviceUuid } from "./identity";
-import type { CoreProtocol, HelloInfo } from "./db";
-import type { OpenSpec } from "./transport";
-import type { Channel, Disposable, ExtensionContext } from "./types";
-import { toDisposable } from "./types";
+import { deviceUuid } from "../identity";
+import type { CoreProtocol } from "../db";
+import type { Channel, OpenSpec } from ".";
+import type { Disposable, HostInfo, NetContext as NetContext } from "../types";
+import { toDisposable } from "../types";
 
-/** In-band hello: both ends send one over the opened channel. */
+/** A message to exchange two peers' host info. */
 interface HelloMsg {
   uuid: string;
-  hello: HelloInfo;
+  hostInfo: HostInfo;
 }
 
 function parseHello(data: unknown): HelloMsg | null {
@@ -24,14 +24,14 @@ function parseHello(data: unknown): HelloMsg | null {
     return null;
   }
   if (typeof parsed !== "object" || parsed === null) return null;
-  const { uuid, hello } = parsed as { uuid?: unknown; hello?: unknown };
-  if (typeof uuid !== "string" || typeof hello !== "object" || hello === null)
+  const { uuid, hostInfo } = parsed as { uuid?: unknown; hostInfo?: unknown };
+  if (typeof uuid !== "string" || typeof hostInfo !== "object" || hostInfo === null)
     return null;
-  return { uuid, hello: hello as HelloInfo };
+  return { uuid, hostInfo: hostInfo as HostInfo };
 }
 
 /**
- * Wrap an opened channel so both ends exchange an in-band hello.
+ * Wrap an opened channel to exchange host info by sending {@link HelloMsg}.
  */
 function attachHello(
   raw: Channel,
@@ -52,7 +52,7 @@ function attachHello(
             direction,
             protocol,
             extension: extId,
-            hello: hello.hello,
+            hostInfo: hello.hostInfo,
           })
           .catch((err) => console.error("[devices] record failed:", err));
         return;
@@ -63,12 +63,11 @@ function attachHello(
 
   // Send our hello right after the channel opens.
   Promise.resolve(getHostInfo())
-    .then((hello) => raw.send(JSON.stringify({ uuid: deviceUuid, hello })))
+    .then((hostInfo) => raw.send(JSON.stringify({ uuid: deviceUuid, hostInfo })))
     .catch((err) => console.error("[net] hello send failed:", err));
 
-  // Proxy the channel so the extension's onmessage assignment targets
-  // extOnmessage (routed past the hello handshake) while everything else
-  // passes straight through to the raw channel.
+  // Proxy the channel to intercept the peer's hello.
+  // This makes sure extension will not receive the hello message.
   return new Proxy(raw, {
     get(target, prop) {
       if (prop === "onmessage") return extOnmessage;
@@ -84,12 +83,15 @@ function attachHello(
   });
 }
 
-export function makeContext(extId: string): ExtensionContext {
+/**
+ * Create a {@link NetContext} for an extension.
+ */
+export function makeContext(extId: string): NetContext {
   const subscriptions: Disposable[] = [];
   return {
     ...hostCapabilities,
     subscriptions,
-    openChannel: (request: OpenSpec) => {
+    openChannel: async (request: OpenSpec) => {
       const { transport } = request;
       if (transport === "usb") {
         return openUsbChannel(request.serial ?? "", extId).then((ch) =>

@@ -1,15 +1,11 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { disableTempId, enableTempId, tempIdStore } from "../core/p2p";
-import {
-  disableUsbListener,
-  enableUsbListener,
-  usbListenerStore,
-} from "../core/usb";
-import { getHostPlatform } from "../core/host";
-import type { HostPlatform } from "../core/types";
+import { disableTempId, enableTempId, tempIdStore } from "../core/transport/p2p";
+import type { Platform } from "../core/types";
 import { Button } from "../components/Button";
 import { PageHeader } from "../components/PageHeader";
 import { SettingRow } from "../components/SettingRow";
+import { getHostInfo } from "../api";
+import { disableUsbListener, enableUsbListener, usbListenerStore } from "../core/transport/usb";
 
 async function copyText(text: string): Promise<void> {
   try {
@@ -24,7 +20,7 @@ async function copyText(text: string): Promise<void> {
   await navigator.clipboard.writeText(text);
 }
 
-function Home() {
+function HomePage() {
   const tmpEnabled = useSyncExternalStore(
     tempIdStore.subscribe,
     () => tempIdStore.get().enabled
@@ -132,9 +128,9 @@ function Home() {
  * Android-only USB listener toggle.
  */
 function UsbListenerSection() {
-  const [platform, setPlatform] = useState<HostPlatform | null>(null);
+  const [platform, setPlatform] = useState<Platform | null>(null);
   useEffect(() => {
-    void getHostPlatform().then(setPlatform);
+    void getHostInfo().then((i) => setPlatform(i.platform));
   }, []);
 
   const enabled = useSyncExternalStore(
@@ -183,4 +179,4 @@ function UsbListenerSection() {
   );
 }
 
-export default Home;
+export default HomePage;

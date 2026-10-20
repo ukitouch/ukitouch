@@ -10,37 +10,37 @@ import {
 } from "./api";
 import {
   Button,
-  getHostPlatform,
   PageHeader,
   PeerDeviceSearch,
   refreshUsbDevices,
-  type HostPlatform,
+  type Platform,
   UsbDeviceSelect,
   usbStore,
+  getHostInfo,
 } from "../../api";
 
 type Mode = "webrtc" | "usb" | "ble";
 
 export default function PingView() {
   const state = useSyncExternalStore(pingStore.subscribe, pingStore.get);
+  const [mode, setMode] = useState<Mode>("webrtc");
   const [query, setQuery] = useState("");
   const [selectedUuid, setSelectedUuid] = useState<string | null>(null);
-  const [mode, setMode] = useState<Mode>("webrtc");
-  const [serial, setSerial] = useState("");
+  const [usbSerial, setUsbSerial] = useState("");
   const usbDevices = useSyncExternalStore(
     usbStore.subscribe,
     () => usbStore.get().devices
   );
-  const [platform, setPlatform] = useState<HostPlatform | null>(null);
+
+  const [platform, setPlatform] = useState<Platform | null>(null);
   const isDesktop = platform === "windows" || platform === "linux";
 
-  useEffect(() => {
-    void getHostPlatform().then(setPlatform);
-  }, []);
-
   const status = state.connection.status;
-
   const canConnect = selectedUuid !== null || query.trim() !== "";
+
+  useEffect(() => {
+    void getHostInfo().then((i) => setPlatform(i.platform));
+  }, []);
 
   function onWebrtcConnect() {
     if (status === "connecting") cancelConnect();
@@ -60,7 +60,7 @@ export default function PingView() {
     if (status === "connecting") cancelConnect();
     else if (status === "connected") disconnect();
     else {
-      const target = serial || usbDevices[0]?.serial;
+      const target = usbSerial || usbDevices[0]?.serial;
       if (target) void openUsbPingChannel(target);
     }
   }
@@ -131,8 +131,8 @@ export default function PingView() {
               {usbDevices.length > 0 && (
                 <UsbDeviceSelect
                   devices={usbDevices}
-                  value={serial}
-                  onChange={setSerial}
+                  value={usbSerial}
+                  onChange={setUsbSerial}
                 />
               )}
               {usbDevices.length === 0 && (

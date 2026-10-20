@@ -1,3 +1,7 @@
+//! TODO: may replace with the upstream switch once it exists: WebKitGTK
+//! `enable-pinch-zoom-gesture` or a wry option (tauri-apps/wry#544,
+//! tauri-apps/tauri#13115).
+
 import { listen } from "@tauri-apps/api/event";
 
 /** One pinch frame forwarded by the native gesture (WebKitGTK). */
@@ -5,7 +9,7 @@ export interface NativePinch {
   phase: "start" | "move" | "end";
   /** cumulative scale since the gesture began */
   scale: number;
-  /** center of the pinch in CSS pixels of the page */
+  // center of the pinch in CSS pixels of the page
   x: number;
   y: number;
 }

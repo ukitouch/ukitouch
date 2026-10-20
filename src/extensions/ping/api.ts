@@ -2,7 +2,7 @@ import {
   createStore,
   type Channel,
   type DeviceRecord,
-  type ExtensionContext,
+  type NetContext,
 } from "../../api";
 
 export interface PingState {
@@ -24,14 +24,7 @@ export const pingStore = createStore<PingState>({
   devices: [],
 });
 
-function log(line: string): void {
-  const stamp = new Date().toLocaleTimeString("en-GB");
-  pingStore.set({
-    logs: [...pingStore.get().logs, `${stamp} ${line}`].slice(-100),
-  });
-}
-
-let ctxRef: ExtensionContext | null = null;
+let ctxRef: NetContext | null = null;
 let channel: Channel | null = null;
 let cancelled = false;
 let lastPingAt = 0;
@@ -69,7 +62,7 @@ function bindChannel(ch: Channel, peerLabel: string): void {
 }
 
 /** Logic entry */
-export function initPing(ctx: ExtensionContext): void {
+export function initPing(ctx: NetContext): void {
   ctxRef = ctx;
 
   pingStore.set({ devices: ctx.getKnownDevices() });
@@ -140,7 +133,7 @@ export async function openUsbPingChannel(serial: string): Promise<void> {
 export function cancelConnect(): void {
   cancelled = true;
   pingStore.set({ connection: { status: "idle" } });
-  log("cancelling...");
+  log("cancelled");
   // Tear down the pending connection at the network level.
   if (ctxRef) {
     void ctxRef.cancelOpenChannel().catch((e) => console.error("[ping] cancel failed", e));
@@ -159,5 +152,12 @@ export function sendPing(): void {
   if (!channel) return;
   lastPingAt = Date.now();
   channel.send("ping");
-  log("ping →");
+  log("ping");
+}
+
+function log(line: string): void {
+  const stamp = new Date().toLocaleTimeString();
+  pingStore.set({
+    logs: [...pingStore.get().logs, `${stamp} ${line}`].slice(-100),
+  });
 }

@@ -35,13 +35,13 @@ pub enum InputEvent {
     Scroll { at: Option<Point>, dx: i32, dy: i32 },
     /// Press or release a physical key, named by its `KeyboardEvent.code`.
     Key { code: String, pressed: bool },
-    /// Type a string, character by character.
+    /// Type a string.
     Text { text: String },
 }
 
 /// Where synthesized events go.
 pub trait InputBackend: Send {
-    /// Synthesize a batch of events, in order.
+    /// Synthesize a batch of events in order.
     fn inject(&mut self, events: &[InputEvent]) -> Result<(), String>;
 
     /// Release everything this backend is holding down.

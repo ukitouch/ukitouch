@@ -12,7 +12,7 @@ use super::webrtc::WebrtcInner;
 pub struct NetState {
     /// Named signaling connections, keyed by `name` ("primary", "temp", ...).
     pub signaling: Mutex<HashMap<String, SignalingSender>>,
-    /// WebRTC peers (keyed by target uuid).
+    /// WebRTC peers.
     pub webrtc: Mutex<WebrtcInner>,
     /// USB (adb) channels.
     pub usb: Mutex<UsbInner>,

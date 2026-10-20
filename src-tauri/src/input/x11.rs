@@ -11,14 +11,14 @@ use x11rb::wrapper::ConnectionExt as _;
 
 use super::{InputBackend, InputEvent, MouseButton, Point};
 
-/// Core-protocol event codes, reused by XTEST's `fake_input`.
+// Core-protocol event codes, reused by XTEST's `fake_input`.
 const KEY_PRESS: u8 = 2;
 const KEY_RELEASE: u8 = 3;
 const BUTTON_PRESS: u8 = 4;
 const BUTTON_RELEASE: u8 = 5;
 const MOTION_NOTIFY: u8 = 6;
 
-/// Wheel clicks, by the core-protocol button number they borrow.
+// Wheel clicks, by the core-protocol button number they borrow.
 const WHEEL_UP: u8 = 4;
 const WHEEL_DOWN: u8 = 5;
 const WHEEL_LEFT: u8 = 6;
@@ -28,7 +28,7 @@ const WHEEL_RIGHT: u8 = 7;
 const MAX_CLICKS: i32 = 10;
 
 /// Timeout to type the next char.
-const TYPE_DELAY: Duration = Duration::from_millis(6);
+const TYPE_DELAY: Duration = Duration::from_millis(10);
 
 pub struct X11Input {
     conn: RustConnection,
@@ -37,8 +37,9 @@ pub struct X11Input {
     keysyms: HashMap<u32, u8>,
     /// A keycode with no keysyms, temporarily bound to type other characters.
     scratch: Option<u8>,
-    /// Buttons and keys currently down, for `release`.
+    /// Mouse buttons currently down, for `release`.
     buttons: Vec<u8>,
+    /// Keys currently down, for `release`.
     keys: Vec<u8>,
 }
 
@@ -48,6 +49,8 @@ impl X11Input {
     }
 
     /// Connect to an X display. `display` of `None` follows `$DISPLAY`.
+    /// 
+    /// TODO: support multiple displays?
     fn new_on(display: Option<&str>) -> Result<Self, String> {
         let (conn, screen) = x11rb::connect(display).map_err(|e| format!("connect: {e}"))?;
         let root = conn.setup().roots[screen].root;
@@ -189,7 +192,7 @@ impl InputBackend for X11Input {
     }
 }
 
-/// The core-protocol button number for a semantic button.
+/// The core-protocol button number for a mouse button click.
 fn code_of(button: MouseButton) -> u8 {
     match button {
         MouseButton::Left => 1,
@@ -200,7 +203,7 @@ fn code_of(button: MouseButton) -> u8 {
     }
 }
 
-/// The X keysym a physical key produces unshifted, by `KeyboardEvent.code`.
+/// Unshifted keysym for a `KeyboardEvent.code`.
 fn keysym(code: &str) -> Option<u32> {
     if let Some(rest) = code.strip_prefix("Key") {
         if rest.len() == 1 {
@@ -293,7 +296,9 @@ fn keysym(code: &str) -> Option<u32> {
     })
 }
 
-/// A character's keysym: Latin-1 is its code point, the rest are flagged.
+/// A character's keysym.
+/// 
+/// Latin-1 is its code point, the rest are flagged.
 fn keysym_of(ch: char) -> u32 {
     let c = ch as u32;
     if c < 0x100 {

@@ -2,11 +2,11 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import {
   toDisposable,
-  type Channel as ScreenChannel,
   type Disposable,
 } from "../core/types";
+import { Channel as ScreenChannel } from "../core/transport";
 
-/** A changed rectangle, in screen pixels. */
+/** A changed rectangle in screen pixels. */
 export interface Damage {
   x: number;
   y: number;
@@ -20,12 +20,10 @@ export interface DamageFrame extends Damage {
   data: Uint8Array;
 }
 
-/** Screen dimensions and pixel layout. */
+/** Screen dimensions. */
 export interface ScreenInfo {
   width: number;
   height: number;
-  /** Always `"rgba"`. */
-  format: "rgba";
   /** The screen's own size, when it is sending us a scaled version. */
   source?: ScreenSize;
 }
@@ -36,12 +34,11 @@ export interface ScreenSize {
   height: number;
 }
 
-/** How the pointer appears in the stream. */
+/** The cursor's displaying way. */
 export type Cursor = "off" | "composite" | "raw";
 
 /** Capture options to the screen collector. */
 export interface CaptureOptions {
-  /** How the pointer appears in the stream. */
   cursor?: Cursor;
 }
 
@@ -109,7 +106,7 @@ type HostEvent =
  * Start capturing the screen.
  *
  * @param options capture options to the screen collector
- * @returns the started monitor, or why it could not start
+ * @returns the started monitor, or the reason it could not start
  */
 export async function createScreenMonitor(options?: CaptureOptions): Promise<StartResult> {
   const damageHandlers = new Set<(frames: DamageFrame[]) => void>();
@@ -154,7 +151,7 @@ export async function createScreenMonitor(options?: CaptureOptions): Promise<Sta
     }
   };
 
-  let started: { id: number; width: number; height: number; format: "rgba" };
+  let started: { id: number; width: number; height: number };
   try {
     started = await invoke("capture_start", { onEvent: on_event, options });
   } catch (err) {
@@ -165,7 +162,6 @@ export async function createScreenMonitor(options?: CaptureOptions): Promise<Sta
   const screen: ScreenInfo = {
     width: started.width,
     height: started.height,
-    format: started.format,
   };
   const monitorId = started.id;
 
@@ -230,12 +226,11 @@ export async function startScreenStream(
     id: number;
     width: number;
     height: number;
-    format: "rgba";
   }>("start_screen_stream", { token, channelId, options });
 
   return {
     id: started.id,
-    info: { width: started.width, height: started.height, format: started.format },
+    info: { width: started.width, height: started.height },
     configure: (options) =>
       invoke("stream_configure", { id: started.id, options }),
     stop: () => invoke("stop_screen_stream", { id: started.id }),

@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "yatouch",
-        "width": 800,
-        "height": 600,
+        "width": 1024,
+        "height": 576,
         "visible": false
       }
     ],

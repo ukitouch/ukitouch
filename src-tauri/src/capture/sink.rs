@@ -5,24 +5,14 @@ use base64::Engine;
 use bytes::Bytes;
 use webrtc::data_channel::RTCDataChannel;
 
-use crate::capture::CursorImage;
-
-use super::state::NetState;
+use super::{CursorImage, Damage};
+use crate::net::state::NetState;
 
 /// SCTP's default per-message cap (65536 - 1).
 const MAX_MESSAGE: usize = u16::MAX as usize;
 
 /// Bytes allowed in the send buffer before the pump pauses.
 const BACKPRESSURE: usize = 64 * 1024;
-
-/// A rectangle of pixels in the transport's own terms.
-#[derive(Debug, Clone, Copy)]
-pub struct Rect {
-    pub x: u16,
-    pub y: u16,
-    pub width: u16,
-    pub height: u16,
-}
 
 /// A real-time sink backed by one open data channel.
 pub struct ChannelSink {
@@ -92,8 +82,8 @@ impl ChannelSink {
 
     /// Ship a frame: a JSON header naming each rectangle and its payload length,
     /// then the concatenated payloads.
-    pub async fn push(&self, frame: &[(Rect, &[u8])]) -> Result<(), String> {
-        let items: Vec<(Rect, &[u8])> = frame
+    pub async fn push(&self, frame: &[(Damage, &[u8])]) -> Result<(), String> {
+        let items: Vec<(Damage, &[u8])> = frame
             .iter()
             .filter(|(r, payload)| r.width > 0 && r.height > 0 && !payload.is_empty())
             .map(|(r, payload)| (*r, *payload))

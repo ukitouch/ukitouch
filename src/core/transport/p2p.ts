@@ -1,10 +1,10 @@
 import { Channel as IpcChannel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { serverConfig } from "./config";
-import { showToast } from "./host";
-import { deviceUuid, genTempId } from "./identity";
-import type { Channel } from "./types";
-import { createStore } from "./store";
+import { serverConfig } from "../config";
+import { deviceUuid, genTempId } from "../identity";
+import type { Channel } from ".";
+import { createStore } from "../utils/store";
+import { showToast } from "../../api";
 
 /*
  * The signaling WS (p2psig protocol) lives in Rust (`net::signaling`); this

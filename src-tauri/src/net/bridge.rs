@@ -1,5 +1,4 @@
-//! Exposes networking to the frontend: signaling commands/events and the
-//! WebRTC P2P commands/events.
+//! Exposes signaling commands/events and the WebRTC P2P commands/events to the frontend.
 
 use std::sync::Arc;
 
@@ -10,8 +9,6 @@ use super::signaling::{self, Event};
 use super::state::NetState;
 use super::webrtc;
 use ::webrtc::ice_transport::ice_server::RTCIceServer;
-
-// signaling
 
 /// Connect and register `id` under `name`. Spawns a reader that routes SDP/ICE
 /// to the WebRTC layer and forwards everything else to the frontend.
@@ -119,8 +116,6 @@ pub async fn sig_query(
     s.query(&id).await.map_err(|e| e.to_string())
 }
 
-// WebRTC
-
 /// Set the ICE servers used for new peer connections.
 #[tauri::command]
 pub async fn net_configure(
@@ -138,7 +133,7 @@ pub async fn net_configure(
     Ok(())
 }
 
-/// Establish a P2P connection to `target` (uuid). Returns a connection token.
+/// Establish a P2P connection to `target`. Returns a connection token.
 #[tauri::command]
 pub async fn p2p_connect(
     state: State<'_, Arc<NetState>>,
@@ -169,7 +164,7 @@ pub async fn p2p_send(
     webrtc::send(&state, token, channel_id, data, text).await
 }
 
-/// Point a channel's inbound data at a frontend IPC sink, skipping `emit`.
+/// Bind a channel to the frontend, and send all buffered data to it.
 #[tauri::command]
 pub async fn p2p_bind(
     state: State<'_, Arc<NetState>>,

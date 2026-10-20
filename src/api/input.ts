@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
-/** A point on the peer's screen, in pixels. */
+/** A point on the peer's screen in pixels. */
 export interface Point {
   x: number;
   y: number;
@@ -9,7 +9,7 @@ export interface Point {
 /** A pointer button. */
 export type MouseButton = "left" | "middle" | "right" | "back" | "forward";
 
-/** A synthesized input event, in screen pixels. */
+/** A synthesized input event in screen pixels. */
 export type InputEvent =
   | { kind: "move"; x: number; y: number }
   | { kind: "button"; at?: Point; button: MouseButton; pressed: boolean }
@@ -17,12 +17,12 @@ export type InputEvent =
   | { kind: "key"; code: string; pressed: boolean }
   | { kind: "text"; text: string };
 
-/** Bring the input backend up. Idempotent. */
+/** Bring the input backend up. */
 export async function startInput(): Promise<void> {
   await invoke("input_start");
 }
 
-/** Synthesize a batch of events, in order. */
+/** Synthesize a batch of events in order. */
 export async function injectInput(events: InputEvent[]): Promise<void> {
   await invoke("input_inject", { events });
 }

@@ -1,6 +1,6 @@
 //! Signaling client speaking the `p2psig` server protocol.
 //!
-//! Wire protocol (see `mix/p2p-test/rs/src/main.rs`):
+//! Wire protocol:
 //! - client -> server `{"register":"<id>","force":bool}`  register an id
 //! - client -> server `{"query":"<id>"}`                  server replies `{"id":"..","registered":bool}`
 //! - client -> server `{"from":"<a>","to":"<b>",..}`      server forwards the same text to `b`
@@ -21,7 +21,10 @@ use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 #[derive(Debug)]
 pub enum Event {
     /// The server forwarded a message to us from another peer.
-    Forward { from: String, value: Value },
+    Forward {
+        from: String,
+        value: Value,
+    },
     /// Bare-string server notice / error.
     Notice(String),
     Error(Value),
@@ -41,7 +44,7 @@ pub enum Status {
 }
 
 /// Delay between reconnection attempts.
-/// TODO: for now every 2s makes a retry, further should be stronger
+/// TODO: for now every 2s makes a retry, further reconnection logic should be stronger
 const RETRY: Duration = Duration::from_secs(2);
 
 type Ws = WebSocketStream<MaybeTlsStream<TcpStream>>;
@@ -66,7 +69,7 @@ pub struct SignalingReceiver {
 }
 
 impl SignalingSender {
-    /// Send `payload` to peer `to`; the server forwards it as-is.
+    /// Send `payload` to peer `to`.
     pub async fn send(&self, to: &str, payload: Value) -> Result<(), Error> {
         let mut map = serde_json::Map::new();
         map.insert("from".into(), Value::String(self.id.clone()));
@@ -74,6 +77,7 @@ impl SignalingSender {
         if let Value::Object(rest) = payload {
             map.extend(rest);
         }
+
         let text = serde_json::Value::Object(map).to_string();
         let mut guard = self.write.lock().await;
         let w = guard.as_mut().ok_or(Error::Other("not connected".into()))?;
@@ -150,11 +154,14 @@ async fn handle_text(
     if v.get("ping").is_some() {
         if let Some(w) = write.lock().await.as_mut() {
             let _ = w
-                .send(Message::Text(serde_json::json!({ "pong": true }).to_string().into()))
+                .send(Message::Text(
+                    serde_json::json!({ "pong": true }).to_string().into(),
+                ))
                 .await;
         }
         return;
     }
+
     if v.get("error").is_some() {
         let _ = tx.send(Event::Error(v)).await;
         return;
@@ -169,7 +176,8 @@ async fn handle_text(
         let _ = tx.send(ev).await;
         return;
     }
-    // unknown JSON -> treat as notice
+
+    // unknown JSON: treat as notice
     let _ = tx.send(Event::Notice(text)).await;
 }
 
@@ -218,9 +226,9 @@ pub fn connect(url: &str, id: String, force: bool) -> (SignalingSender, Signalin
                 tokio::time::sleep(RETRY).await;
                 continue;
             }
+
             *write_mgr.lock().await = Some(write);
             let _ = tx_mgr.send(Event::Status(Status::Connected)).await;
-
             while let Some(msg) = read.next().await {
                 if closed_mgr.load(Ordering::SeqCst) {
                     break;
@@ -236,6 +244,7 @@ pub fn connect(url: &str, id: String, force: bool) -> (SignalingSender, Signalin
             if closed_mgr.load(Ordering::SeqCst) {
                 break;
             }
+
             tokio::time::sleep(RETRY).await;
         }
     });
@@ -274,6 +283,8 @@ mod tests {
     /// Live smoke test against the configured signaling server.
     ///
     /// Skips (silently) when `VITE_SIGNALING` is not set or the server is down.
+    ///
+    /// TODO: server url will be in user settings
     #[tokio::test(flavor = "multi_thread")]
     async fn register_forward_query_roundtrip() {
         let url = match std::env::var("VITE_SIGNALING").ok() {
@@ -291,7 +302,7 @@ mod tests {
         let to = format!("test-{suffix}-b");
         // `connect` returns before the sockets are up, and the server processes
         // connections concurrently, so a's forward could race b's register.
-        // Wait until the server confirms b is registered; skip if it never
+        // Wait until the server confirms b is registered. Skip if it never
         // comes up (server unreachable).
         let mut up = false;
         let mut ready = false;
@@ -317,6 +328,7 @@ mod tests {
             .send(&to, serde_json::json!({ "hello": "world" }))
             .await
             .expect("a send");
+
         // b's receiver also carries Status events, skip them.
         let event = loop {
             let ev = tokio::time::timeout(Duration::from_secs(3), b_recv.recv())
@@ -327,6 +339,7 @@ mod tests {
                 break ev;
             }
         };
+
         match event {
             Event::Forward { from, value } => {
                 assert_eq!(from, format!("test-{suffix}-a"));

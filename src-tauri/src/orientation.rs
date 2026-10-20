@@ -13,7 +13,7 @@ pub struct Orientation {
 
 pub fn init() -> TauriPlugin<tauri::Wry> {
     Builder::new("orientation")
-        .setup(|app, api| {
+        .setup(|app, _api| {
             #[cfg(target_os = "android")]
             app.manage(Orientation {
                 handle: Some(
@@ -27,8 +27,7 @@ pub fn init() -> TauriPlugin<tauri::Wry> {
         .build()
 }
 
-/// Hold the window in landscape with the system bars hidden, or hand control
-/// back.
+/// Hold the window in landscape with the system bars hidden, or hand control back.
 #[tauri::command]
 pub async fn set_fullscreen(state: State<'_, Orientation>, enabled: bool) -> Result<(), String> {
     #[cfg(target_os = "android")]

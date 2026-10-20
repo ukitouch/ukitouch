@@ -14,7 +14,7 @@ struct Frame {
     phase: &'static str,
     /// Cumulative scale since the gesture began.
     scale: f64,
-    /// Centre of the pinch, in CSS pixels of the page.
+    // Centre of the pinch, in CSS pixels of the page.
     x: f64,
     y: f64,
 }
@@ -29,6 +29,7 @@ pub fn attach(app: &AppHandle) {
     let Some(window) = app.get_webview_window("main") else {
         return;
     };
+
     let handle = app.clone();
     let _ = window.with_webview(move |webview| {
         let widget: gtk::Widget = webview.inner().upcast();
@@ -40,8 +41,8 @@ pub fn attach(app: &AppHandle) {
             if raw.is_null() {
                 return;
             }
-            // Drop WebKit's own begin/scale-changed/end, the ones that drive the
-            // view gesture controller.
+
+            // Drop WebKit's own begin/scale-changed/end that drive the view gesture controller.
             gobject::g_signal_handlers_disconnect_matched(
                 raw as *mut gobject::GObject,
                 gobject::G_SIGNAL_MATCH_DATA,

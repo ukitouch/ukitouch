@@ -21,9 +21,8 @@ export async function loadInstalledExtensions(): Promise<void> {
 export async function loadExtensionDir(dir: string): Promise<void> {
   unloadExtensionDir(dir);
   const before = new Set(registryIds());
-  const code = await invoke<string>("read_extension_file", {
+  const code = await invoke<string>("read_extension_script", {
     dir,
-    file: "index.js",
   });
   const url = URL.createObjectURL(new Blob([code], { type: "text/javascript" }));
   try {

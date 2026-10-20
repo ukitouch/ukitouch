@@ -1,16 +1,13 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use tauri::State;
 use webp::{Encoder, WebPConfig};
 
-use super::{create, CaptureBackend, CaptureOptions, Damage, ScreenInfo};
-use crate::net::sink::{ChannelSink, Rect};
+use super::sink::ChannelSink;
+use super::{create, CaptureBackend, CaptureOptions, Damage, ScreenInfo, Started, POLL_INTERVAL};
 use crate::net::state::NetState;
-
-const POLL_INTERVAL: Duration = Duration::from_millis(16);
 
 /// The smallest resolution scale of the screen a viewer may ask for.
 const MIN_SCALE: f32 = 0.05;
@@ -28,6 +25,7 @@ pub struct StreamOptions {
 /// Where frames go out at, and how much of the screen they keep.
 #[derive(Debug, Clone, Copy)]
 struct Output {
+    /// The factor to scale the screen by.
     factor: f32,
     width: u16,
     height: u16,
@@ -48,19 +46,10 @@ impl Output {
         }
     }
 
-    /// Whether frames have to be announced again.
+    /// Whether frames between two polls have the same shape.
     fn same_shape(&self, other: &Self) -> bool {
         (self.width, self.height) == (other.width, other.height)
     }
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct StreamStarted {
-    pub id: u64,
-    pub width: u16,
-    pub height: u16,
-    pub format: String,
 }
 
 #[derive(Default)]
@@ -72,7 +61,7 @@ pub struct StreamState {
 struct StreamHandle {
     running: AtomicBool,
     /// Options from a `stream_configure`, taken by the task on its next turn.
-    pending: std::sync::Mutex<Option<StreamOptions>>,
+    pending_options: std::sync::Mutex<Option<StreamOptions>>,
 }
 
 /// Start pumping the screen onto channel `(token, channel_id)`.
@@ -83,7 +72,7 @@ pub async fn start_screen_stream(
     token: String,
     channel_id: u64,
     options: Option<StreamOptions>,
-) -> Result<StreamStarted, String> {
+) -> Result<Started, String> {
     let sink = ChannelSink::new(net.inner(), &token, channel_id)?;
     let mut backend = create().map_err(|e| e.to_string())?;
 
@@ -97,16 +86,15 @@ pub async fn start_screen_stream(
     let id = state.next_id.fetch_add(1, Ordering::Relaxed);
     let handle = Arc::new(StreamHandle {
         running: AtomicBool::new(true),
-        pending: std::sync::Mutex::new(None),
+        pending_options: std::sync::Mutex::new(None),
     });
     state.streams.lock().unwrap().insert(id, handle.clone());
 
     tauri::async_runtime::spawn(run_stream(backend, sink, handle, out));
-    Ok(StreamStarted {
+    Ok(Started {
         id,
         width: out.width,
         height: out.height,
-        format: info.format.to_string(),
     })
 }
 
@@ -118,7 +106,7 @@ pub fn stream_configure(
     options: StreamOptions,
 ) -> Result<(), String> {
     if let Some(handle) = state.streams.lock().unwrap().get(&id) {
-        *handle.pending.lock().unwrap() = Some(options);
+        *handle.pending_options.lock().unwrap() = Some(options);
     }
     Ok(())
 }
@@ -143,9 +131,10 @@ async fn run_stream(
     if !announce(&sink, backend.info(), out).await {
         return;
     }
+
     while handle.running.load(Ordering::Relaxed) {
         // Apply any options asked for since the last turn.
-        let pending = handle.pending.lock().unwrap().take();
+        let pending = handle.pending_options.lock().unwrap().take();
         if let Some(options) = pending {
             backend.configure(&options.capture);
             let next = Output::of(backend.info(), options.resolution_scale);
@@ -183,7 +172,7 @@ async fn run_stream(
         };
 
         // render the rects
-        let mut blocks: Vec<(Rect, Vec<u8>)> = Vec::new();
+        let mut blocks: Vec<(Damage, Vec<u8>)> = Vec::new();
         for (d, px) in &rects {
             if d.width == 0 || d.height == 0 {
                 continue;
@@ -199,20 +188,12 @@ async fn run_stream(
 
             // encode
             if let Some(payload) = encode_webp(d, px) {
-                blocks.push((
-                    Rect {
-                        x: d.x,
-                        y: d.y,
-                        width: d.width,
-                        height: d.height,
-                    },
-                    payload,
-                ));
+                blocks.push((*d, payload));
             }
         }
 
         // group the blocks
-        let frame: Vec<(Rect, &[u8])> = blocks
+        let frame: Vec<(Damage, &[u8])> = blocks
             .iter()
             .map(|(rect, payload)| (*rect, payload.as_slice()))
             .collect();

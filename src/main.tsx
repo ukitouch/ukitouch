@@ -3,19 +3,19 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { ToastProvider } from "./components/Toast";
 import { ConfirmProvider } from "./components/Confirm";
-import { startSignaling } from "./core/p2p";
+import { startSignaling } from "./core/transport/p2p";
 import { deviceStore } from "./core/devices";
-import { activateExtensions } from "./core/registry";
-import { loadInstalledExtensions } from "./core/loader";
-import { installBridge } from "./api";
+import { activateExtensions } from "./extensions/registry";
+import { loadInstalledExtensions } from "./extensions/loader";
+import { installBridge } from "./extensions";
 import "./index.css";
 
-// Runtime surface for installed (zip) extensions.
-installBridge();
-
-startSignaling().catch((e) => console.error("[sig] start failed", e));
+// Load extensions.
+installBridge();  // runtime surface
 loadInstalledExtensions().catch((e) => console.error("[ext] load failed", e));
 activateExtensions();
+
+startSignaling().catch((e) => console.error("[sig] start failed", e));
 void deviceStore
   .init()
   .catch((err) => console.error("[devices] init failed:", err));

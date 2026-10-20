@@ -1,10 +1,16 @@
-import type { ComponentType, ReactNode } from "react";
-import type { OpenSpec } from "./transport";
+import type { Channel, OpenSpec } from "./transport";
 import type { DeviceRecord } from "./db/types";
 
 /** A handle that can be released to free a subscription or listener. */
 export interface Disposable {
   dispose(): void;
+}
+
+/** A host's information. */
+export interface HostInfo {
+  name: string | null;
+  platform: Platform | null;
+  os: string | null;
 }
 
 /**
@@ -21,26 +27,10 @@ export function toDisposable(fn: () => void): Disposable {
 export type Layout = "withSidebar" | "fullscreen";
 
 /** Host platforms, matched against an extension's platform matrix. */
-export type HostPlatform = "windows" | "linux" | "android";
-
-/**
- * TODO: Current implementation is a WebRTC DataChannel, USB / Bluetooth transports will implement
- * the same shape, invisible to extensions.
- */
-export interface Channel {
-  readonly label: string;
-  readonly readyState: string;
-  readonly bufferedAmount: number;
-  send(data: string | ArrayBuffer | ArrayBufferView | Blob): void;
-  close(): void;
-  onmessage: ((ev: MessageEvent) => void) | null;
-  onclose: ((ev: Event) => void) | null;
-  onopen: ((ev: Event) => void) | null;
-  onerror: ((ev: Event) => void) | null;
-}
+export type Platform = "windows" | "linux" | "android";
 
 /** API the host hands to an extension's logic layer (activate). */
-export interface ExtensionContext {
+export interface NetContext {
   /**
    * Disposables to release together when the extension is deactivated or
    * uninstalled. Subscribe APIs return a `Disposable`; push it here.
@@ -86,24 +76,4 @@ export interface ExtensionContext {
    * @returns A `Disposable` that unsubscribes the handler.
    */
   onDeviceSeen(handler: (devices: DeviceRecord[]) => void): Disposable;
-}
-
-export interface ExtensionDefinition {
-  /** Unique id. Doubles as the channel label. */
-  id: string;
-  /** Display name (sidebar tooltip, page title). */
-  title: string;
-  /** Sidebar icon. */
-  icon: ReactNode;
-  /** Supported platforms; undefined = all. */
-  platforms?: HostPlatform[];
-  /**
-   * Logic layer entry. Called once at app startup, independent of the view lifecycle.
-   * May return a cleanup function.
-   */
-  activate?: (ctx: ExtensionContext) => void | (() => void);
-  /**
-   * View layer: rendered in the main area when active.
-   */
-  component: ComponentType;
 }

@@ -14,7 +14,7 @@ use capture::bridge::{
 };
 use capture::stream::{start_screen_stream, stop_screen_stream, stream_configure, StreamState};
 use extensions::{
-    install_extension, list_installed_extensions, read_extension_file, uninstall_extension,
+    install_extension, list_installed_extensions, read_extension_script, uninstall_extension,
 };
 use host::get_host_info;
 use input::bridge::{input_inject, input_release, input_start, input_stop, InputState};
@@ -22,7 +22,6 @@ use net::bridge::{
     net_configure, p2p_bind, p2p_cancel, p2p_close_channel, p2p_connect, p2p_open_channel,
     p2p_send, sig_connect, sig_disconnect, sig_query, sig_send,
 };
-use net::host::get_platform;
 use net::state::NetState;
 use net::usb::{
     usb_close_channel, usb_list_devices, usb_listen_start, usb_listen_stop, usb_open_channel,
@@ -99,13 +98,11 @@ pub fn run() {
             input_inject,
             input_release,
             input_stop,
-            set_fullscreen,
             stream_configure,
             set_fullscreen,
-            get_platform,
             get_host_info,
             list_installed_extensions,
-            read_extension_file,
+            read_extension_script,
             install_extension,
             uninstall_extension
         ])

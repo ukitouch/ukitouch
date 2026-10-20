@@ -1,9 +1,16 @@
 //! TODO: Currently only x11 implemented.
 
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
 
+/// Interval to ask the backend for changes.
+///
+/// This is a poll interval, not a frame rate.
+const POLL_INTERVAL: Duration = Duration::from_millis(16);
+
 /// A changed rectangle, in screen pixels.
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Damage {
     pub x: u16,
     pub y: u16,
@@ -11,16 +18,23 @@ pub struct Damage {
     pub height: u16,
 }
 
-/// A screen's dimensions and the byte layout of the pixels.
+/// A screen's dimensions.
 #[derive(Debug, Clone, Copy, Serialize)]
 pub struct ScreenInfo {
     pub width: u16,
     pub height: u16,
-    /// Always `"rgba"`.
-    pub format: &'static str,
 }
 
-/// Error info for why capture failed.
+/// A started capture: the id and the screen's shape.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Started {
+    pub id: u64,
+    pub width: u16,
+    pub height: u16,
+}
+
+/// Capture errors.
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum CaptureError {
@@ -44,7 +58,7 @@ impl std::fmt::Display for CaptureError {
 
 impl std::error::Error for CaptureError {}
 
-/// How the pointer appears in the stream.
+/// The cursor's displaying way.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Cursor {
@@ -52,7 +66,7 @@ pub enum Cursor {
     Off,
     /// Drawn into the frames' pixels.
     Composite,
-    /// The pointer's own image, sent for the peer to draw.
+    /// Sent the cursor's raw image to the peers to draw by themselves.
     Raw,
 }
 
@@ -60,15 +74,14 @@ pub enum Cursor {
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct CaptureOptions {
-    /// How the pointer appears in the stream.
     pub cursor: Cursor,
 }
 
-/// The pointer's own image.
+/// The cursor's own image.
 pub struct CursorImage {
     pub width: u16,
     pub height: u16,
-    /// The pointer's own position within the image.
+    /// The cursor's own position within the image.
     pub xhot: u16,
     pub yhot: u16,
     /// Row-major premultiplied RGBA.
@@ -91,7 +104,7 @@ pub trait CaptureBackend: Send {
     /// Force the next `poll` to report the whole screen again.
     fn resync(&mut self);
 
-    /// Apply options. Returning `true` means the screen's shape changed.
+    /// Apply options. Returning `true` when the screen's shape changed.
     fn configure(&mut self, _options: &CaptureOptions) -> bool {
         false
     }
@@ -105,6 +118,7 @@ pub trait CaptureBackend: Send {
 }
 
 pub mod bridge;
+pub mod sink;
 pub mod stream;
 
 #[cfg(all(unix, not(target_os = "android")))]

@@ -4,7 +4,7 @@ import {
   PointerEvent as ReactPointerEvent,
   ReactNode,
 } from "react";
-import { watchPinch } from "../core/pinch";
+import { watchPinch } from "../core/utils/pinch";
 
 /** Where a {@link PinchArea}'s content sits after a gesture, in area pixels. */
 export interface PinchTransform {
