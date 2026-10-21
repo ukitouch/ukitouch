@@ -8,6 +8,8 @@ import { SettingRow } from "../components/SettingRow";
 import { PageHeader } from "../components/PageHeader";
 import { SectionHeader } from "../components/SectionHeader";
 import { PinchArea } from "../components/PinchArea";
+import EditableField from "../components/EditableField";
+import { Modal } from "../components/Modal";
 
 /** UI components reusable by extensions, also exposed as `yatouch.components`. */
 export const components = {
@@ -22,6 +24,8 @@ export const components = {
   PageHeader,
   SectionHeader,
   PinchArea,
+  EditableField,
+  Modal,
 };
 
 export {
@@ -36,4 +40,6 @@ export {
   PageHeader,
   SectionHeader,
   PinchArea,
+  EditableField,
+  Modal,
 };
