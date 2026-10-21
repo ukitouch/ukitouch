@@ -11,7 +11,6 @@ const devRedirect = (): Plugin => ({
   configureServer(server: ViteDevServer) {
     server.middlewares.use((req, res, next) => {
       if (req.url === "/api.js") req.url = "/src/api/index.ts";
-      else if (req.url === "/react.js") req.url = "/src/api/react.ts";
       next();
     });
   },
@@ -47,8 +46,7 @@ export default defineConfig({
       preserveEntrySignatures: "strict",
       input: {
         main: r("index.html"),
-        "api": r("src/api/index.ts"),
-        "react": r("src/api/react.ts"),
+        "api": r("src/api/index.ts")
       },
       output: { entryFileNames: "[name].js" },
     },

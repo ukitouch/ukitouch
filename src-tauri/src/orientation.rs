@@ -11,9 +11,10 @@ pub struct Orientation {
     handle: Option<tauri::plugin::PluginHandle<tauri::Wry>>,
 }
 
+#[allow(unused_variables)]
 pub fn init() -> TauriPlugin<tauri::Wry> {
     Builder::new("orientation")
-        .setup(|app, _api| {
+        .setup(|app, api| {
             #[cfg(target_os = "android")]
             app.manage(Orientation {
                 handle: Some(
