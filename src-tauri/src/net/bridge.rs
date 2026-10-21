@@ -195,3 +195,9 @@ pub async fn p2p_close_channel(
 ) -> Result<(), String> {
     webrtc::close_channel(&state, token, channel_id).await
 }
+
+/// Close every P2P connection.
+#[tauri::command]
+pub async fn p2p_close_all(state: State<'_, Arc<NetState>>) -> Result<(), String> {
+    webrtc::close_all(&state).await
+}

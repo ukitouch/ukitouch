@@ -19,8 +19,8 @@ use extensions::{
 use host::get_host_info;
 use input::bridge::{input_inject, input_release, input_start, input_stop, InputState};
 use net::bridge::{
-    net_configure, p2p_bind, p2p_cancel, p2p_close_channel, p2p_connect, p2p_open_channel,
-    p2p_send, sig_connect, sig_disconnect, sig_query, sig_send,
+    net_configure, p2p_bind, p2p_cancel, p2p_close_all, p2p_close_channel, p2p_connect,
+    p2p_open_channel, p2p_send, sig_connect, sig_disconnect, sig_query, sig_send,
 };
 use net::state::NetState;
 use net::usb::{
@@ -81,6 +81,7 @@ pub fn run() {
             p2p_send,
             p2p_bind,
             p2p_close_channel,
+            p2p_close_all,
             p2p_cancel,
             usb_list_devices,
             usb_open_channel,

@@ -5,7 +5,7 @@ import { listExtensions, subscribeExtensions } from "./extensions/registry";
 import type { Layout } from "./core/types";
 import "./extensions";
 import HomePage from "./pages/Home";
-import SettingPage from "./pages/Settings";
+import SettingPage from "./pages/settings";
 import { ExtensionsManager } from "./pages/ExtensionsManager";
 
 const BUILTIN_PAGES: Record<string, ComponentType> = {

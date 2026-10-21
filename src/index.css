@@ -24,3 +24,40 @@
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+.device-split {
+  container-type: inline-size;
+  position: relative;
+}
+
+.device-detail {
+  display: none;
+}
+
+.device-split[data-selected] .device-detail {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 1rem;
+  background-color: theme(colors.gray.900);
+}
+
+@container (min-width: 48rem) {
+  .device-detail,
+  .device-split[data-selected] .device-detail {
+    position: static;
+    inset: auto;
+    z-index: auto;
+    display: flex;
+    flex-direction: column;
+    width: 20rem;
+    flex-shrink: 0;
+    overflow-y: auto;
+    padding: 1rem;
+    background-color: transparent;
+    border-left: 1px solid theme(colors.gray.700);
+  }
+}

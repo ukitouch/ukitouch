@@ -432,6 +432,32 @@ pub async fn close_channel(
     Ok(())
 }
 
+/// Tear down every peer connection.
+pub async fn close_all(state: &Arc<NetState>) -> Result<(), String> {
+    let peers: Vec<Arc<Peer>> = state
+        .webrtc
+        .lock()
+        .unwrap()
+        .peers
+        .drain()
+        .map(|(_, peer)| peer)
+        .collect();
+    for peer in peers {
+        peer.cancelled.notify_waiters();
+        let channels: Vec<(u64, Arc<ChannelHandle>)> =
+            peer.channels.lock().unwrap().drain().collect();
+        for (channel_id, handle) in channels {
+            let _ = state.app.emit(
+                "channel-close",
+                json!({ "token": peer.token, "channel_id": channel_id }),
+            );
+            let _ = handle.dc.close().await;
+        }
+        let _ = peer.pc.close().await;
+    }
+    Ok(())
+}
+
 /// Tear down a pending peer connection locally: wake any waiting `open_channel`,
 /// drop the peer, and close the PeerConnection.
 pub async fn abort(state: &Arc<NetState>, target: String) -> Result<(), String> {

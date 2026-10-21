@@ -1,19 +1,41 @@
 import { Channel as IpcChannel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { serverConfig } from "../config";
 import { deviceUuid, genTempId } from "../identity";
 import type { Channel } from ".";
 import { createStore } from "../utils/store";
 import { showToast } from "../../api";
 
-/*
- * The signaling WS (p2psig protocol) lives in Rust (`net::signaling`); this
- * module is the TS handle onto it, plus the WebRTC P2P facade backed by Rust
- * (`net::webrtc`). Each signaling connection is named (`"primary"` = uuid,
- * `"temp"` = temp-id discovery); events carry the name so each facade only
- * sees its own traffic.
- */
+//#region Config
 
+/** localStorage key holding {@link serverConfig}. */
+export const SERVER_CONFIG_KEY = "yatouch.serverConfig";
+
+/** Server settings, edited on the settings page. */
+export interface ServerConfig {
+  /** Full WebSocket URL of the signaling server. */
+  signalingUrl: string;
+  /** ICE server URLs, e.g. ["stun:host:3478"]. */
+  iceServers: string[];
+}
+
+export const serverConfig = loadServerConfig();
+
+function loadServerConfig(): ServerConfig {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SERVER_CONFIG_KEY) ?? "null");
+    return {
+      signalingUrl:
+        typeof saved?.signalingUrl === "string" ? saved.signalingUrl : "",
+      iceServers: Array.isArray(saved?.iceServers)
+        ? saved.iceServers.filter((s: unknown): s is string => typeof s === "string")
+        : [],
+    };
+  } catch {
+    return { signalingUrl: "", iceServers: [] };
+  }
+}
+
+//#endregion
 //#region Signaling
 
 export interface Forwarded {
@@ -154,7 +176,23 @@ export async function startSignaling(): Promise<void> {
   signaling.onNotice((m) => console.warn("[sig]", m));
   signaling.onError((e) => console.warn("[sig]", e));
   signaling.onStatus((s) => console.log("[sig] primary", s));
-  await signaling.connect(serverConfig.signaling, deviceUuid, true);
+  await signaling.connect(serverConfig.signalingUrl, deviceUuid, true);
+}
+
+/**
+ * Reload server config and reconnect to the signaling server.
+ */
+export async function reconnectSignaling(next: ServerConfig): Promise<void> {
+  const tempIdOn = isTempIdOn();
+  Object.assign(serverConfig, next);
+
+  await invoke("p2p_close_all").catch((e) =>
+    console.error("[p2p] close all failed", e)
+  );
+  await disableTempId();
+  await signaling.disconnect();
+  await startSignaling();
+  if (tempIdOn) await enableTempId();
 }
 
 
@@ -221,7 +259,7 @@ async function pickTempId(): Promise<string> {
 }
 
 export async function enableTempId(): Promise<string> {
-  if (!serverConfig.signaling) {
+  if (!serverConfig.signalingUrl) {
     showToast("no signaling server configured", "error");
     throw new Error("no signaling configured");
   }
@@ -258,15 +296,15 @@ export async function enableTempId(): Promise<string> {
       return;
     }
 
-    void register();
+    void registerTemp();
   });
 
-  /** Register a fresh id. */
-  async function register(): Promise<string | null> {
+  /** Register a fresh temp id. */
+  async function registerTemp(): Promise<string | null> {
     try {
       current = await pickTempId();
       tempIdStore.set({ enabled: true, id: current });
-      await sig.connect(serverConfig.signaling, current);
+      await sig.connect(serverConfig.signalingUrl, current);
       return current;
     } catch (e) {
       showToast(`temporary id unavailable: ${e}`, "error");
@@ -275,7 +313,7 @@ export async function enableTempId(): Promise<string> {
     }
   }
 
-  const id = await register();
+  const id = await registerTemp();
   if (id === null) throw new Error("temporary id unavailable");
   return id;
 }
