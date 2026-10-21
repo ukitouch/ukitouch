@@ -59,7 +59,7 @@ export default function ServerConfig() {
     const ok = await confirm({
       title: "Reconnect now?",
       message:
-        "The new configuration is saved. Reconnecting disconnects all current connections; keep them and restart the app to use it instead.",
+        "A new server configuration needs a reconnect, but will close all existing p2p connections. You can also apply it by restarting the app.",
       confirmText: "Reconnect",
       cancelText: "Later",
     });
