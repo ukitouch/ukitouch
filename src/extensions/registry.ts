@@ -25,8 +25,6 @@ export interface ExtensionDefinition {
   activate?: (ctx: NetContext) => void | (() => void);
   /** View layer, rendered in the main area when active. */
   component?: React.ComponentType;
-  /** Back-compat alias for `component`. */
-  view?: React.ComponentType;
 }
 
 /**
@@ -41,7 +39,7 @@ function normalize(def: ExtensionDefinition): ExtensionDefinition {
     title: def.title ?? def.id,
     icon: def.icon ?? React.createElement(React.Fragment, null),
     platforms: def.platforms,
-    component: def.component ?? def.view ?? (() => null),
+    component: def.component ?? (() => null),
     activate: def.activate,
   };
 }
