@@ -96,6 +96,7 @@ export function registerExtension(
 export function unregisterExtension(id: string): void {
   cleanups.get(id)?.();
   cleanups.delete(id);
+  removeStyles(id);
   if (registry.delete(id)) {
     dirty = true;
     listeners.forEach((l) => l());
@@ -155,6 +156,37 @@ export function activateExtensions(): void {
   if (activated) return;
   activated = true;
   for (const ext of registry.values()) activateOne(ext);
+}
+
+//#endregion
+//#region Styles Registry
+
+const styleMap = new Map<string, HTMLStyleElement>();
+
+/**
+ * Register CSS styles for an extension.
+ * 
+ * Automatically replaces any previously registered styles for the same extension.
+ */
+export function registerStyles(extId: string, css: string): void {
+  removeStyles(extId);
+
+  const el = document.createElement("style");
+  el.dataset.ext = extId;
+  el.textContent = css;
+  document.head.appendChild(el);
+  styleMap.set(extId, el);
+}
+
+/**
+ * Remove styles registered by an extension.
+ */
+export function removeStyles(extId: string): void {
+  const el = styleMap.get(extId);
+  if (el) {
+    el.remove();
+    styleMap.delete(extId);
+  }
 }
 
 //#endregion

@@ -14,7 +14,8 @@ use capture::bridge::{
 };
 use capture::stream::{start_screen_stream, stop_screen_stream, stream_configure, StreamState};
 use extensions::{
-    install_extension, list_installed_extensions, read_extension_script, uninstall_extension,
+    install_extension, list_installed_extensions, read_extension_file, read_extension_manifest,
+    uninstall_extension,
 };
 use host::get_host_info;
 use input::bridge::{input_inject, input_release, input_start, input_stop, InputState};
@@ -103,7 +104,8 @@ pub fn run() {
             set_fullscreen,
             get_host_info,
             list_installed_extensions,
-            read_extension_script,
+            read_extension_manifest,
+            read_extension_file,
             install_extension,
             uninstall_extension
         ])

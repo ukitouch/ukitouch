@@ -1,8 +1,18 @@
 import { invoke } from "@tauri-apps/api/core";
-import { listExtensions, unregisterExtension } from "./registry";
+import { registerStyles, unregisterExtension } from "./registry";
 
 interface InstalledExt {
   dir: string;
+}
+
+interface ExtensionManifest {
+  id: string;
+  name?: string;
+  version?: string;
+  entry?: string;
+  style?: string;
+  permissions?: string[];
+  platforms?: string[];
 }
 
 /** Extension ids registered by each loaded directory. */
@@ -20,9 +30,25 @@ export async function loadInstalledExtensions(): Promise<void> {
  */
 export async function loadExtensionDir(dir: string): Promise<void> {
   unloadExtensionDir(dir);
-  const before = new Set(registryIds());
-  const code = await invoke<string>("read_extension_script", {
+
+  // manifest
+  const manifest = await invoke<ExtensionManifest>("read_extension_manifest", { dir });
+  const extId = manifest.id;
+
+  // style sheet
+  const styleFile = manifest.style ?? "index.css";
+  try {
+    const css = await invoke<string>("read_extension_file", { dir, file: styleFile });
+    if (css.trim()) registerStyles(extId, css);
+  } catch {
+    // No CSS file, ignore
+  }
+
+  // js
+  const entryFile = manifest.entry ?? "index.js";
+  const code = await invoke<string>("read_extension_file", {
     dir,
+    file: entryFile,
   });
   const url = URL.createObjectURL(new Blob([code], { type: "text/javascript" }));
   try {
@@ -30,10 +56,8 @@ export async function loadExtensionDir(dir: string): Promise<void> {
   } finally {
     URL.revokeObjectURL(url);
   }
-  loadedIds.set(
-    dir,
-    registryIds().filter((id) => !before.has(id))
-  );
+
+  loadedIds.set(dir, [extId]);
 }
 
 /**
@@ -44,8 +68,4 @@ export async function loadExtensionDir(dir: string): Promise<void> {
 export function unloadExtensionDir(dir: string): void {
   for (const id of loadedIds.get(dir) ?? []) unregisterExtension(id);
   loadedIds.delete(dir);
-}
-
-function registryIds(): string[] {
-  return listExtensions().map((ext) => ext.id);
 }

@@ -7,18 +7,30 @@ use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
 use zip::ZipArchive;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-struct ExtensionManifest {
+pub struct ExtensionManifest {
     id: String,
     #[serde(default)]
     name: String,
     #[serde(default)]
     version: String,
+    #[serde(default = "default_entry")]
+    entry: String,
+    #[serde(default = "default_style")]
+    style: String,
     #[serde(default)]
     permissions: Vec<String>,
     #[serde(default)]
     platforms: Vec<String>,
+}
+
+fn default_entry() -> String {
+    "index.js".into()
+}
+
+fn default_style() -> String {
+    "index.css".into()
 }
 
 #[derive(Serialize)]
@@ -57,10 +69,19 @@ pub fn list_installed_extensions(app: AppHandle) -> Result<Vec<ExtensionMeta>, S
     scan_extensions(&dir).map_err(|e| format!("scan {}: {e}", dir.display()))
 }
 
+/// Read an extension's manifest.json from a directory.
 #[tauri::command]
-pub fn read_extension_script(dir: String) -> Result<String, String> {
-    let path = Path::new(&dir).join("index.js");
-    fs::read_to_string(&path).map_err(|e| e.to_string())
+pub fn read_extension_manifest(dir: String) -> Result<ExtensionManifest, String> {
+    let path = Path::new(&dir).join("manifest.json");
+    let text = fs::read_to_string(&path).map_err(|e| format!("read manifest: {e}"))?;
+    serde_json::from_str(&text).map_err(|e| format!("parse manifest: {e}"))
+}
+
+/// Read any file from an extension directory.
+#[tauri::command]
+pub fn read_extension_file(dir: String, file: String) -> Result<String, String> {
+    let path = Path::new(&dir).join(&file);
+    fs::read_to_string(&path).map_err(|e| format!("read file {}: {e}", path.display()))
 }
 
 /// Scan extensions in given `dir`.
@@ -135,8 +156,8 @@ pub fn install_extension(
     if !valid_ext_id(&mf.id) {
         return Err(format!("invalid extension id: {}", mf.id));
     }
-    zip.by_name("index.js")
-        .map_err(|_| "missing index.js".to_string())?;
+    zip.by_name(&mf.entry)
+        .map_err(|_| format!("missing entry file: {}", mf.entry))?;
 
     // lower version handle
     let dest = exts_dir.join(&mf.id);
