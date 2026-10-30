@@ -10,8 +10,7 @@ import { setFullscreen } from "../core/utils/ui";
 import { createStore } from "../core/utils/store";
 import { refreshUsbDevices, usbStore } from "../core/transport/usb";
 import { showToast } from "../components/Toast";
-import { createScreenMonitor, startScreenStream } from "./media";
-import { injectInput, releaseInput, startInput, stopInput } from "./input";
+import { nativeCall, pipeBind, pipeUnbind } from "./extensions";
 import { toDisposable } from "../core/types";
 import type { NetContext, Platform, Layout, Disposable } from "../core/types";
 import type { DeviceRecord } from "../core/db";
@@ -29,12 +28,9 @@ export {
   usbStore,
   createStore,
   showToast,
-  createScreenMonitor,
-  startScreenStream,
-  startInput,
-  injectInput,
-  releaseInput,
-  stopInput,
+  nativeCall,
+  pipeBind,
+  pipeUnbind,
   toDisposable,
 };
 
@@ -48,24 +44,9 @@ export type {
   DeviceRecord,
 };
 
-export type {
-  Damage,
-  DamageFrame,
-  ScreenInfo,
-  ScreenMonitor,
-  ScreenStream,
-  StartResult,
-  CaptureFailure,
-  CaptureOptions,
-  StreamOptions,
-  ScreenSize,
-  Cursor,
-} from "./media";
-
 export type { SearchOption } from "../components/SearchSelect";
 export type { SelectOption } from "../components/Select";
 export type { UsbDevice } from "../core/transport/usb";
-export type { InputEvent, MouseButton, Point } from "./input";
 export type { Store } from "../core/utils/store";
 export type { ToastKind } from "../components/Toast";
 export type { PinchTransform, PinchAreaProps } from "../components/PinchArea";

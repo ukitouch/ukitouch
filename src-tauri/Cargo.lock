@@ -6609,6 +6609,7 @@ dependencies = [
  "tauri-plugin-fs",
  "tokio",
  "tokio-tungstenite",
+ "tokio-util",
  "webp",
  "webrtc",
  "x11rb 0.14.0",

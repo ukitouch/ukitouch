@@ -6,8 +6,7 @@ import { defineExtension } from "../../api";
 import { initPing } from "./api";
 import PingView from "./View";
 
-export default defineExtension({
-  id: "ping",
+defineExtension({
   title: "Ping",
   icon: (
     <svg
