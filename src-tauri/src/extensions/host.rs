@@ -162,29 +162,41 @@ impl ExtensionHost {
         let mut child = Command::new(binary_path)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
+            .stderr(Stdio::piped())
             .spawn()
             .map_err(|e| format!("spawn sidecar: {e}"))?;
         let stdin = child.stdin.take().unwrap();
         let stdout = child.stdout.take().unwrap();
+        let stderr = child.stderr.take().unwrap();
         let pending: Arc<Mutex<HashMap<u64, oneshot::Sender<Result<Value, String>>>>> =
             Arc::new(Mutex::new(HashMap::new()));
+
+        // Echo the sidecar's own stderr.
+        let id = ext_id.clone();
+        let mut lines = BufReader::new(stderr).lines();
+        tauri::async_runtime::spawn(async move {
+            while let Ok(Some(line)) = lines.next_line().await {
+                eprintln!("[ext:{id}] {line}");
+            }
+        });
 
         // The very first stdout line from the sidecar must be a Register message.
         // TODO: ?
         let mut reader = BufReader::new(stdout).lines();
-        let reg_line = reader
-            .next_line()
-            .await
-            .map_err(|e| e.to_string())?
-            .ok_or("sidecar exited before register")?;
-        let reg: ExtMessage = serde_json::from_str(&reg_line).map_err(|e| e.to_string())?;
-        let (capabilities, version) = match reg {
-            ExtMessage::Register {
-                capabilities,
-                version,
-            } => (capabilities, version),
-            _ => return Err("expected register message".into()),
+        let (capabilities, version) = loop {
+            let line = reader
+                .next_line()
+                .await
+                .map_err(|e| e.to_string())?
+                .ok_or("sidecar exited before register")?;
+            match serde_json::from_str::<ExtMessage>(&line) {
+                Ok(ExtMessage::Register {
+                    capabilities,
+                    version,
+                }) => break (capabilities, version),
+                Ok(_) => return Err("expected register message".into()),
+                Err(_) => eprintln!("[ext:{ext_id}] {line}"),
+            }
         };
 
         // Build the sidecar handle and store it.
@@ -234,8 +246,8 @@ async fn read_loop(
     while let Ok(Some(line)) = reader.next_line().await {
         let msg: ExtMessage = match serde_json::from_str(&line) {
             Ok(m) => m,
-            Err(e) => {
-                eprintln!("[ext:{ext_id}] bad message: {e}");
+            Err(_) => {
+                eprintln!("[ext:{ext_id}] {line}");
                 continue;
             }
         };
