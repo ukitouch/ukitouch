@@ -6,7 +6,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
 /// Event the page listens on.
-pub const EVENT: &str = "yatouch://pinch";
+pub const EVENT: &str = "ukitouch://pinch";
 
 /// One gesture frame, pushed to the page.
 #[derive(Clone, Serialize)]

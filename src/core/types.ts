@@ -57,6 +57,14 @@ export interface NetContext {
    */
   onChannel(handler: (channel: Channel) => void): Disposable;
   /**
+   * Bridge a sidecar's loopback pipe into an opened channel.
+   *
+   * @param channel A channel opened by this extension.
+   * @param addr The loopback address the sidecar listens on.
+   * @returns A `Disposable` that unbinds the pipe.
+   */
+  bindPipe(channel: Channel, addr: string): Promise<Disposable>;
+  /**
    * Abort an in-progress {@link openChannel}.
    *
    * @returns A promise that resolves once the pending connection is cancelled.

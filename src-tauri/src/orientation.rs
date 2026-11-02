@@ -18,7 +18,7 @@ pub fn init() -> TauriPlugin<tauri::Wry> {
             #[cfg(target_os = "android")]
             app.manage(Orientation {
                 handle: Some(
-                    api.register_android_plugin("com.syome.yatouch", "OrientationPlugin")?,
+                    api.register_android_plugin("com.syome.ukitouch", "OrientationPlugin")?,
                 ),
             });
             #[cfg(not(target_os = "android"))]

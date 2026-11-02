@@ -1,4 +1,4 @@
-const UUID_KEY = "yatouch.deviceUuid";
+const UUID_KEY = "ukitouch.deviceUuid";
 
 function genUuid(): string {
   if (typeof crypto.randomUUID === "function") {

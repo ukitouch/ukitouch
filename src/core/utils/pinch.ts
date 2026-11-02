@@ -40,7 +40,7 @@ export function watchPinch(el: HTMLElement, handler: Handler): () => void {
 function subscribe(): void {
   if (subscribed) return;
   subscribed = true;
-  void listen<NativePinch>("yatouch://pinch", ({ payload }) => {
+  void listen<NativePinch>("ukitouch://pinch", ({ payload }) => {
     if (payload.phase === "start") owner = topmost(payload.x, payload.y);
     if (!owner) return;
     const target = owner;

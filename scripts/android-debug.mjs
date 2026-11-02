@@ -31,4 +31,4 @@ if (!existsSync(apk)) {
 }
 
 run('adb', ['install', '-r', apk]);
-run('adb', ['shell', 'am', 'start', '-n', 'com.syome.yatouch/.MainActivity']);
+run('adb', ['shell', 'am', 'start', '-n', 'com.syome.ukitouch/.MainActivity']);

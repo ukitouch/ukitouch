@@ -1,4 +1,4 @@
-package com.syome.yatouch
+package com.syome.ukitouch
 
 import android.app.Activity
 import android.content.pm.ActivityInfo

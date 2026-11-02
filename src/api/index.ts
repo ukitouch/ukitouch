@@ -2,7 +2,7 @@
  * Public extension API.
  *
  * Extensions code against this module. Bundled extensions import it directly;
- * installed (zip) extensions use the same surface at runtime through `window.yatouch`.
+ * installed (zip) extensions use the same surface at runtime through `window.ukitouch`.
  */
 import * as React from "react";
 import { getHostInfo } from "../core/hostinfo";
@@ -10,7 +10,7 @@ import { setFullscreen } from "../core/utils/ui";
 import { createStore } from "../core/utils/store";
 import { refreshUsbDevices, usbStore } from "../core/transport/usb";
 import { showToast } from "../components/Toast";
-import { nativeCall, pipeBind, pipeUnbind } from "./extensions";
+import { nativeCall } from "./extensions";
 import { toDisposable } from "../core/types";
 import type { NetContext, Platform, Layout, Disposable } from "../core/types";
 import type { DeviceRecord } from "../core/db";
@@ -29,8 +29,6 @@ export {
   createStore,
   showToast,
   nativeCall,
-  pipeBind,
-  pipeUnbind,
   toDisposable,
 };
 

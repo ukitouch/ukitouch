@@ -6,12 +6,12 @@ use tauri::{
 
 /// Install the tray icon with its Show / Quit menu.
 pub fn init<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
-    let show_i = MenuItem::with_id(app, "show", "Show YATouch", true, None::<&str>)?;
+    let show_i = MenuItem::with_id(app, "show", "Show ukitouch", true, None::<&str>)?;
     let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
 
     let mut builder = TrayIconBuilder::with_id("main")
-        .tooltip("YATouch")
+        .tooltip("ukitouch")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {

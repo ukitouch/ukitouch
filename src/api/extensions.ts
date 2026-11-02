@@ -9,21 +9,3 @@ export async function nativeCall<T = unknown>(
 ): Promise<T> {
   return invoke<T>("native_call", { extId, method, payload });
 }
-
-/**
- * Bridge an extension's pipe address into a P2P channel.
- * 
- * TODO: only p2p?
- */
-export async function pipeBind(
-  token: string,
-  channelId: number,
-  addr: string
-): Promise<{ id: number }> {
-  return invoke("pipe_bind", { token, channelId, addr });
-}
-
-/** Close a pipe. */
-export async function pipeUnbind(id: number): Promise<void> {
-  return invoke("pipe_unbind", { id });
-}

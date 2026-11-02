@@ -11,7 +11,7 @@ import { PinchArea } from "../components/PinchArea";
 import EditableField from "../components/EditableField";
 import { Modal } from "../components/Modal";
 
-/** UI components reusable by extensions, also exposed as `yatouch.components`. */
+/** UI components reusable by extensions, also exposed as `ukitouch.components`. */
 export const components = {
   Select,
   SearchSelect,

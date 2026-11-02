@@ -1,6 +1,6 @@
 import * as React from "react";
 import { components } from "../api/components";
-import { nativeCall, pipeBind, pipeUnbind } from "../api/extensions";
+import { nativeCall } from "../api/extensions";
 import { showToast } from "../components/Toast";
 import { getHostInfo } from "../core/hostinfo";
 import { refreshUsbDevices, usbStore } from "../core/transport/usb";
@@ -11,7 +11,7 @@ import { defineExtension, registerExtension, takeExtension } from "./registry";
 export { defineExtension };
 export type { ExtensionDefinition } from "./registry";
 
-/** Runtime API exposed to installed (zip) extensions on `window.yatouch`. */
+/** Runtime API exposed to installed (zip) extensions on `window.ukitouch`. */
 const runtime = {
   /** React instance for building views. */
   React,
@@ -33,27 +33,23 @@ const runtime = {
   showToast,
   /** Call a method on a native extension. */
   nativeCall,
-  /** Bridge an extension's pipe address into a P2P channel. */
-  pipeBind,
-  /** Close a pipe. */
-  pipeUnbind,
 };
 
-export type YatouchRuntime = typeof runtime;
+export type UkitouchRuntime = typeof runtime;
 
 declare global {
   interface Window {
     /** Runtime entry point for installed (zip) extensions. */
-    yatouch?: YatouchRuntime;
+    ukitouch?: UkitouchRuntime;
   }
 }
 
 /**
- * Wire the global `window.yatouch` used by installed (zip) extensions.
+ * Wire the global `window.ukitouch` used by installed (zip) extensions.
  * Called once by the shell before loading installed extensions.
  */
 export function installBridge(): void {
-  window.yatouch = runtime;
+  window.ukitouch = runtime;
 }
 
 // Bundled extensions declare themselves via defineExtension() when their
