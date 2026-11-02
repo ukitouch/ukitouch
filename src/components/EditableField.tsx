@@ -58,7 +58,7 @@ export default function EditableField({
                   cancel();
                 }
               }}
-              className="flex-1 min-w-0 px-3 py-1.5 rounded-md bg-gray-800 text-gray-100 text-sm outline-none focus:ring-1 focus:ring-indigo-500 border border-gray-700 placeholder:text-gray-500"
+              className="flex-1 min-w-0 px-3 py-1.5 rounded-md bg-gray-800 text-gray-100 text-sm outline-none border border-gray-700 placeholder:text-gray-500"
             />
             <Button variant="primary" onClick={commit} className="shrink-0">
               Save
