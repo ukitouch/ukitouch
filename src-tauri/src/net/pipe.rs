@@ -3,7 +3,6 @@
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tauri::ipc::{Channel, InvokeResponseBody};
 use tauri::State;
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpStream;
@@ -51,30 +50,6 @@ pub async fn pipe_bind(
         channel_id,
         task_cancel,
     ));
-
-    state.pipes.lock().unwrap().insert(id, cancel);
-
-    Ok(PipeHandle { id })
-}
-
-/// Pump the same pipe into a frontend `Channel`.
-#[tauri::command]
-pub async fn pipe_channel(
-    state: State<'_, PipeState>,
-    on_event: Channel<InvokeResponseBody>,
-    addr: String,
-) -> Result<PipeHandle, String> {
-    let stream = TcpStream::connect(&addr)
-        .await
-        .map_err(|e| format!("connect to {addr}: {e}"))?;
-
-    let id = state
-        .next_id
-        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let cancel = CancellationToken::new();
-
-    let task_cancel = cancel.clone();
-    tauri::async_runtime::spawn(pipe_events(stream, on_event, task_cancel));
 
     state.pipes.lock().unwrap().insert(id, cancel);
 
@@ -141,28 +116,4 @@ async fn pipe_pump(
     }
 
     eprintln!("[pipe] ended for {token}/{channel_id}");
-}
-
-async fn pipe_events(
-    mut stream: TcpStream,
-    on_event: Channel<InvokeResponseBody>,
-    cancel: CancellationToken,
-) {
-    while !cancel.is_cancelled() {
-        let Some((text, payload)) = read_message(&mut stream).await else {
-            break;
-        };
-
-        let body = if text {
-            match String::from_utf8(payload) {
-                Ok(json) => InvokeResponseBody::Json(json),
-                Err(_) => break,
-            }
-        } else {
-            InvokeResponseBody::Raw(payload)
-        };
-        if on_event.send(body).is_err() {
-            break;
-        }
-    }
 }

@@ -19,7 +19,7 @@ use net::bridge::{
     net_configure, p2p_bind, p2p_cancel, p2p_close_all, p2p_close_channel, p2p_connect,
     p2p_open_channel, p2p_send, sig_connect, sig_disconnect, sig_query, sig_send,
 };
-use net::pipe::{pipe_bind, pipe_channel, pipe_unbind, PipeState};
+use net::pipe::{pipe_bind, pipe_unbind, PipeState};
 use net::state::NetState;
 use net::usb::{
     usb_close_channel, usb_list_devices, usb_listen_start, usb_listen_stop, usb_open_channel,
@@ -104,7 +104,6 @@ pub fn run() {
             uninstall_extension,
             native_call,
             pipe_bind,
-            pipe_channel,
             pipe_unbind,
         ])
         .run(tauri::generate_context!())
