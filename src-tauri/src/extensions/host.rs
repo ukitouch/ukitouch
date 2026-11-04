@@ -52,8 +52,8 @@ struct Sidecar {
     ///
     /// TODO: not used for now
     version: String,
-    /// Keeps the child process alive as long as this handle exists.
-    _child: Arc<Child>,
+    /// The child process.
+    child: Mutex<Child>,
 }
 
 impl Sidecar {
@@ -113,7 +113,12 @@ impl ExtensionHost {
 
         while let Some(entry) = entries.next_entry().await.map_err(|e| e.to_string())? {
             let path = entry.path();
-            if !path.is_dir() {
+            // exclude hidden dirs
+            let hidden = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with('.'));
+            if hidden || !path.is_dir() {
                 continue;
             }
 
@@ -205,7 +210,7 @@ impl ExtensionHost {
             pending,
             capabilities,
             version,
-            _child: Arc::new(child),
+            child: Mutex::new(child),
         });
         self.sidecars
             .write()
@@ -233,7 +238,11 @@ impl ExtensionHost {
 
     /// Drop a running sidecar.
     pub async fn shutdown(&self, ext_id: &str) {
-        self.sidecars.write().await.remove(ext_id);
+        let sidecar = self.sidecars.write().await.remove(ext_id);
+        let Some(sidecar) = sidecar else {
+            return;
+        };
+        let _ = sidecar.child.lock().await.kill().await;
     }
 }
 

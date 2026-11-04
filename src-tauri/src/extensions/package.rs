@@ -240,6 +240,11 @@ pub async fn install_extension(
         }
     }
 
+    // stop it before replacing the dir
+    if mf.is_native() {
+        host.shutdown(&id).await;
+    }
+
     if dest.exists() {
         fs::remove_dir_all(&dest).map_err(|e| format!("clean dest: {e}"))?;
     }
@@ -247,7 +252,6 @@ pub async fn install_extension(
 
     // Bring the native entry up without waiting for a restart.
     if mf.is_native() {
-        host.shutdown(&id).await;
         if let Err(e) = host.launch(app, id.clone(), dest.join(&mf.entry)).await {
             eprintln!("[extensions] launch {id}: {e}");
         }
