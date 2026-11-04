@@ -10,7 +10,7 @@ Built with Tauri 2.
 
 ## Extensibility
 There are two types of extensions: `frontend` and `native`, declared in `manifest.json`:
-```json
+```jsonc
 {
   "publisher": "",      // publisher of this extension
   "name": "",           // name of this extension
@@ -53,7 +53,7 @@ function defineExtension(
 A native extension can be written in any language in theory, as they are compiled into binaries.
 
 The binary is launched by the host as a sidecar and talks JSON lines over stdin/stdout. Its first line must be a register:
-```json
+```jsonc
 {
     "kind":"register",
     "capabilities":[""] // callable functions in this extension
