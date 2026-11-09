@@ -9,6 +9,8 @@ use zip::ZipArchive;
 
 use crate::extensions::host::ExtensionHost;
 
+const PLATFORMS: [&str; 3] = ["linux", "android", "windows"];
+
 /// The extension's kind (native/frontend).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -49,19 +51,52 @@ impl ExtensionManifest {
 
     /// `publisher.name`: the extension id and its directory name.
     pub fn id(&self) -> String {
-        format!("{}.{}", self.publisher, self.name)
+        return format!("{}.{}", self.publisher, self.name)
     }
 
     pub fn is_native(&self) -> bool {
         self.kind == Kind::Native
     }
 
-    /// Whether the id parts, entry, and every required id are well-formed.
-    pub fn valid(&self) -> bool {
-        valid_name(&self.publisher)
-            && valid_name(&self.name)
-            && valid_file(&self.entry)
-            && self.require.iter().all(|dep| valid_id(dep))
+    /// Validate the manifest.
+    pub fn validate(&self) -> Result<(), String> {
+        if !valid_name(&self.publisher) {
+            return Err(format!(
+                "publisher: {:?} must be ascii alphanumeric, '_' or '-'",
+                self.publisher
+            ));
+        }
+        if !valid_name(&self.name) {
+            return Err(format!(
+                "name: {:?} must be ascii alphanumeric, '_' or '-'",
+                self.name
+            ));
+        }
+        if !valid_file(&self.entry) {
+            return Err(format!("entry: {:?} must be a plain file name", self.entry));
+        }
+        for platform in &self.platforms {
+            if !PLATFORMS.contains(&platform.as_str()) {
+                return Err(format!(
+                    "platforms: {:?} is not one of {}",
+                    platform,
+                    PLATFORMS.join(", ")
+                ));
+            }
+        }
+        for dep in &self.require {
+            if !valid_id(dep) {
+                return Err(format!("require: {dep:?} must be publisher.name"));
+            }
+        }
+        Ok(())
+    }
+
+    /// Whether this package is declared to run on this platform.
+    /// 
+    /// An empty list means every platform.
+    pub fn support(&self) -> bool {
+        self.platforms.is_empty() || self.platforms.iter().any(|p| p == std::env::consts::OS)
     }
 }
 
@@ -136,7 +171,7 @@ fn scan_extensions(dir: &Path) -> Result<Vec<ExtensionMeta>, std::io::Error> {
         let Ok(mf) = ExtensionManifest::load(&path) else {
             continue;
         };
-        if !mf.valid() || !path.join(&mf.entry).is_file() {
+        if mf.validate().is_err() || !mf.support() || !path.join(&mf.entry).is_file() {
             continue;
         }
 
@@ -182,8 +217,14 @@ pub async fn install_extension(
     };
     let mf: ExtensionManifest =
         serde_json::from_str(&manifest_text).map_err(|e| format!("bad manifest: {e}"))?;
-    if !mf.valid() {
-        return Err(format!("invalid manifest for {}", mf.id()));
+    mf.validate()
+        .map_err(|e| format!("invalid manifest for {}: {e}", mf.id()))?;
+    if !mf.support() {
+        return Err(format!(
+            "{} does not support {}",
+            mf.id(),
+            std::env::consts::OS
+        ));
     }
 
     let id = mf.id();

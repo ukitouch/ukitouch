@@ -129,7 +129,11 @@ impl ExtensionHost {
                     continue;
                 }
             };
-            if !mf.valid() || !mf.is_native() {
+            if let Err(e) = mf.validate() {
+                eprintln!("[extensions] {}: {e}", path.display());
+                continue;
+            }
+            if !mf.is_native() || !mf.support() {
                 continue;
             }
 
