@@ -1,5 +1,4 @@
 import { Select } from "../components/Select";
-import { SearchSelect } from "../components/SearchSelect";
 import { PeerDeviceSearch } from "../components/PeerDeviceSearch";
 import { UsbDeviceSelect } from "../components/UsbDeviceSelect";
 import { ToastProvider, useToast } from "../components/Toast";
@@ -14,7 +13,6 @@ import { Modal } from "../components/Modal";
 /** UI components reusable by extensions, also exposed as `yatouch.components`. */
 export const components = {
   Select,
-  SearchSelect,
   PeerDeviceSearch,
   UsbDeviceSelect,
   ToastProvider,
@@ -30,7 +28,6 @@ export const components = {
 
 export {
   Select,
-  SearchSelect,
   PeerDeviceSearch,
   UsbDeviceSelect,
   ToastProvider,

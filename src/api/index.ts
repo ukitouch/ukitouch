@@ -62,7 +62,6 @@ export type {
   Cursor,
 } from "./media";
 
-export type { SearchOption } from "../components/SearchSelect";
 export type { SelectOption } from "../components/Select";
 export type { UsbDevice } from "../core/transport/usb";
 export type { InputEvent, MouseButton, Point } from "./input";
