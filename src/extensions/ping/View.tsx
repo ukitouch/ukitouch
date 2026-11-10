@@ -102,6 +102,7 @@ export default function PingView() {
               onCreate={(id) => {
                 setSelectedUuid(null);
                 setQuery(id);
+                onWebrtcConnect();
               }}
             />
             <div className="flex gap-2">
