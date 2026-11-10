@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 /** Toast severity. */
@@ -16,15 +16,58 @@ interface ToastApi {
 
 const ToastContext = createContext<ToastApi | null>(null);
 
+const VISIBLE_MS = 3000;
+const FADE_MS = 300;
+
+function ToastItem({ toast, onDone }: { toast: Toast; onDone(id: number): void }) {
+  const [leaving, setLeaving] = useState(false);
+  const timer = useRef<number | null>(null);
+
+  const stop = useCallback(() => {
+    if (timer.current !== null) window.clearTimeout(timer.current);
+    timer.current = null;
+  }, []);
+
+  const start = useCallback(() => {
+    stop();
+    timer.current = window.setTimeout(() => setLeaving(true), VISIBLE_MS);
+  }, [stop]);
+
+  useEffect(() => {
+    start();
+    return stop;
+  }, [start, stop]);
+
+  useEffect(() => {
+    if (!leaving) return;
+    const t = window.setTimeout(() => onDone(toast.id), FADE_MS);
+    return () => window.clearTimeout(t);
+  }, [leaving, onDone, toast.id]);
+
+  return (
+    <div
+      onMouseEnter={stop}
+      onMouseLeave={() => {
+        if (!leaving) start();
+      }}
+      className={`px-4 py-2 rounded-md shadow-lg text-sm text-1 transition-opacity duration-300 ${toast.kind === "error" ? "bg-danger" : "bg-window"
+        } ${leaving ? "opacity-0" : "opacity-100"}`}
+    >
+      {toast.message}
+    </div>
+  );
+}
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const show = useCallback((message: string, kind: ToastKind = "info") => {
     const id = Date.now() + Math.random();
     setToasts((t) => [...t, { id, message, kind }]);
-    window.setTimeout(() => {
-      setToasts((t) => t.filter((x) => x.id !== id));
-    }, 3000);
+  }, []);
+
+  const remove = useCallback((id: number) => {
+    setToasts((t) => t.filter((x) => x.id !== id));
   }, []);
 
   // expose `show` outside React
@@ -38,13 +81,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2">
         {toasts.map((t) => (
-          <div
-            key={t.id}
-            className={`px-4 py-2 rounded-md shadow-lg text-sm text-1 ${t.kind === "error" ? "bg-danger" : "bg-window"
-              }`}
-          >
-            {t.message}
-          </div>
+          <ToastItem key={t.id} toast={t} onDone={remove} />
         ))}
       </div>
     </ToastContext.Provider>

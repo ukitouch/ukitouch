@@ -11,7 +11,7 @@
 }
 
 .bg-danger {
-    @apply bg-red-500;
+    @apply bg-red-500 dark:bg-red-700;
 }
 
 .bg-box {
