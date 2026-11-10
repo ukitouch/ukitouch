@@ -3,12 +3,13 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { deviceUuid, genTempId } from "../identity";
 import type { Channel } from ".";
 import { createStore } from "../utils/store";
+import { toDisposable, type Disposable } from "../types";
 import { showToast } from "../../api";
 
 //#region Config
 
 /** localStorage key holding {@link serverConfig}. */
-export const SERVER_CONFIG_KEY = "yatouch.serverConfig";
+export const SERVER_CONFIG_KEY = "ukitouch.serverConfig";
 
 /** Server settings, edited on the settings page. */
 export interface ServerConfig {
@@ -392,6 +393,8 @@ class P2PChannel implements Channel {
   private ipc = new IpcChannel<string | ArrayBuffer>();
   /** Sends must be queued to keep their order. */
   private outbox: Promise<unknown> = Promise.resolve();
+  /** Pipes bridged into this channel, to unbind when it closes. */
+  private pipes = new Set<number>();
 
   constructor(token: string, channelId: number, label: string) {
     this.token = token;
@@ -427,11 +430,36 @@ class P2PChannel implements Channel {
   }
 
   close(): void {
+    this.unbindPipes();
     invoke("p2p_close_channel", {
       token: this.token,
       channelId: this.channelId,
     }).catch((e) => console.error("[p2p] close failed", e));
     this.readyState = "closed";
+  }
+
+  async bindPipe(addr: string): Promise<Disposable> {
+    const { id } = await invoke<{ id: number }>("pipe_bind", {
+      token: this.token,
+      channelId: this.channelId,
+      addr,
+    });
+    this.pipes.add(id);
+    return toDisposable(() => this.unbindPipe(id));
+  }
+
+  /** Close one pipe, if it is still ours. */
+  private unbindPipe(id: number): void {
+    if (!this.pipes.delete(id)) return;
+    invoke("pipe_unbind", { id }).catch((e) =>
+      console.error("[p2p] pipe unbind failed", e)
+    );
+  }
+
+  /** Drop every pipe bridged into this channel. */
+  private unbindPipes(): void {
+    for (const id of this.pipes) void invoke("pipe_unbind", { id }).catch(() => { });
+    this.pipes.clear();
   }
 
   /** Deliver an incoming message: text as a string, bytes as raw. */
@@ -445,6 +473,7 @@ class P2PChannel implements Channel {
   }
 
   handleClose(): void {
+    this.unbindPipes();
     this.readyState = "closed";
     this.onclose?.(new Event("close"));
   }

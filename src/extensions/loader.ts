@@ -1,18 +1,23 @@
 import { invoke } from "@tauri-apps/api/core";
-import { registerStyles, unregisterExtension } from "./registry";
+import {
+  registerExtension,
+  registerStyles,
+  takeExtension,
+  unregisterExtension,
+} from "./registry";
 
 interface InstalledExt {
   dir: string;
 }
 
 interface ExtensionManifest {
-  id: string;
-  name?: string;
-  version?: string;
-  entry?: string;
+  publisher: string;
+  name: string;
+  version: string;
+  kind: "frontend" | "native";
+  entry: string;
   style?: string;
-  permissions?: string[];
-  platforms?: string[];
+  require?: string[];
 }
 
 /** Extension ids registered by each loaded directory. */
@@ -33,29 +38,42 @@ export async function loadExtensionDir(dir: string): Promise<void> {
 
   // manifest
   const manifest = await invoke<ExtensionManifest>("read_extension_manifest", { dir });
-  const extId = manifest.id;
+  const extId = `${manifest.publisher}.${manifest.name}`;
+
+  // native sidecars are started by the host, nothing to load here
+  if (manifest.kind === "native") {
+    loadedIds.set(dir, []);
+    return;
+  }
 
   // style sheet
-  const styleFile = manifest.style ?? "index.css";
-  try {
-    const css = await invoke<string>("read_extension_file", { dir, file: styleFile });
-    if (css.trim()) registerStyles(extId, css);
-  } catch {
-    // No CSS file, ignore
+  if (manifest.style) {
+    try {
+      const css = await invoke<string>("read_extension_file", {
+        dir,
+        file: manifest.style,
+      });
+      if (css.trim()) registerStyles(extId, css);
+    } catch {
+      // No CSS file, ignore
+    }
   }
 
   // js
-  const entryFile = manifest.entry ?? "index.js";
   const code = await invoke<string>("read_extension_file", {
     dir,
-    file: entryFile,
+    file: manifest.entry,
   });
   const url = URL.createObjectURL(new Blob([code], { type: "text/javascript" }));
+  let def;
   try {
     await import(/* @vite-ignore */ url);
   } finally {
     URL.revokeObjectURL(url);
+    def = takeExtension();
   }
+  if (!def) throw new Error(`${extId}: did not define an extension`);
+  registerExtension(def, extId);
 
   loadedIds.set(dir, [extId]);
 }

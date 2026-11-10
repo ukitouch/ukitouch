@@ -1,4 +1,4 @@
-package com.syome.yatouch
+package com.syome.ukitouch
 
 import android.os.Bundle
 import android.webkit.WebView

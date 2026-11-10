@@ -50,7 +50,7 @@ function HomePage() {
 
   return (
     <div className="p-6 max-w-lg flex flex-col gap-4">
-      <PageHeader title="YATouch" />
+      <PageHeader title="ukitouch" />
 
       <SettingRow
         label="Temporary ID"

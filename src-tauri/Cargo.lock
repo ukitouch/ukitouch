@@ -5264,6 +5264,35 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 
 [[package]]
+name = "ukitouch"
+version = "0.1.0"
+dependencies = [
+ "adb_client",
+ "async-trait",
+ "base64 0.23.1",
+ "bytes",
+ "futures-util",
+ "gtk",
+ "hostname",
+ "libc",
+ "os_info",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-clipboard-manager",
+ "tauri-plugin-dialog",
+ "tauri-plugin-fs",
+ "tokio",
+ "tokio-tungstenite",
+ "tokio-util",
+ "webp",
+ "webrtc",
+ "x11rb 0.14.0",
+ "zip",
+]
+
+[[package]]
 name = "unic-char-property"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6585,34 +6614,6 @@ checksum = "b5f6765e852b9b4dc8e2a76843e4d64d1cea8e79bcde0b6901aea8e7c7f08282"
 dependencies = [
  "bit-vec 0.9.1",
  "time",
-]
-
-[[package]]
-name = "yatouch"
-version = "0.1.0"
-dependencies = [
- "adb_client",
- "async-trait",
- "base64 0.23.1",
- "bytes",
- "futures-util",
- "gtk",
- "hostname",
- "libc",
- "os_info",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-clipboard-manager",
- "tauri-plugin-dialog",
- "tauri-plugin-fs",
- "tokio",
- "tokio-tungstenite",
- "webp",
- "webrtc",
- "x11rb 0.14.0",
- "zip",
 ]
 
 [[package]]

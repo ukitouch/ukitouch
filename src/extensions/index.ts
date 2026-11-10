@@ -1,18 +1,17 @@
 import * as React from "react";
 import { components } from "../api/components";
-import { createScreenMonitor, startScreenStream } from "../api/media";
-import { injectInput, releaseInput, startInput, stopInput } from "../api/input";
+import { nativeCall } from "../api/extensions";
 import { showToast } from "../components/Toast";
 import { getHostInfo } from "../core/hostinfo";
 import { refreshUsbDevices, usbStore } from "../core/transport/usb";
 import { createStore } from "../core/utils/store";
 import { setFullscreen } from "../core/utils/ui";
-import { defineExtension } from "./registry";
+import { defineExtension, registerExtension, takeExtension } from "./registry";
 
 export { defineExtension };
 export type { ExtensionDefinition } from "./registry";
 
-/** Runtime API exposed to installed (zip) extensions on `window.yatouch`. */
+/** Runtime API exposed to installed (zip) extensions on `window.ukitouch`. */
 const runtime = {
   /** React instance for building views. */
   React,
@@ -32,37 +31,43 @@ const runtime = {
   createStore,
   /** Show a toast (works outside React). */
   showToast,
-  /** Start capturing the screen. */
-  createScreenMonitor,
-  /** Stream the screen onto an open channel. */
-  startScreenStream,
-  /** Bring the input backend up. */
-  startInput,
-  /** Synthesize a batch of input events. */
-  injectInput,
-  /** Release everything the backend is holding down. */
-  releaseInput,
-  /** Release and drop the input backend. */
-  stopInput,
+  /** Call a method on a native extension. */
+  nativeCall,
 };
 
-export type YatouchRuntime = typeof runtime;
+export type UkitouchRuntime = typeof runtime;
 
 declare global {
   interface Window {
     /** Runtime entry point for installed (zip) extensions. */
-    yatouch?: YatouchRuntime;
+    ukitouch?: UkitouchRuntime;
   }
 }
 
 /**
- * Wire the global `window.yatouch` used by installed (zip) extensions.
+ * Wire the global `window.ukitouch` used by installed (zip) extensions.
  * Called once by the shell before loading installed extensions.
  */
 export function installBridge(): void {
-  window.yatouch = runtime;
+  window.ukitouch = runtime;
 }
 
-// Bundled extensions register themselves via defineExtension() when their
-// module is evaluated. Eagerly importing them here triggers that side effect.
-void import.meta.glob("./*/index.{ts,tsx}", { eager: true });
+// Bundled extensions declare themselves via defineExtension() when their
+// module is evaluated.
+const bundled = import.meta.glob("./*/index.{ts,tsx}");
+
+/**
+ * Load the built-in extensions.
+ */
+export async function loadBundledExtensions(): Promise<void> {
+  for (const [path, load] of Object.entries(bundled)) {
+    const id = path.split("/")[1];  // TODO: or compose via manifest?
+    await load();
+    const def = takeExtension();
+    if (!def) {
+      console.error(`[ext] ${id}: did not define an extension`);
+      continue;
+    }
+    registerExtension(def, id);
+  }
+}

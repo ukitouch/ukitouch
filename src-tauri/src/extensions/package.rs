@@ -4,33 +4,98 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, State};
 use zip::ZipArchive;
+
+use crate::extensions::host::ExtensionHost;
+
+const PLATFORMS: [&str; 3] = ["linux", "android", "windows"];
+
+/// The extension's kind (native/frontend).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Kind {
+    /// `entry` is a JS file loaded into the webview.
+    Frontend,
+    /// `entry` is an executable run as a sidecar.
+    Native,
+}
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionManifest {
-    id: String,
+    pub publisher: String,
+    pub name: String,
+    pub version: String,
+    pub kind: Kind,
+    /// The extension's entry file.
+    pub entry: String,
     #[serde(default)]
-    name: String,
+    pub style: Option<String>,
+    /// Extensions this one needs, as `publisher.name`.
     #[serde(default)]
-    version: String,
-    #[serde(default = "default_entry")]
-    entry: String,
-    #[serde(default = "default_style")]
-    style: String,
+    pub require: Vec<String>,
     #[serde(default)]
-    permissions: Vec<String>,
-    #[serde(default)]
-    platforms: Vec<String>,
+    pub platforms: Vec<String>,
 }
 
-fn default_entry() -> String {
-    "index.js".into()
-}
+impl ExtensionManifest {
+    /// Read `manifest.json` from an extension directory.
+    pub fn load(dir: &Path) -> Result<Self, String> {
+        let path = dir.join("manifest.json");
+        let text = fs::read_to_string(&path).map_err(|e| format!("read manifest: {e}"))?;
+        serde_json::from_str(&text).map_err(|e| format!("parse manifest: {e}"))
+    }
 
-fn default_style() -> String {
-    "index.css".into()
+    /// `publisher.name`: the extension id and its directory name.
+    pub fn id(&self) -> String {
+        return format!("{}.{}", self.publisher, self.name)
+    }
+
+    pub fn is_native(&self) -> bool {
+        self.kind == Kind::Native
+    }
+
+    /// Validate the manifest.
+    pub fn validate(&self) -> Result<(), String> {
+        if !valid_name(&self.publisher) {
+            return Err(format!(
+                "publisher: {:?} must be ascii alphanumeric, '_' or '-'",
+                self.publisher
+            ));
+        }
+        if !valid_name(&self.name) {
+            return Err(format!(
+                "name: {:?} must be ascii alphanumeric, '_' or '-'",
+                self.name
+            ));
+        }
+        if !valid_file(&self.entry) {
+            return Err(format!("entry: {:?} must be a plain file name", self.entry));
+        }
+        for platform in &self.platforms {
+            if !PLATFORMS.contains(&platform.as_str()) {
+                return Err(format!(
+                    "platforms: {:?} is not one of {}",
+                    platform,
+                    PLATFORMS.join(", ")
+                ));
+            }
+        }
+        for dep in &self.require {
+            if !valid_id(dep) {
+                return Err(format!("require: {dep:?} must be publisher.name"));
+            }
+        }
+        Ok(())
+    }
+
+    /// Whether this package is declared to run on this platform.
+    /// 
+    /// An empty list means every platform.
+    pub fn support(&self) -> bool {
+        self.platforms.is_empty() || self.platforms.iter().any(|p| p == std::env::consts::OS)
+    }
 }
 
 #[derive(Serialize)]
@@ -39,8 +104,6 @@ pub struct ExtensionMeta {
     pub id: String,
     pub name: String,
     pub version: String,
-    pub permissions: Vec<String>,
-    pub platforms: Vec<String>,
     pub dir: String,
 }
 
@@ -72,9 +135,7 @@ pub fn list_installed_extensions(app: AppHandle) -> Result<Vec<ExtensionMeta>, S
 /// Read an extension's manifest.json from a directory.
 #[tauri::command]
 pub fn read_extension_manifest(dir: String) -> Result<ExtensionManifest, String> {
-    let path = Path::new(&dir).join("manifest.json");
-    let text = fs::read_to_string(&path).map_err(|e| format!("read manifest: {e}"))?;
-    serde_json::from_str(&text).map_err(|e| format!("parse manifest: {e}"))
+    ExtensionManifest::load(Path::new(&dir))
 }
 
 /// Read any file from an extension directory.
@@ -99,25 +160,21 @@ fn scan_extensions(dir: &Path) -> Result<Vec<ExtensionMeta>, std::io::Error> {
             .and_then(|n| n.to_str())
             .map(|n| n.starts_with('.'))
             .unwrap_or(true);
-        if hidden || !path.is_dir() || !path.join("index.js").is_file() {
+        if hidden || !path.is_dir() {
             continue;
         }
 
-        let manifest_path = path.join("manifest.json");
-        let Ok(text) = fs::read_to_string(&manifest_path) else {
+        let Ok(mf) = ExtensionManifest::load(&path) else {
             continue;
         };
-
-        let Ok(mf) = serde_json::from_str::<ExtensionManifest>(&text) else {
+        if mf.validate().is_err() || !mf.support() || !path.join(&mf.entry).is_file() {
             continue;
-        };
+        }
 
         out.push(ExtensionMeta {
-            id: mf.id,
+            id: mf.id(),
             name: mf.name,
             version: mf.version,
-            permissions: mf.permissions,
-            platforms: mf.platforms,
             dir: path.to_string_lossy().into_owned(),
         });
     }
@@ -126,8 +183,9 @@ fn scan_extensions(dir: &Path) -> Result<Vec<ExtensionMeta>, std::io::Error> {
 
 /// Install an extension from a zip into `<appDataDir>/extensions/<id>/`.
 #[tauri::command]
-pub fn install_extension(
+pub async fn install_extension(
     app: AppHandle,
+    host: State<'_, ExtensionHost>,
     zip_base64: String,
     force: bool,
 ) -> Result<InstallOutcome, String> {
@@ -153,14 +211,22 @@ pub fn install_extension(
     };
     let mf: ExtensionManifest =
         serde_json::from_str(&manifest_text).map_err(|e| format!("bad manifest: {e}"))?;
-    if !valid_ext_id(&mf.id) {
-        return Err(format!("invalid extension id: {}", mf.id));
+    mf.validate()
+        .map_err(|e| format!("invalid manifest for {}: {e}", mf.id()))?;
+    if !mf.support() {
+        return Err(format!(
+            "{} does not support {}",
+            mf.id(),
+            std::env::consts::OS
+        ));
     }
+
+    let id = mf.id();
     zip.by_name(&mf.entry)
-        .map_err(|_| format!("missing entry file: {}", mf.entry))?;
+        .map_err(|_| format!("{id}: missing entry file: {}", mf.entry))?;
 
     // lower version handle
-    let dest = exts_dir.join(&mf.id);
+    let dest = exts_dir.join(&id);
     let existing_version = fs::read_to_string(dest.join("manifest.json"))
         .ok()
         .and_then(|t| serde_json::from_str::<ExtensionManifest>(&t).ok())
@@ -171,7 +237,7 @@ pub fn install_extension(
             .is_none_or(|v| version_gt(&mf.version, v))
     {
         return Ok(InstallOutcome::OverrideConfirm {
-            id: mf.id,
+            id,
             existing_version: existing_version.unwrap_or_default(),
             incoming_version: mf.version,
         });
@@ -179,7 +245,7 @@ pub fn install_extension(
 
     // install new
     // TODO: is there any memory-only way?
-    let tmp = exts_dir.join(format!(".tmp-{}", mf.id));
+    let tmp = exts_dir.join(format!(".tmp-{id}"));
     if tmp.exists() {
         fs::remove_dir_all(&tmp).map_err(|e| format!("clean tmp: {e}"))?;
     }
@@ -199,7 +265,19 @@ pub fn install_extension(
             }
             let mut f = fs::File::create(&out).map_err(|e| format!("create: {e}"))?;
             std::io::copy(&mut entry, &mut f).map_err(|e| format!("extract: {e}"))?;
+
+            // unix os needs to set permissions
+            #[cfg(unix)]
+            if let Some(mode) = entry.unix_mode() {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = fs::set_permissions(&out, fs::Permissions::from_mode(mode));
+            }
         }
+    }
+
+    // stop it before replacing the dir
+    if mf.is_native() {
+        host.shutdown(&id).await;
     }
 
     if dest.exists() {
@@ -207,13 +285,18 @@ pub fn install_extension(
     }
     fs::rename(&tmp, &dest).map_err(|e| format!("install: {e}"))?;
 
+    // Bring the native entry up without waiting for a restart.
+    if mf.is_native() {
+        if let Err(e) = host.launch(app, id.clone(), dest.join(&mf.entry)).await {
+            eprintln!("[extensions] launch {id}: {e}");
+        }
+    }
+
     Ok(InstallOutcome::Installed {
         meta: ExtensionMeta {
-            id: mf.id,
+            id,
             name: mf.name,
             version: mf.version,
-            permissions: mf.permissions,
-            platforms: mf.platforms,
             dir: dest.to_string_lossy().into_owned(),
         },
     })
@@ -221,10 +304,16 @@ pub fn install_extension(
 
 /// Remove an installed extension from `<appDataDir>/extensions/<id>/`.
 #[tauri::command]
-pub fn uninstall_extension(app: AppHandle, id: String) -> Result<(), String> {
-    if !valid_ext_id(&id) {
+pub async fn uninstall_extension(
+    app: AppHandle,
+    host: State<'_, ExtensionHost>,
+    id: String,
+) -> Result<(), String> {
+    if !valid_id(&id) {
         return Err("invalid extension id".into());
     }
+
+    host.shutdown(&id).await;
 
     let exts_dir = app
         .path()
@@ -239,12 +328,30 @@ pub fn uninstall_extension(app: AppHandle, id: String) -> Result<(), String> {
     Ok(())
 }
 
-fn valid_ext_id(id: &str) -> bool {
-    !id.is_empty()
-        && !id.starts_with('.')
-        && id
+/// Ascii alphanumeric, `_`, `-` are allowed.
+fn valid_name(part: &str) -> bool {
+    !part.is_empty()
+        && part
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+}
+
+/// A plain file name inside the extension directory.
+fn valid_file(name: &str) -> bool {
+    !name.is_empty()
+        && name != "."
+        && name != ".."
+        && name
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.')
+}
+
+/// `publisher.name`.
+fn valid_id(id: &str) -> bool {
+    match id.split_once('.') {
+        Some((publisher, name)) => valid_name(publisher) && valid_name(name),
+        None => false,
+    }
 }
 
 /// Versions are `x.x.x`. Returns `None` if that shape is not met.

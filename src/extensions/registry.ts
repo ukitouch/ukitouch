@@ -1,6 +1,6 @@
 import * as React from "react";
 import { makeContext } from "../core/transport/net";
-import type { NetContext, Platform } from "../core/types";
+import type { NetContext } from "../core/types";
 
 //#region Definition
 
@@ -8,14 +8,10 @@ import type { NetContext, Platform } from "../core/types";
  * What an extension declares.
  */
 export interface ExtensionDefinition {
-  /** Unique id. Doubles as the channel label. */
-  id: string;
-  /** Display name (sidebar tooltip, page title). Defaults to `id`. */
+  /** Display name (sidebar tooltip, page title). Defaults to `publisher.name`. */
   title?: string;
   /** Sidebar icon. */
   icon?: React.ReactNode;
-  /** Supported platforms; undefined = all. */
-  platforms?: Platform[];
   /**
    * Logic layer entry. Called once at app startup, independent of the view
    * lifecycle.
@@ -28,62 +24,82 @@ export interface ExtensionDefinition {
 }
 
 /**
+ * A definition with its host-side defaults applied and an id attached.
+ */
+export interface RegisteredExtension extends ExtensionDefinition {
+  /** publisher.name */
+  id: string;
+  title: string;
+  icon: React.ReactNode;
+  component: React.ComponentType;
+}
+
+/**
  * Fill defaults into a public definition.
  *
  * @param def The definition written by the extension author.
+ * @param id The id the manifest gave it.
  * @returns The host-side definition with defaults applied.
  */
-function normalize(def: ExtensionDefinition): ExtensionDefinition {
+function normalize(def: ExtensionDefinition, id: string): RegisteredExtension {
   return {
-    id: def.id,
-    title: def.title ?? def.id,
+    id,
+    title: def.title ?? id,
     icon: def.icon ?? React.createElement(React.Fragment, null),
-    platforms: def.platforms,
     component: def.component ?? (() => null),
     activate: def.activate,
   };
 }
 
+/** Definition declared by the module currently being loaded. */
+let pending: ExtensionDefinition | null = null;
+
 /**
- * Register an extension. Bundled extensions call this at module top level.
- *
- * @param def The definition to register.
- * @returns The normalized host-side definition.
+ * Declare the extension being loaded.
  */
-export function defineExtension(
-  def: ExtensionDefinition
-): ExtensionDefinition {
-  const normalized = normalize(def);
-  registerExtension(normalized);
-  return normalized;
+export function defineExtension(def: ExtensionDefinition): void {
+  pending = def;
+}
+
+/**
+ * Take the definition the module just declared.
+ *
+ * @returns The declaration, or null when the module declared none.
+ */
+export function takeExtension(): ExtensionDefinition | null {
+  const def = pending;
+  pending = null;
+  return def;
 }
 
 //#endregion
 //#region Registry
 
-const registry = new Map<string, ExtensionDefinition>();
+const registry = new Map<string, RegisteredExtension>();
 let activated = false;
-let cached: ExtensionDefinition[] = [];
+let cached: RegisteredExtension[] = [];
 let dirty = true;
 const listeners = new Set<() => void>();
 /** Per-extension cleanup, run on deactivation/uninstall. */
 const cleanups = new Map<string, () => void>();
 
 export function registerExtension(
-  def: ExtensionDefinition
-): ExtensionDefinition {
-  if (registry.has(def.id)) {
-    throw new Error(`duplicate extension id: ${def.id}`);
+  def: ExtensionDefinition,
+  id: string
+): RegisteredExtension {
+  if (registry.has(id)) {
+    throw new Error(`duplicate extension id: ${id}`);
   }
 
-  registry.set(def.id, def);
+  const normalized = normalize(def, id);
+  registry.set(id, normalized);
   dirty = true;
   listeners.forEach((l) => l());
   // An extension registered after activateExtensions() has already run
   // (e.g. installed ones loaded asynchronously from disk) still needs its
   // context handed over. Activate it immediately on registration.
-  if (activated) activateOne(def);
-  return def;
+  if (activated) activateOne(normalized);
+  return normalized;
 }
 
 /**
@@ -101,7 +117,7 @@ export function unregisterExtension(id: string): void {
   }
 }
 
-export function listExtensions(): ExtensionDefinition[] {
+export function listExtensions(): RegisteredExtension[] {
   if (dirty) {
     cached = [...registry.values()];
     dirty = false;
@@ -130,7 +146,7 @@ export function subscribeExtensions(cb: () => void): () => void {
  *
  * @param def The extension to activate.
  */
-function activateOne(def: ExtensionDefinition): void {
+function activateOne(def: RegisteredExtension): void {
   const ctx = makeContext(def.id);
   let cleanup: void | (() => void) | undefined;
 

@@ -1,3 +1,5 @@
+import type { Disposable } from "../types";
+
 /**
  * Transport abstraction.
  *
@@ -21,6 +23,13 @@ export interface Channel {
   onclose: ((ev: Event) => void) | null;
   onopen: ((ev: Event) => void) | null;
   onerror: ((ev: Event) => void) | null;
+  /**
+   * Bridge a loopback TCP address into this channel.
+   *
+   * @param addr The sidecar's loopback address.
+   * @returns A `Disposable` that unbinds the pipe.
+   */
+  bindPipe?(addr: string): Promise<Disposable>;
 }
 
 /** Arguments specific to the WebRTC transport. */

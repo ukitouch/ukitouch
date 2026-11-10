@@ -7,13 +7,15 @@ import { startSignaling } from "./core/transport/p2p";
 import { deviceStore } from "./core/devices";
 import { activateExtensions } from "./extensions/registry";
 import { loadInstalledExtensions } from "./extensions/loader";
-import { installBridge } from "./extensions";
+import { installBridge, loadBundledExtensions } from "./extensions";
 import "./index.css";
 
 // Load extensions.
 installBridge();  // runtime surface
-loadInstalledExtensions().catch((e) => console.error("[ext] load failed", e));
-activateExtensions();
+loadBundledExtensions()
+  .then(loadInstalledExtensions)
+  .then(activateExtensions)
+  .catch((e) => console.error("[ext] load failed", e));
 
 startSignaling().catch((e) => console.error("[sig] start failed", e));
 void deviceStore

@@ -1,13 +1,13 @@
 /*
  * Storage-layer data model and public contracts.
  *
- * Physical storage: IndexedDB (database `yatouch`).
+ * Physical storage: IndexedDB (database `ukitouch`).
  */
 
 import { Platform } from "../types";
 
 /** IndexedDB database name and current schema version. */
-export const DB_NAME = "yatouch";
+export const DB_NAME = "ukitouch";
 export const DB_VERSION = 1;
 /** Bounded event-log cap (FIFO trim). */
 export const MAX_CONNECTION_EVENTS = 500;

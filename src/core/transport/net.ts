@@ -117,6 +117,12 @@ export function makeContext(extId: string): NetContext {
         for (const unsub of unsubs) unsub();
       });
     },
+    bindPipe: (channel, addr) => {
+      if (!channel.bindPipe) {
+        return Promise.reject(new Error("this transport has no pipes"));
+      }
+      return channel.bindPipe(addr);
+    },
     cancelOpenChannel: () => cancelConnection(),
     getKnownDevices: () => deviceStore.getSnapshot().devices,
     onDeviceSeen: (handler) => {
