@@ -23,8 +23,7 @@ There are two types of extensions: `frontend` and `native`, declared in `manifes
     {
         "publisher": "",
         "name": "",
-        "version": "",
-        "url": "",
+        "url": "",    // where to get it
     },
   ],
 }

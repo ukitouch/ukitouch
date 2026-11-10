@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { loadExtensionDir, unloadExtensionDir } from "../extensions/loader";
+import type { ExtensionRequirement } from "../extensions/loader";
 import { useToast } from "../components/Toast";
 import { useConfirm } from "../components/Confirm";
 import { Button } from "../api";
@@ -12,11 +13,18 @@ interface InstalledExt {
   name: string;
   version: string;
   dir: string;
+  requires: ExtensionRequirement[];
 }
+
+type DepStatus = "ok" | "missing";
 
 type InstallOutcome =
   | { status: "installed"; meta: InstalledExt }
   | { status: "overrideConfirm"; id: string; existingVersion: string; incomingVersion: string };
+
+function depStatus(dep: ExtensionRequirement, installed: Map<string, InstalledExt>): DepStatus {
+  return installed.has(`${dep.publisher}.${dep.name}`) ? "ok" : "missing";
+}
 
 function toBase64(bytes: Uint8Array): string {
   let binary = "";
@@ -104,6 +112,16 @@ export function ExtensionsManager() {
     }
   }
 
+  async function openUrl(url: string) {
+    try {
+      await invoke("open_url", { url });
+    } catch (e) {
+      show(`open failed: ${e}`, "error");
+    }
+  }
+
+  const installedById = new Map((list ?? []).map((ext) => [ext.id, ext]));
+
   return (
     <div className="p-6 max-w-lg flex flex-col gap-4">
       <h1 className="text-xl font-semibold">Extensions</h1>
@@ -115,23 +133,52 @@ export function ExtensionsManager() {
         {installing ? "Installing…" : "Install extension (.zip)"}
       </Button>
       <ul className="flex flex-col gap-2">
-        {(list ?? []).map((ext) => (
-          <li
-            key={ext.id}
-            className="flex items-center justify-between rounded-md px-3 py-2 text-sm bg-box"
-          >
-            <span>{ext.name}</span>
-            <span className="flex items-center gap-2">
-              <span className="text-3">v{ext.version}</span>
-              <button
-                onClick={() => void uninstall(ext)}
-                className="interactive-text-danger"
-              >
-                Uninstall
-              </button>
-            </span>
-          </li>
-        ))}
+        {(list ?? []).map((ext) => {
+          const deps = (ext.requires ?? [])
+            .map((dep) => ({ dep, status: depStatus(dep, installedById) }))
+            .filter(({ status }) => status !== "ok");
+
+          return (
+            <li
+              key={ext.id}
+              className="flex flex-col gap-1 rounded-md px-3 py-2 text-sm bg-box"
+            >
+              <div className="flex items-center justify-between">
+                <span>{ext.name}</span>
+                <span className="flex items-center gap-2">
+                  <span className="text-3">v{ext.version}</span>
+                  <button
+                    onClick={() => void uninstall(ext)}
+                    className="interactive-text-danger"
+                  >
+                    Uninstall
+                  </button>
+                </span>
+              </div>
+              {deps.map(({ dep }) => {
+                const url = dep.url;
+                return (
+                  <div
+                    key={`${dep.publisher}.${dep.name}`}
+                    className="flex items-center justify-between text-3"
+                  >
+                    <span>
+                      requires {dep.publisher}.{dep.name}
+                    </span>
+                    {url && (
+                      <button
+                        onClick={() => void openUrl(url)}
+                        className="link-text"
+                      >
+                        Download
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </li>
+          );
+        })}
         {list && list.length === 0 && (
           <li className="text-sm text-3">No extensions installed.</li>
         )}

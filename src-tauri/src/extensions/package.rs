@@ -21,6 +21,16 @@ pub enum Kind {
     Native,
 }
 
+/// An extension this one needs.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Requirement {
+    pub publisher: String,
+    pub name: String,
+    #[serde(default)]
+    pub url: Option<String>,
+}
+
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionManifest {
@@ -32,9 +42,9 @@ pub struct ExtensionManifest {
     pub entry: String,
     #[serde(default)]
     pub style: Option<String>,
-    /// Extensions this one needs, as `publisher.name`.
+    /// Extensions this one depends on.
     #[serde(default)]
-    pub require: Vec<String>,
+    pub requires: Vec<Requirement>,
     #[serde(default)]
     pub platforms: Vec<String>,
 }
@@ -82,9 +92,17 @@ impl ExtensionManifest {
                 ));
             }
         }
-        for dep in &self.require {
-            if !valid_id(dep) {
-                return Err(format!("require: {dep:?} must be publisher.name"));
+        for dep in &self.requires {
+            if !valid_name(&dep.publisher) || !valid_name(&dep.name) {
+                return Err(format!(
+                    "requires: {}.{} must be ascii alphanumeric, '_' or '-'",
+                    dep.publisher, dep.name
+                ));
+            }
+            if let Some(url) = dep.url.as_deref().filter(|u| !u.is_empty()) {
+                if !url.starts_with("http://") && !url.starts_with("https://") {
+                    return Err(format!("requires: url {url:?} must start with http(s)://"));
+                }
             }
         }
         Ok(())
@@ -105,6 +123,7 @@ pub struct ExtensionMeta {
     pub name: String,
     pub version: String,
     pub dir: String,
+    pub requires: Vec<Requirement>,
 }
 
 /// Result of an install attempt: written, blocked
@@ -176,6 +195,7 @@ fn scan_extensions(dir: &Path) -> Result<Vec<ExtensionMeta>, std::io::Error> {
             name: mf.name,
             version: mf.version,
             dir: path.to_string_lossy().into_owned(),
+            requires: mf.requires,
         });
     }
     Ok(out)
@@ -298,6 +318,7 @@ pub async fn install_extension(
             name: mf.name,
             version: mf.version,
             dir: dest.to_string_lossy().into_owned(),
+            requires: mf.requires,
         },
     })
 }

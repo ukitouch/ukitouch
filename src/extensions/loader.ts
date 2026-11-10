@@ -17,7 +17,14 @@ interface ExtensionManifest {
   kind: "frontend" | "native";
   entry: string;
   style?: string;
-  require?: string[];
+  requires?: ExtensionRequirement[];
+}
+
+/** An extension this one needs. */
+export interface ExtensionRequirement {
+  publisher: string;
+  name: string;
+  url?: string | null;
 }
 
 /** Extension ids registered by each loaded directory. */
