@@ -30,7 +30,7 @@ function App() {
   return (
     <>
       {layout === "withSidebar" && (
-        <aside className="border-r-2 w-16 flex flex-col items-center divider">
+        <aside className="border-r w-16 flex flex-col items-center divider">
           <div className="flex flex-1 flex-col overflow-auto scrollbar-hide pt-4 pb-2 gap-2">
             <SidebarButton
               title="Home"
