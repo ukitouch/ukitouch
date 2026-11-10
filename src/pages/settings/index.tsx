@@ -5,6 +5,7 @@
  */
 
 import { PageHeader } from "../../components/PageHeader";
+import Appearance from "./Appearance";
 import DeviceManagement from "./DeviceManagement";
 import ServerConfig from "./ServerConfig";
 
@@ -15,6 +16,7 @@ function SettingsPage() {
       <PageHeader title="Settings" />
 
       <div className="mt-4 space-y-1">
+        <Appearance />
         <ServerConfig />
         <DeviceManagement />
       </div>
