@@ -63,14 +63,14 @@ function HomePage() {
           </Button>
         }
       >
-        <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-md px-3 py-2">
-          <code className="flex-1 break-all text-sm text-gray-700 dark:text-gray-300">
+        <div className="flex items-center gap-2 rounded-md px-3 py-2 bg-box">
+          <code className="flex-1 break-all text-sm text-2">
             {tempId.replace(/(.{3})(?=.)/g, "$1 ")}
           </code>
           {tmpEnabled ? (
             copied ? (
               <svg
-                className="text-gray-400 dark:text-gray-500"
+                className="text-3"
                 width="16"
                 height="16"
                 viewBox="0 0 24 24"
@@ -84,7 +84,7 @@ function HomePage() {
               </svg>
             ) : (
               <svg
-                className="text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 transition-colors cursor-pointer"
+                className="transition-colors cursor-pointer interactive-text-1"
                 onClick={async () => {
                   await copyText(tempId);
                   setCopied(true);
@@ -111,7 +111,7 @@ function HomePage() {
       </SettingRow>
 
       <div className="flex items-center gap-3">
-        <span className="text-xs text-gray-500 dark:text-gray-400">
+        <span className="text-xs text-3">
           {tmpEnabled
             ? "Anyone with this ID can reach you."
             : "Only known contacts can reach you."}
@@ -166,8 +166,8 @@ function UsbListenerSection() {
       }
       hint="USB debugging must be enabled for a desktop to find this device"
     >
-      <div className="bg-gray-100 dark:bg-gray-800 rounded-md px-3 py-2">
-        <span className="text-sm text-gray-700 dark:text-gray-300">
+      <div className="rounded-md px-3 py-2 bg-box">
+        <span className="text-sm text-2">
           {enabled
             ? "Will accept USB connections from a desktop"
             : "Connection request from desktop will be rejected"}

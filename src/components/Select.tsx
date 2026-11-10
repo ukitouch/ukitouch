@@ -55,7 +55,7 @@ export function Select<T extends string>({
         aria-label={ariaLabel}
         onClick={() => setOpen((o) => !o)}
         onKeyDown={handleKeyDown}
-        className={`flex min-w-40 items-center justify-between gap-1 whitespace-nowrap p-2 rounded-md bg-gray-100 dark:bg-gray-800 text-sm text-gray-700 dark:text-gray-300 outline-none select-none transition-colors hover:bg-gray-200 dark:hover:bg-gray-700 focus-visible:ring-1 focus-visible:ring-gray-400${open ? " bg-gray-200 dark:bg-gray-700" : ""}`}
+        className={`flex min-w-40 items-center justify-between gap-1 whitespace-nowrap p-2 rounded-md text-sm select-none transition-colors button-primary text-2`}
       >
         <span>{current?.label ?? ""}</span>
         <span

@@ -65,7 +65,7 @@ export function ExtensionsManager() {
             ? `${outcome.id} v${outcome.existingVersion} is installed. Overwrite with v${outcome.incomingVersion}?`
             : `${outcome.id} is already installed. Overwrite with v${outcome.incomingVersion}?`,
           confirmText: "Overwrite",
-          danger: true,
+          confirmStyle: "dangerFill",
         });
 
         if (!ok) return;
@@ -91,7 +91,7 @@ export function ExtensionsManager() {
       title: "Uninstall extension",
       message: `Uninstall ${ext.name}?`,
       confirmText: "Uninstall",
-      danger: true,
+      confirmStyle: "dangerFill",
     });
     if (!ok) return;
     try {
@@ -118,14 +118,14 @@ export function ExtensionsManager() {
         {(list ?? []).map((ext) => (
           <li
             key={ext.id}
-            className="flex items-center justify-between bg-gray-100 dark:bg-gray-800 rounded-md px-3 py-2 text-sm"
+            className="flex items-center justify-between rounded-md px-3 py-2 text-sm bg-box"
           >
             <span>{ext.name}</span>
             <span className="flex items-center gap-2">
-              <span className="text-gray-400">v{ext.version}</span>
+              <span className="text-3">v{ext.version}</span>
               <button
                 onClick={() => void uninstall(ext)}
-                className="text-gray-400 hover:text-red-500"
+                className="text-3 interactive-text-danger"
               >
                 Uninstall
               </button>
@@ -133,7 +133,7 @@ export function ExtensionsManager() {
           </li>
         ))}
         {list && list.length === 0 && (
-          <li className="text-sm text-gray-400">No extensions installed.</li>
+          <li className="text-sm text-3">No extensions installed.</li>
         )}
       </ul>
     </div>

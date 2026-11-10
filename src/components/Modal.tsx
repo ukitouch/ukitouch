@@ -48,24 +48,20 @@ export function Modal({
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-dim"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className={`
-          w-full ${width} mx-10 bg-gray-900 rounded-lg border border-gray-700
-          flex flex-col overflow-hidden
-          ${height}
-        `}
+        className={`w-full ${width} ${height} mx-10 rounded-lg flex flex-col overflow-hidden bg-window`}
       >
         {title && (
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 shrink-0">
-            <h2 className="text-lg font-semibold text-gray-100">{title}</h2>
+          <div className="flex items-center justify-between px-4 py-3 border-b shrink-0 divider">
+            <h2 className="text-lg font-semibold text-1">{title}</h2>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-100 p-1 rounded hover:bg-gray-800 transition-colors"
+              className="p-1 rounded transition-colors interactive-text-1"
               title="Close"
             >
               <svg

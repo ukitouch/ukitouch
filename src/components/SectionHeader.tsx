@@ -37,7 +37,7 @@ export function SectionHeader({
         <button
           type="button"
           onClick={onClick}
-          className={`flex items-center gap-1 ${LABEL_CLASS} hover:text-gray-800 dark:hover:text-gray-200 select-none`}
+          className={`flex items-center gap-1 ${LABEL_CLASS} interactive-text-1`}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"

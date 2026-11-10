@@ -6,9 +6,16 @@ export interface ToggleProps {
   /** Accessible name, for when no visible label is next to it. */
   ariaLabel?: string;
   disabled?: boolean;
+  className?: string;
 }
 
-export function Toggle({ checked, onChange, ariaLabel, disabled }: ToggleProps) {
+export function Toggle({
+  checked,
+  onChange,
+  ariaLabel,
+  disabled,
+  className = "",
+}: ToggleProps) {
   return (
     <button
       type="button"
@@ -18,20 +25,23 @@ export function Toggle({ checked, onChange, ariaLabel, disabled }: ToggleProps) 
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={[
-        "relative inline-flex h-5 w-10 shrink-0 self-center items-center rounded-lg transition-colors",
-        disabled
-          ? "cursor-not-allowed opacity-40"
-          : "cursor-pointer",
+        "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors",
+        disabled && "cursor-not-allowed opacity-40",
         checked
-          ? "bg-blue-600 dark:bg-blue-500"
-          : "bg-gray-300 dark:bg-gray-600",
-      ].join(" ")}
+          ? "bg-blue-600"
+          : "bg-gray-200 dark:bg-gray-700",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       <span
         className={[
-          "pointer-events-none absolute top-1/2 -translate-y-1/2 h-4 w-4 rounded-md bg-gray-200 transition-transform",
+          "pointer-events-none absolute left-0.5 top-1/2 block h-4 w-4 -translate-y-1/2 rounded-full bg-white shadow-sm transition-transform",
           checked ? "translate-x-5" : "translate-x-1",
-        ].join(" ")}
+        ]
+          .filter(Boolean)
+          .join(" ")}
       />
     </button>
   );

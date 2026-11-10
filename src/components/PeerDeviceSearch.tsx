@@ -114,7 +114,7 @@ export function PeerDeviceSearch({
           onKeyDown={handleKeyDown}
           onBlur={() => setOpen(false)}
           placeholder={placeholder}
-          className="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md px-3 py-1.5 text-sm"
+          className="w-full rounded-md px-3 py-1.5 text-sm input-border"
         />
       ) : (
         <button
@@ -123,10 +123,10 @@ export function PeerDeviceSearch({
             if (selectedUuid !== null) onTextChange("");
             setOpen(true);
           }}
-          className="w-full flex items-center text-left truncate rounded-md bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300"
+          className="w-full flex items-center text-left truncate rounded-md px-3 py-1.5 text-sm input-border text-2"
         >
           {selectedUuid !== null ? (
-            <span className="max-w-full truncate rounded bg-gray-200 dark:bg-gray-700 px-1.5">
+            <span className="max-w-full truncate rounded px-1.5 bg-tag">
               {text.trim()}
             </span>
           ) : (

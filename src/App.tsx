@@ -30,7 +30,7 @@ function App() {
   return (
     <>
       {layout === "withSidebar" && (
-        <aside className="border-r-2 border-gray-800 w-16 flex flex-col items-center">
+        <aside className="border-r-2 w-16 flex flex-col items-center divider">
           <div className="flex flex-1 flex-col overflow-auto scrollbar-hide pt-4 pb-2 gap-2">
             <SidebarButton
               title="Home"
@@ -86,7 +86,7 @@ function App() {
             />
           </div>
           <div className="p-2">
-            <hr className="border-gray-800 dark:border-gray-600 mb-2 w-full"></hr>
+            <hr className="mb-2 w-full divider"></hr>
 
             <SidebarButton
               title="Settings"
@@ -146,7 +146,7 @@ function SidebarButton(props: {
     <button
       title={props.title}
       onClick={props.onClick}
-      className={`p-2 rounded-md transition-colors text-gray-800 dark:text-gray-400 ${props.active ? "bg-gray-700" : "hover:bg-gray-700/70"}`}
+      className={`p-2 rounded-md transition-colors text-2 button-toggle-ghost ${props.active ? "active" : ""}`}
     >
       {props.icon}
     </button>

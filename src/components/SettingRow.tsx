@@ -20,13 +20,13 @@ export interface SettingRowProps {
 export function SettingRow({ label, action, hint, children }: SettingRowProps) {
   return (
     <div>
-      <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 mb-2">
+      <div className="flex justify-between text-sm mb-2 text-1">
         <span className="self-center">{label}</span>
         {action}
       </div>
       {children}
       {hint && (
-        <p className="text-xs text-gray-600 dark:text-gray-500 rounded-md mt-1">
+        <p className="text-xs rounded-md mt-1 text-3">
           {hint}
         </p>
       )}

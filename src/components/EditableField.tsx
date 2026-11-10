@@ -37,7 +37,7 @@ export default function EditableField({
 
   return (
     <>
-      <span className="text-sm text-gray-400 w-32 shrink-0">{label}</span>
+      <span className="text-sm w-32 shrink-0 text-3">{label}</span>
       <div className="flex items-center gap-3 pb-2">
 
         {editing ? (
@@ -58,7 +58,7 @@ export default function EditableField({
                   cancel();
                 }
               }}
-              className="flex-1 min-w-0 px-3 py-1.5 rounded-md bg-gray-800 text-gray-100 text-sm outline-none border border-gray-700 placeholder:text-gray-500"
+              className="flex-1 min-w-0 px-3 py-1.5 rounded-md text-sm outline-none input-border"
             />
             <Button variant="primary" onClick={commit} className="shrink-0">
               Save
@@ -66,8 +66,8 @@ export default function EditableField({
           </>
         ) : (
           <>
-            <span className="flex-1 text-sm ml-3 text-gray-200 truncate">
-              {value || <span className="text-gray-500">{placeholder ?? "Not set"}</span>}
+            <span className="flex-1 text-sm ml-3 truncate text-2">
+              {value || <span className="text-3">{placeholder ?? "Not set"}</span>}
             </span>
             <Button onClick={startEdit} className="shrink-0">
               Edit

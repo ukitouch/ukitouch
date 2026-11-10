@@ -7,7 +7,7 @@ export interface ListboxEntry {
   label: string;
   /** Secondary text after the label. */
   hint?: string;
-  /** Monospace suffix (the "create new" row). */
+  /** Monospace suffix. */
   code?: string;
 }
 
@@ -126,10 +126,10 @@ export function ListboxPanel({
   if (!open) return null;
   return (
     <div
-      className={`absolute top-full left-0 z-50 mt-1 w-full max-h-48 overflow-y-auto py-1 rounded-md bg-gray-100 dark:bg-gray-800 text-sm text-gray-700 dark:text-gray-300 shadow-lg border border-gray-300 dark:border-gray-700 ${className}`}
+      className={`absolute top-full left-0 z-50 mt-1 w-full max-h-48 overflow-y-auto py-1 rounded-md bg-window text-sm shadow-lg ${className}`}
     >
       {entries.length === 0 ? (
-        <div className="px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400">
+        <div className="px-3 py-1.5 text-sm text-3">
           {emptyText}
         </div>
       ) : (
@@ -143,17 +143,17 @@ export function ListboxPanel({
                 onPointerEnter={() => onHighlight(i)}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => onPick(i)}
-                className={`block w-full text-left px-3 py-1.5 transition-colors ${i === highlight
-                    ? "bg-gray-200 dark:bg-gray-700"
-                    : "hover:bg-gray-200 dark:hover:bg-gray-700"
+                className={`block w-full text-left px-3 py-1.5 transition-colors interactive-row ${i === highlight
+                    ? "active"
+                    : ""
                   }`}
               >
                 <span className="truncate">{o.label}</span>
                 {o.hint && (
-                  <span className="ml-1 text-xs text-gray-500">{o.hint}</span>
+                  <span className="ml-1 text-xs text-3">{o.hint}</span>
                 )}
                 {o.code && (
-                  <code className="ml-1 font-mono text-xs">{o.code}</code>
+                  <code className="ml-1 font-mono text-xs text-3">{o.code}</code>
                 )}
               </button>
             </li>

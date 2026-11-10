@@ -69,14 +69,14 @@ export default function PingView() {
     <div className="p-6 max-w-lg flex flex-col gap-4">
       <PageHeader title="Ping" subtitle="Template extension" />
 
-      <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-md p-1 w-fit">
+      <div className="flex gap-1 rounded-md p-1 w-fit bg-window">
         {(["webrtc", "usb", "ble"] as const).map((m) => (
           <button
             key={m}
             onClick={() => setMode(m)}
-            className={`px-3 py-1 rounded-md text-sm transition-colors ${mode === m
-              ? "bg-gray-700 text-gray-100"
-              : "text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+            className={`px-3 py-1 rounded-md text-sm transition-colors button-toggle-ghost ${mode === m
+              ? "active"
+              : ""
               }`}
           >
             {m === "webrtc" ? "WebRTC" : m === "usb" ? "USB" : "BLE"}
@@ -137,7 +137,7 @@ export default function PingView() {
                 />
               )}
               {usbDevices.length === 0 && (
-                <p className="flex-1 text-xs text-gray-500 dark:text-gray-400">
+                <p className="flex-1 text-xs text-3">
                   No USB devices (plug in with USB debugging on, then refresh)
                 </p>
               )}
@@ -167,7 +167,7 @@ export default function PingView() {
             </div>
           </div>
         ) : status === "idle" ? (
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+          <p className="text-xs text-3">
             USB dialing is only available on desktop. Just wait for the host
           </p>
         ) : (
@@ -189,12 +189,12 @@ export default function PingView() {
           </div>
         )
       ) : (
-        <p className="text-xs text-gray-500 dark:text-gray-400">
+        <p className="text-xs text-3">
           BLE transport is not implemented yet
         </p>
       )}
 
-      <pre className="bg-gray-100 dark:bg-gray-800 rounded-md p-3 text-xs h-64 overflow-y-auto whitespace-pre-wrap">
+      <pre className="rounded-md p-3 text-xs h-64 overflow-y-auto whitespace-pre-wrap bg-window">
         {state.logs.join("\n")}
       </pre>
     </div>

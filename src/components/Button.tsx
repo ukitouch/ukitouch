@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
-export type ButtonVariant = "primary" | "danger";
+export type ButtonVariant = "primary" | "danger" | "dangerFill";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** Visual style. Defaults to `primary`. */
@@ -9,8 +9,9 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANTS: Record<ButtonVariant, string> = {
-  primary: "bg-gray-200 hover:bg-gray-300 dark:bg-gray-700/90 dark:hover:bg-gray-600/90 text-gray-700 dark:text-gray-200",
-  danger: "text-red-500 border border-red-500/40 hover:bg-red-500/10",
+  primary: "button-primary text-2",
+  danger: "button-danger",
+  dangerFill: "button-danger-fill"
 };
 
 /**

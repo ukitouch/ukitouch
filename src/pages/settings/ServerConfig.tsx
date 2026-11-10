@@ -91,10 +91,10 @@ export default function ServerConfig() {
     });
 
   return (
-    <div className="py-3 px-4 rounded-lg">
-      <div className="text-sm font-medium text-gray-200 mb-2">Server Configuration</div>
+    <div className="py-3">
+      <div className="text-sm font-medium mb-2 text-2">Server Configuration</div>
 
-      <div>
+      <div className="px-4">
         <EditableField
           label="Signaling URL"
           value={serverConfig.signalingUrl}

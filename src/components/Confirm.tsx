@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
+import { Button, ButtonVariant } from "./Button";
 
 export interface ConfirmOptions {
   title?: string;
@@ -14,7 +15,7 @@ export interface ConfirmOptions {
   confirmText?: string;
   cancelText?: string;
   /** Paint the confirm button red. */
-  danger?: boolean;
+  confirmStyle?: ButtonVariant;
 }
 
 type ConfirmFn = (options: ConfirmOptions) => Promise<boolean>;
@@ -54,38 +55,34 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
       {children}
       {pending && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-dim"
           onClick={() => settle(false)}
         >
           <div
-            className="bg-gray-100 dark:bg-gray-800 rounded-md shadow-lg p-4 w-80 flex flex-col gap-3"
+            className="rounded-md shadow-lg p-4 w-80 flex flex-col gap-3 bg-window"
             onClick={(e) => e.stopPropagation()}
           >
             {pending.title && (
-              <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+              <h2 className="text-sm font-semibold text-1">
                 {pending.title}
               </h2>
             )}
-            <p className="text-sm text-gray-700 dark:text-gray-300">
+            <p className="text-sm text-2">
               {pending.message}
             </p>
             <div className="flex justify-end gap-2">
-              <button
+              <Button
                 onClick={() => settle(false)}
-                className="px-3 py-1.5 rounded-md text-sm bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100"
               >
                 {pending.cancelText ?? "Cancel"}
-              </button>
-              <button
+              </Button>
+              <Button
+                variant={pending.confirmStyle}
                 autoFocus
                 onClick={() => settle(true)}
-                className={`px-3 py-1.5 rounded-md text-sm text-gray-100 ${pending.danger
-                    ? "bg-red-700 hover:bg-red-600"
-                    : "bg-gray-700 hover:bg-gray-600"
-                  }`}
               >
                 {pending.confirmText ?? "Confirm"}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
