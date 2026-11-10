@@ -146,8 +146,7 @@ function SidebarButton(props: {
     <button
       title={props.title}
       onClick={props.onClick}
-      className={`p-2 rounded-md transition-colors text-gray-800 dark:text-gray-400 hover:bg-gray-600 ${props.active ? "bg-gray-700" : ""
-        }`}
+      className={`p-2 rounded-md transition-colors text-gray-800 dark:text-gray-400 ${props.active ? "bg-gray-700" : "hover:bg-gray-700/70"}`}
     >
       {props.icon}
     </button>

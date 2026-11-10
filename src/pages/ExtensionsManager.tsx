@@ -5,6 +5,7 @@ import { readFile } from "@tauri-apps/plugin-fs";
 import { loadExtensionDir, unloadExtensionDir } from "../extensions/loader";
 import { useToast } from "../components/Toast";
 import { useConfirm } from "../components/Confirm";
+import { Button } from "../api";
 
 interface InstalledExt {
   id: string;
@@ -108,13 +109,13 @@ export function ExtensionsManager() {
   return (
     <div className="p-6 max-w-lg flex flex-col gap-4">
       <h1 className="text-xl font-semibold">Extensions</h1>
-      <button
+      <Button
         onClick={() => void install()}
         disabled={installing}
-        className="self-start px-3 py-1.5 rounded-md text-sm bg-gray-700 hover:bg-gray-600 text-gray-100 disabled:opacity-50"
+        className="self-start"
       >
         {installing ? "Installing…" : "Install extension (.zip)"}
-      </button>
+      </Button>
       <ul className="flex flex-col gap-2">
         {(list ?? []).map((ext) => (
           <li

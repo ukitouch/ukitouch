@@ -56,7 +56,6 @@ function HomePage() {
         label="Temporary ID"
         action={
           <Button
-            variant={tmpEnabled ? "primary" : "ghost"}
             disabled={toggling}
             onClick={() => void toggle()}
           >
@@ -159,7 +158,6 @@ function UsbListenerSection() {
       label="USB Listener"
       action={
         <Button
-          variant={enabled ? "primary" : "ghost"}
           disabled={toggling}
           onClick={() => void toggle()}
         >

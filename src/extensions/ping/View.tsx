@@ -141,7 +141,6 @@ export default function PingView() {
                 </p>
               )}
               <Button
-                variant="ghost"
                 onClick={() => void refreshUsbDevices()}
               >
                 Refresh
