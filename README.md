@@ -1,4 +1,6 @@
 # ukitouch
+> ongoing project
+
 Remote control, file transfer and more, all as extensions on a thin core!
 
 ukitouch provides webrtc, usb and bluetooth(ongoing) as underlying supports of end-to-end communication, all the other features based on these can be implemented as extensions.
@@ -6,6 +8,9 @@ ukitouch provides webrtc, usb and bluetooth(ongoing) as underlying supports of e
 Built with Tauri 2.
 
 > [!NOTE]
+> Signaling server is required for yourself due to security issues, as they are configurable in settings page. A signaling server backend can refer to [this](https://github.com/ukitouch/p2p-signaling-rs)
+
+> [!TIP]
 > MacOS and iOS are not supported because we don't have a member that is familiar with them. If you are interested in this project, join us!
 
 ## Extensibility
