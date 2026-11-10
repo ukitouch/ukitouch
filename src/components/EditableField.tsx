@@ -69,7 +69,7 @@ export default function EditableField({
             <span className="flex-1 text-sm ml-3 text-gray-200 truncate">
               {value || <span className="text-gray-500">{placeholder ?? "Not set"}</span>}
             </span>
-            <Button variant="ghost" onClick={startEdit} className="shrink-0">
+            <Button onClick={startEdit} className="shrink-0">
               Edit
             </Button>
           </>

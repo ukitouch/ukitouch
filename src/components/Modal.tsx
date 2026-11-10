@@ -48,14 +48,14 @@ export function Modal({
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
         className={`
-          w-full ${width} bg-gray-900 rounded-lg shadow-2xl border border-gray-700
+          w-full ${width} mx-10 bg-gray-900 rounded-lg border border-gray-700
           flex flex-col overflow-hidden
           ${height}
         `}

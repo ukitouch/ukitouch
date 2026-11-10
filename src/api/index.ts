@@ -42,7 +42,6 @@ export type {
   DeviceRecord,
 };
 
-export type { SearchOption } from "../components/SearchSelect";
 export type { SelectOption } from "../components/Select";
 export type { UsbDevice } from "../core/transport/usb";
 export type { Store } from "../core/utils/store";

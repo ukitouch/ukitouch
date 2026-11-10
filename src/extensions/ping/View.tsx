@@ -102,6 +102,7 @@ export default function PingView() {
               onCreate={(id) => {
                 setSelectedUuid(null);
                 setQuery(id);
+                onWebrtcConnect();
               }}
             />
             <div className="flex gap-2">
@@ -141,7 +142,6 @@ export default function PingView() {
                 </p>
               )}
               <Button
-                variant="ghost"
                 onClick={() => void refreshUsbDevices()}
               >
                 Refresh
