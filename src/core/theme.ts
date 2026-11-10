@@ -1,3 +1,5 @@
+import { invoke } from "@tauri-apps/api/core";
+
 export type ThemeMode = "system" | "light" | "dark";
 
 const KEY = "ukitouch.theme";
@@ -16,7 +18,9 @@ function isDark(): boolean {
 }
 
 function apply(): void {
-  document.documentElement.classList.toggle("dark", isDark());
+  const dark = isDark();
+  document.documentElement.classList.toggle("dark", dark);
+  invoke("set_system_theme", { dark }).catch(() => {});
 }
 
 function emit(): void {

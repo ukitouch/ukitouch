@@ -25,7 +25,7 @@ use net::usb::{
     usb_close_channel, usb_list_devices, usb_listen_start, usb_listen_stop, usb_open_channel,
     usb_send,
 };
-use orientation::{init as orientation_plugin, set_fullscreen};
+use orientation::{init as orientation_plugin, set_fullscreen, set_system_theme};
 use std::sync::Arc;
 use tauri::Manager;
 
@@ -56,15 +56,28 @@ pub fn run() {
             #[cfg(desktop)]
             {
                 tray::init(app)?;
-                // `--silent` starts straight into the tray, for autostart.
-                if !std::env::args().any(|arg| arg == "--silent") {
-                    if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                    }
+                if let Some(window) = app.get_webview_window("main") {
+                    let dark = window
+                        .theme()
+                        .map(|t| t == tauri::Theme::Dark)
+                        .unwrap_or(false);
+                    let _ = window.set_background_color(Some(orientation::window_color(dark)));
                 }
             }
             Ok(())
+        })
+        .on_page_load(|webview, payload| {
+            #[cfg(desktop)]
+            if webview.label() == "main"
+                && matches!(
+                    payload.event(),
+                    tauri::webview::PageLoadEvent::Finished
+                )
+                && !std::env::args().any(|arg| arg == "--silent")
+            {
+                let _ = webview.window().show();
+                let _ = webview.window().set_focus();
+            }
         })
         .on_window_event(|window, event| {
             // Closing the main window drops it to the tray. Quit via the tray menu.
@@ -96,6 +109,7 @@ pub fn run() {
             usb_listen_start,
             usb_listen_stop,
             set_fullscreen,
+            set_system_theme,
             get_host_info,
             list_installed_extensions,
             read_extension_manifest,

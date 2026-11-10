@@ -6,6 +6,17 @@
   <meta name="viewport"
     content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1" />
   <title>ukitouch</title>
+  <style>
+    html {
+      background: #f9fafb;
+      color-scheme: light;
+    }
+
+    html.dark {
+      background: #000;
+      color-scheme: dark;
+    }
+  </style>
   <script>
     const theme = localStorage.getItem("ukitouch.theme");
     if (theme === "dark" || (theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches))
