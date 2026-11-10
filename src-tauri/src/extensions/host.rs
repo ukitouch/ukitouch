@@ -14,11 +14,6 @@ use crate::extensions::package::ExtensionManifest;
 #[derive(Debug, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 enum ExtMessage {
-    /// First message a sidecar sends to announce what it can do.
-    Register {
-        capabilities: Vec<String>,
-        version: String,
-    },
     /// Response to a single `call` request, matched by `id`.
     Reply {
         id: u64,
@@ -44,14 +39,6 @@ struct Sidecar {
     stdin: Arc<Mutex<ChildStdin>>,
     /// In-flight requests waiting for a matching `Reply` from the sidecar.
     pending: Arc<Mutex<HashMap<u64, oneshot::Sender<Result<Value, String>>>>>,
-    /// Capabilities announced at registration time (e.g. "<extension_name>.<callable_method>").
-    ///
-    /// TODO: not used for now
-    capabilities: Vec<String>,
-    /// Version string reported by the sidecar.
-    ///
-    /// TODO: not used for now
-    version: String,
     /// The child process.
     child: Mutex<Child>,
 }
@@ -159,8 +146,8 @@ impl ExtensionHost {
         Ok(())
     }
 
-    /// Start a sidecar binary, wait for its `Register` message, and begin the
-    /// read loop that routes replies and events back to the host / frontend.
+    /// Start a sidecar binary and begin the read loop that routes replies and
+    /// events back to the host / frontend.
     pub async fn launch(
         &self,
         app: AppHandle,
@@ -189,31 +176,12 @@ impl ExtensionHost {
             }
         });
 
-        // The very first stdout line from the sidecar must be a Register message.
-        // TODO: ?
-        let mut reader = BufReader::new(stdout).lines();
-        let (capabilities, version) = loop {
-            let line = reader
-                .next_line()
-                .await
-                .map_err(|e| e.to_string())?
-                .ok_or("sidecar exited before register")?;
-            match serde_json::from_str::<ExtMessage>(&line) {
-                Ok(ExtMessage::Register {
-                    capabilities,
-                    version,
-                }) => break (capabilities, version),
-                Ok(_) => return Err("expected register message".into()),
-                Err(_) => eprintln!("[ext:{ext_id}] {line}"),
-            }
-        };
+        let reader = BufReader::new(stdout).lines();
 
         // Build the sidecar handle and store it.
         let sidecar = Arc::new(Sidecar {
             stdin: Arc::new(Mutex::new(stdin)),
             pending,
-            capabilities,
-            version,
             child: Mutex::new(child),
         });
         self.sidecars
@@ -281,10 +249,12 @@ async fn read_loop(
             ExtMessage::Event { event, payload } => {
                 let _ = app.emit(&format!("ext:{ext_id}:{event}"), payload);
             }
-            _ => {}
         }
     }
 
+    for (_, tx) in sidecar.pending.lock().await.drain() {
+        let _ = tx.send(Err("sidecar exited".into()));
+    }
     eprintln!("[ext:{ext_id}] sidecar exited");
 }
 
