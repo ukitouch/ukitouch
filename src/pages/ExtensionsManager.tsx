@@ -125,7 +125,7 @@ export function ExtensionsManager() {
               <span className="text-3">v{ext.version}</span>
               <button
                 onClick={() => void uninstall(ext)}
-                className="text-3 interactive-text-danger"
+                className="interactive-text-danger"
               >
                 Uninstall
               </button>
