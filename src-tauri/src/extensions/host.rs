@@ -202,7 +202,7 @@ impl ExtensionHost {
         let sidecars = self.sidecars.read().await;
         let sidecar = sidecars
             .get(ext_id)
-            .ok_or_else(|| format!("backend extension not found: {ext_id}"))?;
+            .ok_or_else(|| format!("native extension not found: {ext_id}"))?;
 
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         sidecar.call(id, method, &payload).await
