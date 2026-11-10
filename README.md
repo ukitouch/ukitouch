@@ -36,8 +36,6 @@ A frontend extension is written in React, finally built into a js file. A functi
 function defineExtension(
   /** Sidebar icon, usually svg tag. */
   icon?: React.ReactNode;
-  /** Supported platforms, undefined = all. */
-  platforms?: Platform[];
   /**
    * Logic layer entry, called once at app startup.
    *
@@ -50,17 +48,9 @@ function defineExtension(
 ```
 
 ### Native Extension
-A native extension can be written in any language in theory, as they are compiled into binaries.
+A native extension can be written in any language in theory, as long as they are compiled into executable binaries.
 
-The binary is launched by the host as a sidecar and talks JSON lines over stdin/stdout. Its first line must be a register:
-```jsonc
-{
-    "kind":"register",
-    "capabilities":[""] // callable functions in this extension
-}
-```
-
-For callable functions, for example, in rust:
+The binary is launched by the host as a sidecar and talks JSON lines over stdin/stdout. For example, in rust:
 ```rs
 #[derive(Deserialize)]
 enum Incoming {

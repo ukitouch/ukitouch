@@ -1,6 +1,6 @@
 import * as React from "react";
 import { makeContext } from "../core/transport/net";
-import type { NetContext, Platform } from "../core/types";
+import type { NetContext } from "../core/types";
 
 //#region Definition
 
@@ -12,8 +12,6 @@ export interface ExtensionDefinition {
   title?: string;
   /** Sidebar icon. */
   icon?: React.ReactNode;
-  /** Supported platforms; undefined = all. */
-  platforms?: Platform[];
   /**
    * Logic layer entry. Called once at app startup, independent of the view
    * lifecycle.
@@ -48,7 +46,6 @@ function normalize(def: ExtensionDefinition, id: string): RegisteredExtension {
     id,
     title: def.title ?? id,
     icon: def.icon ?? React.createElement(React.Fragment, null),
-    platforms: def.platforms,
     component: def.component ?? (() => null),
     activate: def.activate,
   };

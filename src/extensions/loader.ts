@@ -18,8 +18,6 @@ interface ExtensionManifest {
   entry: string;
   style?: string;
   require?: string[];
-  permissions?: string[];
-  platforms?: string[];
 }
 
 /** Extension ids registered by each loaded directory. */

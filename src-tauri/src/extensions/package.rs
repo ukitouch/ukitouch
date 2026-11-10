@@ -36,8 +36,6 @@ pub struct ExtensionManifest {
     #[serde(default)]
     pub require: Vec<String>,
     #[serde(default)]
-    pub permissions: Vec<String>,
-    #[serde(default)]
     pub platforms: Vec<String>,
 }
 
@@ -106,8 +104,6 @@ pub struct ExtensionMeta {
     pub id: String,
     pub name: String,
     pub version: String,
-    pub permissions: Vec<String>,
-    pub platforms: Vec<String>,
     pub dir: String,
 }
 
@@ -179,8 +175,6 @@ fn scan_extensions(dir: &Path) -> Result<Vec<ExtensionMeta>, std::io::Error> {
             id: mf.id(),
             name: mf.name,
             version: mf.version,
-            permissions: mf.permissions,
-            platforms: mf.platforms,
             dir: path.to_string_lossy().into_owned(),
         });
     }
@@ -303,8 +297,6 @@ pub async fn install_extension(
             id,
             name: mf.name,
             version: mf.version,
-            permissions: mf.permissions,
-            platforms: mf.platforms,
             dir: dest.to_string_lossy().into_owned(),
         },
     })

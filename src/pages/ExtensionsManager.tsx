@@ -10,8 +10,6 @@ interface InstalledExt {
   id: string;
   name: string;
   version: string;
-  permissions: string[];
-  platforms: string[];
   dir: string;
 }
 
