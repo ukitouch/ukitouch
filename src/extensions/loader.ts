@@ -30,9 +30,16 @@ export interface ExtensionRequirement {
 /** Extension ids registered by each loaded directory. */
 const loadedIds = new Map<string, string[]>();
 
+// TODO: keep load failures per dir in memory and show them in the extensions manager
 export async function loadInstalledExtensions(): Promise<void> {
   const list = await invoke<InstalledExt[]>("list_installed_extensions");
-  for (const { dir } of list) await loadExtensionDir(dir);
+  for (const { dir } of list) {
+    try {
+      await loadExtensionDir(dir);
+    } catch (e) {
+      console.error(`[ext] ${dir}: load failed`, e);
+    }
+  }
 }
 
 /**
