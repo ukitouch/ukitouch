@@ -28,25 +28,17 @@ use net::usb::{
 use orientation::{init as orientation_plugin, set_fullscreen, set_system_theme};
 use std::sync::Arc;
 use tauri::Manager;
+use tauri_plugin_opener::OpenerExt;
 
 /// Open a web page in the system browser.
 #[tauri::command]
-fn open_url(url: String) -> Result<(), String> {
+fn open_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
     if !url.starts_with("http://") && !url.starts_with("https://") {
         return Err("only http(s) urls can be opened".into());
     }
-    #[cfg(target_os = "linux")]
-    let spawned = std::process::Command::new("xdg-open").arg(&url).spawn();
-    #[cfg(target_os = "windows")]
-    let spawned = std::process::Command::new("cmd")
-        .args(["/C", "start", "", &url])
-        .spawn();
-    // TODO: android needs an intent, add tauri-plugin-opener for that
-    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
-    let spawned: Result<std::process::Child, std::io::Error> =
-        Err(std::io::Error::other("open_url is not supported yet"));
-
-    spawned.map(|_| ()).map_err(|e| format!("open {url}: {e}"))
+    app.opener()
+        .open_url(&url, None::<&str>)
+        .map_err(|e| format!("open {url}: {e}"))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -56,6 +48,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             app.manage(Arc::new(NetState::new(app.handle().clone())));
             app.manage(PipeState::default());
@@ -89,10 +82,7 @@ pub fn run() {
         .on_page_load(|webview, payload| {
             #[cfg(desktop)]
             if webview.label() == "main"
-                && matches!(
-                    payload.event(),
-                    tauri::webview::PageLoadEvent::Finished
-                )
+                && matches!(payload.event(), tauri::webview::PageLoadEvent::Finished)
                 && !std::env::args().any(|arg| arg == "--silent")
             {
                 let _ = webview.window().show();
