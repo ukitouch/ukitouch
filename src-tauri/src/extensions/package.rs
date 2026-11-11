@@ -217,8 +217,8 @@ pub async fn install_extension(
         .join("extensions");
     let bytes = STANDARD
         .decode(&zip_base64)
-        .map_err(|e| format!("decode zip: {e}"))?;
-    let mut zip = ZipArchive::new(Cursor::new(bytes)).map_err(|e| format!("read zip: {e}"))?;
+        .map_err(|e| format!("bad package data: {e}"))?;
+    let mut zip = ZipArchive::new(Cursor::new(bytes)).map_err(|_| "not a zip file")?;
 
     // validity check
     let manifest_text = {
