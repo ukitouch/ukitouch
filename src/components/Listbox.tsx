@@ -143,7 +143,7 @@ export function ListboxPanel({
                 onPointerEnter={() => onHighlight(i)}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => onPick(i)}
-                className={`block w-full text-left px-3 py-1.5 transition-colors interactive-row ${i === highlight
+                className={`block w-full text-left px-3 py-1.5 interactive-row ${i === highlight
                     ? "active"
                     : ""
                   }`}

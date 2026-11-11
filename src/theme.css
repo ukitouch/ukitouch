@@ -63,11 +63,11 @@
 }
 
 .button-toggle-ghost {
-    @apply hover:bg-gray-300/70 dark:hover:bg-gray-800/70;
+    @apply hover:bg-gray-300/70 dark:hover:bg-gray-700/70;
 }
 
 .button-toggle-ghost.active {
-    @apply bg-gray-300 dark:bg-gray-700/70;
+    @apply bg-gray-300 dark:bg-gray-600/70;
 }
 
 .interactive-row {

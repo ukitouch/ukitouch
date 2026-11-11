@@ -146,7 +146,7 @@ function SidebarButton(props: {
     <button
       title={props.title}
       onClick={props.onClick}
-      className={`p-2 rounded-md transition-colors text-2 button-toggle-ghost ${props.active ? "active" : ""}`}
+      className={`p-2 rounded-md text-2 button-toggle-ghost ${props.active ? "active" : ""}`}
     >
       {props.icon}
     </button>
