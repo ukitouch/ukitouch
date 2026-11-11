@@ -14,7 +14,6 @@ export interface ConfirmOptions {
   message: string;
   confirmText?: string;
   cancelText?: string;
-  /** Paint the confirm button red. */
   confirmStyle?: ButtonVariant;
 }
 
@@ -24,6 +23,7 @@ const ConfirmContext = createContext<ConfirmFn | null>(null);
 
 export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [pending, setPending] = useState<ConfirmOptions | null>(null);
+  const [animateIn, setAnimateIn] = useState(false);
   const resolver = useRef<((ok: boolean) => void) | null>(null);
 
   const confirm = useCallback<ConfirmFn>(
@@ -31,14 +31,21 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
       new Promise<boolean>((resolve) => {
         resolver.current = resolve;
         setPending(options);
+        setAnimateIn(false);
+        requestAnimationFrame(() => {
+          setAnimateIn(true);
+        });
       }),
     []
   );
 
   const settle = useCallback((ok: boolean) => {
-    resolver.current?.(ok);
-    resolver.current = null;
-    setPending(null);
+    setAnimateIn(false);
+    setTimeout(() => {
+      resolver.current?.(ok);
+      resolver.current = null;
+      setPending(null);
+    }, 150);
   }, []);
 
   useEffect(() => {
@@ -50,16 +57,24 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [pending, settle]);
 
+  const overlayClasses = animateIn
+    ? "opacity-100"
+    : "opacity-0";
+
+  const contentClasses = animateIn
+    ? "opacity-100 scale-100 translate-y-0"
+    : "opacity-0 scale-95 translate-y-2";
+
   return (
     <ConfirmContext.Provider value={confirm}>
       {children}
       {pending && (
         <div
-          className="fixed inset-0 z-50 !m-0 flex items-center justify-center bg-dim"
+          className={`fixed inset-0 z-50 !m-0 flex items-center justify-center bg-dim transition-all duration-150 ease-out ${overlayClasses}`}
           onClick={() => settle(false)}
         >
           <div
-            className="rounded-md shadow-lg p-4 w-80 flex flex-col gap-3 bg-window"
+            className={`rounded-md shadow-lg p-4 w-80 flex flex-col gap-3 bg-window transition-all duration-150 ease-out ${contentClasses}`}
             onClick={(e) => e.stopPropagation()}
           >
             {pending.title && (

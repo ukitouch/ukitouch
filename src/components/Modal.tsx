@@ -1,6 +1,6 @@
 // TODO: will inplement one Modal allowed on the screen
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface ModalProps {
   open: boolean;
@@ -23,9 +23,30 @@ export function Modal({
 }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const originalOverflowRef = useRef<string>("");
+  const [mounted, setMounted] = useState(false);
+  const [animateIn, setAnimateIn] = useState(false);
+
+  // animation
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      setAnimateIn(false);
+
+      const raf = requestAnimationFrame(() => {
+        setAnimateIn(true);
+      });
+      return () => cancelAnimationFrame(raf);
+    } else {
+      setAnimateIn(false);
+      const timer = setTimeout(() => {
+        setMounted(false);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [open]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!mounted) return;
 
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -41,20 +62,28 @@ export function Modal({
       document.removeEventListener("keydown", handleKey);
       document.body.style.overflow = originalOverflowRef.current;
     };
-  }, [open, onClose]);
+  }, [mounted, onClose]);
 
-  if (!open) return null;
+  if (!mounted) return null;
+
+  const overlayClasses = animateIn
+    ? "opacity-100"
+    : "opacity-0";
+
+  const contentClasses = animateIn
+    ? "opacity-100 scale-100 translate-y-0"
+    : "opacity-0 scale-95 translate-y-2";
 
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 !m-0 flex items-center justify-center bg-dim"
+      className={`fixed inset-0 z-50 !m-0 flex items-center justify-center bg-dim transition-all duration-200 ease-out ${overlayClasses}`}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className={`w-full ${width} ${height} mx-5 rounded-lg flex flex-col overflow-hidden bg-window`}
+        className={`w-full ${width} ${height} mx-5 rounded-lg flex flex-col overflow-hidden bg-window transition-all duration-200 ease-out ${contentClasses}`}
       >
         {title && (
           <div className="flex items-center justify-between px-4 py-3 border-b shrink-0 divider">
