@@ -10,7 +10,7 @@ interface InstalledExt {
   dir: string;
 }
 
-interface ExtensionManifest {
+export interface ExtensionManifest {
   publisher: string;
   name: string;
   version: string;

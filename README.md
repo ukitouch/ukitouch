@@ -14,7 +14,7 @@ Built with Tauri 2.
 > MacOS and iOS are not supported because we don't have a member that is familiar with them. If you are interested in this project, join us!
 
 ## Extensibility
-There are two types of extensions: `frontend` and `native`, declared in `manifest.json`:
+Each extension is packed into a zip file. There are two types of extensions: `frontend` and `native`, declared in `manifest.json`:
 ```jsonc
 {
   "publisher": "",      // publisher of this extension

@@ -7,6 +7,7 @@ import { refreshUsbDevices, usbStore } from "../core/transport/usb";
 import { createStore } from "../core/utils/store";
 import { setFullscreen } from "../core/utils/ui";
 import { defineExtension, registerExtension, takeExtension } from "./registry";
+import type { ExtensionManifest } from "./loader";
 
 export { defineExtension };
 export type { ExtensionDefinition } from "./registry";
@@ -54,6 +55,10 @@ export function installBridge(): void {
 
 // Bundled extensions declare themselves via defineExtension() when their
 // module is evaluated.
+const manifests = import.meta.glob("./*/manifest.json", {
+  eager: true,
+  import: "default",
+}) as Record<string, ExtensionManifest>;
 const bundled = import.meta.glob("./*/index.{ts,tsx}");
 
 /**
@@ -61,7 +66,13 @@ const bundled = import.meta.glob("./*/index.{ts,tsx}");
  */
 export async function loadBundledExtensions(): Promise<void> {
   for (const [path, load] of Object.entries(bundled)) {
-    const id = path.split("/")[1];  // TODO: or compose via manifest?
+    const dir = path.split("/")[1];
+    const manifest = manifests[`./${dir}/manifest.json`];
+    if (!manifest) {
+      console.error(`[ext] ${dir}: no manifest.json`);
+      continue;
+    }
+    const id = `${manifest.publisher}.${manifest.name}`;
     await load();
     const def = takeExtension();
     if (!def) {
