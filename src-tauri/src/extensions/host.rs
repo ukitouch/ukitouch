@@ -80,6 +80,8 @@ pub struct ExtensionHost {
     sidecars: RwLock<HashMap<String, Arc<Sidecar>>>,
     /// Monotonically increasing request id for calls.
     next_id: AtomicU64,
+    /// Dir lock to prevent install/uninstall at the same time.
+    pub(crate) install_lock: Mutex<()>,
 }
 
 impl ExtensionHost {

@@ -128,7 +128,7 @@ pub struct ExtensionMeta {
 
 /// Result of an install attempt: written, blocked
 #[derive(Serialize)]
-#[serde(tag = "status", rename_all = "camelCase")]
+#[serde(tag = "status", rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum InstallOutcome {
     Installed {
         meta: ExtensionMeta,
@@ -209,6 +209,7 @@ pub async fn install_extension(
     zip_base64: String,
     force: bool,
 ) -> Result<InstallOutcome, String> {
+    let _guard = host.install_lock.lock().await;
     let exts_dir = app
         .path()
         .app_data_dir()
@@ -334,6 +335,7 @@ pub async fn uninstall_extension(
         return Err("invalid extension id".into());
     }
 
+    let _guard = host.install_lock.lock().await;
     host.shutdown(&id).await;
 
     let exts_dir = app
