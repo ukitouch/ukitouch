@@ -43,27 +43,27 @@
 }
 
 .button-primary {
-    @apply bg-gray-200 hover:bg-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700;
+    @apply bg-gray-200 hover:bg-gray-300 active:bg-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700 dark:active:bg-gray-700;
 }
 
 .button-ghost {
-    @apply hover:bg-gray-200/90 dark:hover:bg-gray-800/90
+    @apply hover:bg-gray-200/90 active:bg-gray-200/90 dark:hover:bg-gray-800/90 dark:active:bg-gray-800/90
 }
 
 .button-danger {
-    @apply text-red-500 border border-red-500/40 hover:bg-red-500/10;
+    @apply text-red-500 border border-red-500/40 hover:bg-red-500/10 active:bg-red-500/10;
 }
 
 .button-danger-fill {
-    @apply bg-red-700 hover:bg-red-600
+    @apply bg-red-700 hover:bg-red-600 active:bg-red-600
 }
 
 .button-toggle {
-    @apply bg-gray-200 hover:bg-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700;
+    @apply bg-gray-200 hover:bg-gray-300 active:bg-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700 dark:active:bg-gray-700;
 }
 
 .button-toggle-ghost {
-    @apply hover:bg-gray-300/70 dark:hover:bg-gray-700/70;
+    @apply hover:bg-gray-300/70 active:bg-gray-300/70 dark:hover:bg-gray-700/70 dark:active:bg-gray-700/70;
 }
 
 .button-toggle-ghost.active {
@@ -71,7 +71,7 @@
 }
 
 .interactive-row {
-    @apply hover:bg-gray-200 dark:hover:bg-gray-700;
+    @apply hover:bg-gray-200 active:bg-gray-200 dark:hover:bg-gray-700 dark:active:bg-gray-700;
 }
 .interactive-row.active {
     @apply bg-gray-200 dark:bg-gray-700/50;
