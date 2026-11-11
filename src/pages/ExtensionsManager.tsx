@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { invoke, isTauri } from "@tauri-apps/api/core";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { loadExtensionDir, unloadExtensionDir } from "../extensions/loader";
@@ -32,9 +33,43 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+type DragSink = {
+  onHover(hover: boolean): void;
+  onDrop(paths: string[]): void;
+};
+
+let dragSink: Partial<DragSink> = {};
+let dragUnlisten: (() => void) | undefined;
+let dragDisposed = false;
+
+if (isTauri()) {
+  void getCurrentWebview()
+    .onDragDropEvent(({ payload }) => {
+      if (payload.type === "drop") {
+        dragSink.onHover?.(false);
+        dragSink.onDrop?.(payload.paths);
+      } else {
+        dragSink.onHover?.(payload.type !== "leave");
+      }
+    })
+    .then((fn) => {
+      if (dragDisposed) fn();
+      else dragUnlisten = fn;
+    });
+}
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    dragDisposed = true;
+    dragUnlisten?.();
+  });
+}
+
 export function ExtensionsManager() {
   const [list, setList] = useState<InstalledExt[] | null>(null);
   const [installing, setInstalling] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const installingRef = useRef(false);
   const { show } = useToast();
   const confirm = useConfirm();
 
@@ -50,16 +85,12 @@ export function ExtensionsManager() {
     void refresh();
   }, [refresh]);
 
-  async function install() {
-    const picked = await open({
-      title: "Install extension",
-      filters: [{ name: "Extension", extensions: ["zip"] }],
-    });
-    if (!picked) return;
-
+  const installFromPath = useCallback(async (path: string) => {
+    if (installingRef.current) return;
+    installingRef.current = true;
     setInstalling(true);
     try {
-      const bytes = await readFile(picked);
+      const bytes = await readFile(path);
       const zipBase64 = toBase64(bytes);
       let outcome = await invoke<InstallOutcome>("install_extension", {
         zipBase64,
@@ -84,14 +115,45 @@ export function ExtensionsManager() {
       }
 
       if (outcome.status !== "installed") return;
-      await loadExtensionDir(outcome.meta.dir);
-      show(`installed ${outcome.meta.name} v${outcome.meta.version}`);
       await refresh();
+      show(`installed ${outcome.meta.name} v${outcome.meta.version}`);
+
+      // load failure should be shown directly after install
+      try {
+        await loadExtensionDir(outcome.meta.dir);
+      } catch (e) {
+        show(`${outcome.meta.name} load failed: ${e}`, "error");
+      }
     } catch (e) {
       show(`install failed: ${e}`, "error");
     } finally {
+      installingRef.current = false;
       setInstalling(false);
     }
+  }, []);
+
+  useEffect(() => {
+    const sink: DragSink = {
+      onHover: setDragging,
+      onDrop: (paths) => {
+        // only handle the first zip file
+        const file = paths.find((p) => p.toLowerCase().endsWith(".zip")) ?? paths[0];
+        void installFromPath(file);
+      },
+    };
+    dragSink = sink;
+    return () => {
+      if (dragSink === sink) dragSink = {};
+      setDragging(false);
+    };
+  }, [installFromPath, show]);
+
+  async function install() {
+    const picked = await open({
+      title: "Install extension",
+      filters: [{ name: "Extension", extensions: ["zip"] }],
+    });
+    if (picked) await installFromPath(picked);
   }
 
   async function uninstall(ext: InstalledExt) {
@@ -132,6 +194,11 @@ export function ExtensionsManager() {
       >
         {installing ? "Installing…" : "Install extension (.zip)"}
       </Button>
+      {dragging && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none bg-dim">
+          <span className="rounded-md px-6 py-4 text-lg text-1 bg-box shadow-lg">Drop to install</span>
+        </div>
+      )}
       <ul className="flex flex-col gap-2">
         {(list ?? []).map((ext) => {
           const deps = (ext.requires ?? [])
