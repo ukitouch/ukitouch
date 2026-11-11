@@ -21,8 +21,8 @@ const SORT_OPTIONS = [
   { id: "firstSeen-desc", label: "Newest first", key: "firstSeen", dir: -1 },
   { id: "firstSeen-asc", label: "Oldest first", key: "firstSeen", dir: 1 },
   { id: "lastSeen-desc", label: "Last connected", key: "lastSeen", dir: -1 },
-  { id: "name-asc", label: "Name A–Z", key: "name", dir: 1 },
-  { id: "name-desc", label: "Name Z–A", key: "name", dir: -1 },
+  { id: "name-asc", label: "Name A-Z", key: "name", dir: 1 },
+  { id: "name-desc", label: "Name Z-A", key: "name", dir: -1 },
 ];
 type SortOption = (typeof SORT_OPTIONS)[number];
 type SortId = SortOption["id"];
@@ -123,7 +123,7 @@ function DeviceDetail({
               <li key={e.id}>
                 <button
                   onClick={() => setExpanded(expanded === e.id ? null : e.id)}
-                  className="w-full text-left px-2 py-1 rounded transition-colors button-ghost"
+                  className="w-full text-left px-2 py-1 rounded button-ghost"
                 >
                   <span className="flex items-center gap-1 text-1">
                     <svg
@@ -276,7 +276,7 @@ function Devices() {
                       return (
                         <li
                           key={e.id}
-                          className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors button-ghost"
+                          className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer button-ghost"
                           onClick={() => setSelectedUuid(e.uuid)}
                         >
                           <span className="flex items-center text-xs text-3">
@@ -340,7 +340,7 @@ function Devices() {
                     <div
                       key={d.uuid}
                       onClick={() => setSelectedUuid(d.uuid)}
-                      className={`p-3 rounded-lg cursor-pointer transition-colors button-toggle-ghost ${selectedUuid === d.uuid
+                      className={`p-3 rounded-lg cursor-pointer button-toggle-ghost ${selectedUuid === d.uuid
                         ? "active"
                         : ""
                         }`}
@@ -434,7 +434,7 @@ export default function DeviceManagement() {
     <>
       <button
         onClick={() => setDeviceModalOpen(true)}
-        className="w-full flex items-center justify-between py-3 px-4 rounded-lg transition-colors text-left button-ghost"
+        className="w-full flex items-center justify-between py-3 px-4 rounded-lg text-left button-ghost"
       >
         <div>
           <div className="text-sm font-medium text-2">Device Management</div>

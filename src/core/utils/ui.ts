@@ -1,5 +1,3 @@
-// TODO: temporary this name
-
 import { invoke } from "@tauri-apps/api/core";
 import type { NetContext, Layout } from "../types";
 

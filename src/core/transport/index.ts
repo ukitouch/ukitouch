@@ -1,15 +1,6 @@
 import type { Disposable } from "../types";
 
 /**
- * Transport abstraction.
- *
- * Different kind of transports obly implement their underlying
- * logic to open a channel, extensions themselves should define
- * and implement their own data interface.
- */
-export type TransportKind = "webrtc" | "usb" | "ble";
-
-/**
  * TODO: Current implementation is a WebRTC DataChannel, USB / Bluetooth transports will implement
  * the same shape, invisible to extensions.
  */
@@ -33,7 +24,7 @@ export interface Channel {
 }
 
 /** Arguments specific to the WebRTC transport. */
-export interface WebRtcOpenSpec {
+interface WebRtcOpenSpec {
   transport: "webrtc";
   /**
    * The other device's id (uuid or temp id).
@@ -45,7 +36,7 @@ export interface WebRtcOpenSpec {
 /**
  * USB transport
  */
-export interface UsbOpenSpec {
+interface UsbOpenSpec {
   transport: "usb";
   serial?: string;
 }
@@ -55,7 +46,7 @@ export interface UsbOpenSpec {
  * 
  * TODO: not implemented yet
  */
-export interface BleOpenSpec {
+interface BleOpenSpec {
   transport: "ble";
   // device address, service uuid, ...
 }

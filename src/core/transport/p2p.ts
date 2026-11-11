@@ -39,17 +39,17 @@ function loadServerConfig(): ServerConfig {
 //#endregion
 //#region Signaling
 
-export interface Forwarded {
+interface Forwarded {
   from: string;
   value: Record<string, unknown>;
 }
 
-export interface SignalingError {
+interface SignalingError {
   error: string;
   [key: string]: unknown;
 }
 
-export interface SignalingApi {
+interface SignalingApi {
   connect(url: string, id: string, force?: boolean): Promise<void>;
   send(to: string, payload: Record<string, unknown>): Promise<void>;
   query(id: string): Promise<boolean>;
@@ -61,7 +61,7 @@ export interface SignalingApi {
 }
 
 /** Connection lifecycle reported by `net::signaling::Status`. */
-export type SignalingStatus = "Connecting" | "Connected" | "Disconnected";
+type SignalingStatus = "Connecting" | "Connected" | "Disconnected";
 
 interface ForwardEvent {
   name: string;
@@ -84,7 +84,7 @@ interface StatusEvent {
 /**
  * @param name unique name for the signaling connection
  */
-export function createSignaling(name: string): SignalingApi {
+function createSignaling(name: string): SignalingApi {
   const forwardHandlers = new Set<(f: Forwarded) => void>();
   const noticeHandlers = new Set<(message: string) => void>();
   const errorHandlers = new Set<(e: SignalingError) => void>();
@@ -168,7 +168,7 @@ export function createSignaling(name: string): SignalingApi {
 }
 
 /** Shared primary (uuid) signaling connection. */
-export const signaling = createSignaling("primary");
+const signaling = createSignaling("primary");
 
 /** Set ICE servers and connect the permanent signaling connection. */
 export async function startSignaling(): Promise<void> {
@@ -243,7 +243,7 @@ export const tempIdStore = createStore<{ enabled: boolean; id: string | null }>(
   id: null,
 });
 
-export function isTempIdOn(): boolean {
+function isTempIdOn(): boolean {
   return tempIdStore.get().enabled;
 }
 

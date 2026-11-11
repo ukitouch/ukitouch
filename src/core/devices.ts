@@ -57,22 +57,6 @@ class DeviceStore {
     if (next) this.applyDevice(next);
   }
 
-  /**
-   * Patch a device profile with peer-reported hello info.
-   * 
-   * Null fields keep the existing value.
-   */
-  async updateHello(uuid: string, hello: HostInfo): Promise<void> {
-    await this.init();
-    const patch: Partial<Omit<DeviceRecord, "uuid">> = {};
-    if (hello.name !== null) patch.name = hello.name;
-    if (hello.platform !== null) patch.platform = hello.platform;
-    if (hello.os !== null) patch.os = hello.os;
-    if (Object.keys(patch).length === 0) return;
-    const next = await deviceRepo.patchDevice(uuid, patch);
-    if (next) this.applyDevice(next);
-  }
-
   /** Delete a device profile and its associated event log. */
   async removeDevice(uuid: string): Promise<void> {
     await this.init();
