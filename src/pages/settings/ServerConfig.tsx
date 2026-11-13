@@ -1,5 +1,5 @@
 import { useState } from "react";
-import EditableField from "../../components/EditableField";
+import { EditableField } from "../../components/EditableField";
 import { reconnectSignaling, SERVER_CONFIG_KEY, type ServerConfig } from "../../core/transport/p2p";
 import { useConfirm } from "../../components/Confirm";
 import { showToast } from "../../components/Toast";
