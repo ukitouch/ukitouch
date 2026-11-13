@@ -50,11 +50,6 @@ try {
   // first publish
 }
 
-if (published.includes(version)) {
-  console.log(`version ${version} already published, skip`);
-  process.exit(0);
-}
-
 if (published.length > 0) {
   const latest = npm("view @ukitouch/api dist-tags.latest");
   const tarball = npm(`view @ukitouch/api@${latest} dist.tarball`);
