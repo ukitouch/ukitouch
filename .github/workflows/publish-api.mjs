@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+const root = fileURLToPath(new URL("../../", import.meta.url));
 const pkgDir = fileURLToPath(new URL("../../dist/api/", import.meta.url));
 const version = process.env.TAG.slice(1);
 
@@ -14,10 +15,16 @@ const pkg = {
   description: "Type definitions for ukitouch frontend extensions",
   exports: { ".": { types: "./api/index.d.ts" } },
   types: "api/index.d.ts",
-  files: ["**/*.d.ts"],
+  license: "GPL-3.0-or-later",
+  files: ["**/*.d.ts", "LICENSE", "README.md"],
   peerDependencies: { react: "^19" },
 };
 fs.writeFileSync(path.join(pkgDir, "package.json"), JSON.stringify(pkg, null, 2) + "\n");
+
+fs.copyFileSync(path.join(root, "LICENSE"), path.join(pkgDir, "LICENSE"));
+const readme = path.join(root, "src/api/README.md");
+if (fs.existsSync(readme))
+  fs.copyFileSync(readme, path.join(pkgDir, "README.md"));
 
 const npm = (args) => execSync(`npm ${args}`, { encoding: "utf8" }).trim();
 const sha = (f) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
