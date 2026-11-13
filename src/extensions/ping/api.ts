@@ -3,7 +3,7 @@ import {
   type Channel,
   type DeviceRecord,
   type NetContext,
-} from "../../api";
+} from "@ukitouch/api";
 
 export interface PingState {
   logs: string[];

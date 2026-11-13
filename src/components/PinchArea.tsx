@@ -6,7 +6,7 @@ import {
 } from "react";
 import { watchPinch } from "../core/utils/pinch";
 
-/** Where a {@link PinchArea}'s content sits after a gesture, in area pixels. */
+/** Where a {@link PinchArea}'s content sits after a gesture. */
 export interface PinchTransform {
   /** content scale */
   scale: number;
@@ -25,7 +25,6 @@ export interface PinchAreaProps {
    * Called once after the pinch ends.
    */
   onCommit?: (t: PinchTransform) => void;
-  /** appended to the area's classes */
   className?: string;
   children?: ReactNode;
   /**
@@ -60,13 +59,9 @@ const distance = (a: Point, b: Point): number =>
   Math.hypot(b.x - a.x, b.y - a.y);
 
 /**
- * Pinchable area. The layer's first child is the content box: it is what gets
- * scaled and what the pan bounds are derived from, centered while it is smaller
- * than the area.
+ * Pinch-to-zoom area.
  *
- * @param onCommit callback after the pinch ends
- *
- * @returns The rendered area.
+ * @param onCommit - Callback after the pinch ends
  */
 export function PinchArea({
   min = 1,

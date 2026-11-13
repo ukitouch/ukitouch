@@ -18,10 +18,9 @@ export function bindLayout(impl: { setLayout: (layout: Layout) => void }): void 
 /**
  * Hold the app fullscreen.
  *
- * Android only: the command rejects elsewhere, where the window belongs to the
- * user.
+ * Android only.
  *
- * @param enabled Whether to hold the fullscreen mode.
+ * @param enabled - Whether to hold the fullscreen mode.
  */
 export async function setFullscreen(enabled: boolean): Promise<void> {
   await invoke("set_fullscreen", { enabled });

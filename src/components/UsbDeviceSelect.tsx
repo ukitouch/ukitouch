@@ -5,6 +5,7 @@ export interface UsbDeviceSelectProps {
   devices: readonly UsbDevice[];
   /** Selected serial. */
   value: string;
+  /** Calls when the user selects a serial. */
   onChange: (serial: string) => void;
   className?: string;
 }

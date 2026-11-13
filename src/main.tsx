@@ -7,12 +7,11 @@ import { startSignaling } from "./core/transport/p2p";
 import { deviceStore } from "./core/devices";
 import { activateExtensions } from "./extensions/registry";
 import { loadInstalledExtensions } from "./extensions/loader";
-import { installBridge, loadBundledExtensions } from "./extensions";
+import { loadBundledExtensions } from "./extensions";
 import "./index.css";
 import "./theme.css";
 
 // Load extensions.
-installBridge();  // runtime surface
 loadBundledExtensions()
   .then(loadInstalledExtensions)
   .then(activateExtensions)

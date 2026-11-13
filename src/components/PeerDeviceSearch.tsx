@@ -5,14 +5,15 @@ import { ListboxEntry, useListbox, ListboxPanel } from "./Listbox";
 export interface PeerDeviceSearchProps {
   /** Known peers to search over. */
   devices: readonly DeviceRecord[];
-  /** Currently picked peer uuid, or null for a free-text temp id. */
+  /** Currently picked peer uuid, or null for a temp id input. */
   selectedUuid: string | null;
-  /** Input text (controlled); shows as a chip while a peer is picked. */
+  /** Input text, or shows as a chip while a peer is picked. */
   text: string;
+  /** Calls when input text changed. */
   onTextChange: (text: string) => void;
-  /** A known peer was picked. */
+  /** Calls when selected a known peer. */
   onSelect: (uuid: string, label: string) => void;
-  /** Free-text dial; receives the trimmed temp id. Omit to hide the row. */
+  /** Calls when selected input text that does not match any known peer. */
   onCreate?: (query: string) => void;
   className?: string;
   placeholder?: string;
@@ -20,37 +21,6 @@ export interface PeerDeviceSearchProps {
 
 /** Entry id reserved for the "create new" row. */
 const CREATE_ID = "\u0000create";
-
-export interface SearchOption {
-  /** Stable id handed back to `onSelect`. */
-  id: string;
-  /** Primary text. */
-  label: string;
-  /** Secondary text shown after the label (e.g. platform). */
-  hint?: string;
-}
-
-export interface SearchSelectProps {
-  /** Input text (controlled). Doubles as the free-text value. */
-  text: string;
-  /** Id of the picked option, or null for a free-text value. */
-  selectedId: string | null;
-  options: readonly SearchOption[];
-  /** The user typed; the caller decides whether to drop the selection. */
-  onTextChange: (text: string) => void;
-  onSelect: (option: SearchOption) => void;
-  /**
-   * Enables the "create new" row and receives the trimmed text.
-   * Omit to hide it.
-   */
-  onCreate?: (query: string) => void;
-  placeholder?: string;
-  /** Shown when nothing matches and `onCreate` is absent. */
-  emptyText?: string;
-  /** Label for the create row. Defaults to "Connect to new device". */
-  createLabel?: string;
-  className?: string;
-}
 
 /**
  * p2p peer picker: searches known devices, optionally dials a temp id.

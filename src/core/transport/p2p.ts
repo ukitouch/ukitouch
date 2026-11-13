@@ -1,7 +1,7 @@
 import { Channel as IpcChannel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { deviceUuid, genTempId } from "../identity";
-import type { Channel } from ".";
+import type { Channel, ChannelReadyState } from ".";
 import { createStore } from "../utils/store";
 import { toDisposable, type Disposable } from "../types";
 import { showToast } from "../../api";
@@ -383,7 +383,7 @@ class P2PChannel implements Channel {
   readonly label: string;
   readonly token: string;
   readonly channelId: number;
-  readyState: string = "connecting";
+  readyState: ChannelReadyState = "connecting";
   bufferedAmount: number = 0;
   onmessage: ((ev: MessageEvent) => void) | null = null;
   onclose: ((ev: Event) => void) | null = null;

@@ -8,15 +8,17 @@ export interface Disposable {
 
 /** A host's information. */
 export interface HostInfo {
+  /** Hostname reported by the peer, nullable. */
   name: string | null;
   platform: Platform | null;
+  /** OS description, e.g. "Windows 11". */
   os: string | null;
 }
 
 /**
  * Wrap a cleanup function as a `Disposable`.
  *
- * @param fn The cleanup to run when {@link Disposable.dispose} is called.
+ * @param fn - The cleanup to run when {@link Disposable.dispose} is called.
  * @returns A `Disposable` that runs `fn` exactly once on dispose.
  */
 export function toDisposable(fn: () => void): Disposable {
@@ -26,46 +28,44 @@ export function toDisposable(fn: () => void): Disposable {
 /** Shell layout */
 export type Layout = "withSidebar" | "fullscreen";
 
-/** Host platforms, matched against an extension's platform matrix. */
+/** Host platforms. */
 export type Platform = "windows" | "linux" | "android";
 
 /** API the host hands to an extension's logic layer (activate). */
 export interface NetContext {
   /**
    * Disposables to release together when the extension is deactivated or
-   * uninstalled. Subscribe APIs return a `Disposable`; push it here.
+   * uninstalled.
    */
   readonly subscriptions: Disposable[];
   /**
    * Request a shell layout for the extension's view.
-   *
-   * @param layout The target layout.
    */
   setLayout(layout: Layout): void;
   /**
    * Open a channel labelled with this extension's ID.
    *
-   * @param request The transport-specific open request.
+   * @param request - The transport-specific open request.
    * @returns A promise resolving to the opened channel once the handshake completes.
    */
   openChannel(request: OpenSpec): Promise<Channel>;
   /**
    * Handle an incoming channel that a remote peer opened with this extension's id.
    *
-   * @param handler Receives each incoming channel.
+   * @param handler - Receives each incoming channel.
    * @returns A `Disposable` that unregisters the handler.
    */
   onChannel(handler: (channel: Channel) => void): Disposable;
   /**
-   * Bridge a sidecar's loopback pipe into an opened channel.
+   * Bridge a native extension's loopback pipe into an opened channel.
    *
-   * @param channel A channel opened by this extension.
-   * @param addr The loopback address the sidecar listens on.
+   * @param channel - A channel opened by this extension.
+   * @param addr - The loopback address the native extension listens on.
    * @returns A `Disposable` that unbinds the pipe.
    */
   bindPipe(channel: Channel, addr: string): Promise<Disposable>;
   /**
-   * Abort an in-progress {@link openChannel}.
+   * Abort an in-progress `openChannel`.
    *
    * @returns A promise that resolves once the pending connection is cancelled.
    */
@@ -73,14 +73,14 @@ export interface NetContext {
   /**
    * Read the current known-device list.
    *
-   * @returns The snapshot of known devices.
+   * @returns Device Record
    */
   getKnownDevices(): DeviceRecord[];
   /**
    * Subscribe to the known-device list. The handler receives the full current
    * list immediately, then again on every change.
    *
-   * @param handler Receives the full known-device list.
+   * @param handler - Receives the full known-device list.
    * @returns A `Disposable` that unsubscribes the handler.
    */
   onDeviceSeen(handler: (devices: DeviceRecord[]) => void): Disposable;

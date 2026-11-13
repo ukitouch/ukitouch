@@ -10,7 +10,7 @@ interface Toast {
   kind: ToastKind;
 }
 
-interface ToastApi {
+export interface ToastApi {
   show(message: string, kind?: ToastKind): void;
 }
 
@@ -88,6 +88,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 }
 
+/** React hook to show a toast. */
 export function useToast(): ToastApi {
   const ctx = useContext(ToastContext);
   if (!ctx) throw new Error("useToast outside ToastProvider");
@@ -108,8 +109,8 @@ function setToastSink(fn: ((message: string, kind?: ToastKind) => void) | null):
 /**
  * Show a toast if a sink is wired.
  *
- * @param message The message to show.
- * @param kind The severity, defaults to "info".
+ * @param message - The message to show.
+ * @param kind - The severity, defaults to "info".
  */
 export function showToast(message: string, kind?: ToastKind): void {
   toastImpl?.(message, kind);

@@ -9,6 +9,7 @@ export interface Store<T> {
   subscribe(cb: () => void): () => void;
 }
 
+/** Create a {@link Store} */
 export function createStore<T extends object>(initial: T): Store<T> {
   let state: T = { ...initial };
   const listeners = new Set<() => void>();

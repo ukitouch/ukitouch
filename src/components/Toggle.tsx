@@ -3,12 +3,12 @@ export interface ToggleProps {
   checked: boolean;
   /** Called with the state it was flipped to. */
   onChange: (checked: boolean) => void;
-  /** Accessible name, for when no visible label is next to it. */
   ariaLabel?: string;
   disabled?: boolean;
   className?: string;
 }
 
+/** A toggle button component. */
 export function Toggle({
   checked,
   onChange,

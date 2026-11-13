@@ -10,7 +10,12 @@ const devRedirect = (): Plugin => ({
   name: "ext-dev-redirect",
   configureServer(server: ViteDevServer) {
     server.middlewares.use((req, res, next) => {
-      if (req.url === "/api.js") req.url = "/src/api/index.ts";
+      const map: Record<string, string> = {
+        "/api.js": "/src/api/index.ts",
+        "/react.js": "/src/host/react.ts",
+        "/jsx-runtime.js": "/src/host/jsx-runtime.ts",
+      };
+      if (req.url && req.url in map) req.url = map[req.url];
       next();
     });
   },
@@ -19,6 +24,11 @@ const devRedirect = (): Plugin => ({
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), devRedirect()] as PluginOption[],
+  resolve: {
+    alias: {
+      "@ukitouch/api": r("src/api/index.ts"),
+    },
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
@@ -46,7 +56,9 @@ export default defineConfig({
       preserveEntrySignatures: "strict",
       input: {
         main: r("index.html"),
-        "api": r("src/api/index.ts")
+        "api": r("src/api/index.ts"),
+        "react": r("src/host/react.ts"),
+        "jsx-runtime": r("src/host/jsx-runtime.ts"),
       },
       output: { entryFileNames: "[name].js" },
     },

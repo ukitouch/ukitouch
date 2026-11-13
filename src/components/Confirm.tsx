@@ -17,7 +17,7 @@ export interface ConfirmOptions {
   confirmStyle?: ButtonVariant;
 }
 
-type ConfirmFn = (options: ConfirmOptions) => Promise<boolean>;
+export type ConfirmFn = (options: ConfirmOptions) => Promise<boolean>;
 
 const ConfirmContext = createContext<ConfirmFn | null>(null);
 
@@ -106,6 +106,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   );
 }
 
+/** React hook to show a confirmation dialog. */
 export function useConfirm(): ConfirmFn {
   const ctx = useContext(ConfirmContext);
   if (!ctx) throw new Error("useConfirm outside ConfirmProvider");

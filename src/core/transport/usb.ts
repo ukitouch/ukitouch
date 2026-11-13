@@ -1,16 +1,18 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { createStore } from "../utils/store";
-import { Channel } from ".";
+import { Channel, ChannelReadyState } from ".";
 
 export interface UsbDevice {
+  /** The device's serial. */
   serial: string;
-  state: string; // "device" | "unauthorized" | "offline" | ...
+  /** "device" | "unauthorized" | "offline" | ... */
+  state: string;
 }
 
 export const usbStore = createStore<{ devices: UsbDevice[] }>({ devices: [] });
 
-/** Refresh the device list from the Rust backend. */
+/** Refresh the usb device list from the Rust backend. */
 export async function refreshUsbDevices(): Promise<void> {
   try {
     const devices = await invoke<UsbDevice[]>("usb_list_devices");
@@ -76,7 +78,7 @@ function toBytes(
 class UsbChannel implements Channel {
   readonly label: string;
   readonly channelId: number;
-  readyState: string = "connecting";
+  readyState: ChannelReadyState = "connecting";
   bufferedAmount: number = 0;
   onmessage: ((ev: MessageEvent) => void) | null = null;
   onclose: ((ev: Event) => void) | null = null;

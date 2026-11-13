@@ -1,17 +1,17 @@
-import * as React from "react";
+import { createElement, Fragment, type ComponentType, type ReactNode } from "react";
 import { makeContext } from "../core/transport/net";
 import type { NetContext } from "../core/types";
 
 //#region Definition
 
 /**
- * What an extension declares.
+ * An frontend extension's declaration.
  */
 export interface ExtensionDefinition {
   /** Display name (sidebar tooltip, page title). Defaults to `publisher.name`. */
   title?: string;
   /** Sidebar icon. */
-  icon?: React.ReactNode;
+  icon?: ReactNode;
   /**
    * Logic layer entry. Called once at app startup, independent of the view
    * lifecycle.
@@ -20,7 +20,7 @@ export interface ExtensionDefinition {
    */
   activate?: (ctx: NetContext) => void | (() => void);
   /** View layer, rendered in the main area when active. */
-  component?: React.ComponentType;
+  component?: ComponentType;
 }
 
 /**
@@ -30,8 +30,8 @@ export interface RegisteredExtension extends ExtensionDefinition {
   /** publisher.name */
   id: string;
   title: string;
-  icon: React.ReactNode;
-  component: React.ComponentType;
+  icon: ReactNode;
+  component: ComponentType;
 }
 
 /**
@@ -45,7 +45,7 @@ function normalize(def: ExtensionDefinition, id: string): RegisteredExtension {
   return {
     id,
     title: def.title ?? id,
-    icon: def.icon ?? React.createElement(React.Fragment, null),
+    icon: def.icon ?? createElement(Fragment, null),
     component: def.component ?? (() => null),
     activate: def.activate,
   };
@@ -55,7 +55,7 @@ function normalize(def: ExtensionDefinition, id: string): RegisteredExtension {
 let pending: ExtensionDefinition | null = null;
 
 /**
- * Declare the extension being loaded.
+ * A frontend extension should declare itself by calling this.
  */
 export function defineExtension(def: ExtensionDefinition): void {
   pending = def;

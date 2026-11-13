@@ -2,9 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 
-interface ModalProps {
+export interface ModalProps {
+  /** Whether the modal is open. */
   open: boolean;
+  /** Called when the modal is closed. */
   onClose: () => void;
+  /** The modal title. */
   title?: string;
   children: React.ReactNode;
   /** Default to "max-w-2xl" */
@@ -13,6 +16,9 @@ interface ModalProps {
   height?: string;
 }
 
+/**
+ * A modal component.
+ */
 export function Modal({
   open,
   onClose,

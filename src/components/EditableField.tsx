@@ -1,18 +1,21 @@
 import { useState } from "react";
 import { Button } from "./Button";
 
+export interface EditableFieldProps {
+  label: string;
+  /** Value on non-editing */
+  value: string;
+  placeholder?: string;
+  onSave: (value: string) => Promise<void>;
+}
+
 /** Inline editable text field. Edit button and input are on the same row. */
-export default function EditableField({
+export function EditableField({
   label,
   value,
   placeholder,
   onSave,
-}: {
-  label: string;
-  value: string;
-  placeholder?: string;
-  onSave: (value: string) => Promise<void>;
-}) {
+}: EditableFieldProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
 

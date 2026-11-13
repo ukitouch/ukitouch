@@ -8,10 +8,7 @@ export interface PageHeaderProps {
 }
 
 /**
- * Consistent page header (title + optional subtitle).
- *
- * @param props The title and optional subtitle.
- * @returns The rendered header.
+ * Page header (title + optional subtitle).
  */
 export function PageHeader({ title, subtitle }: PageHeaderProps) {
   return (

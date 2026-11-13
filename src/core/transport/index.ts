@@ -2,11 +2,13 @@ import type { Disposable } from "../types";
 
 /**
  * TODO: Current implementation is a WebRTC DataChannel, USB / Bluetooth transports will implement
- * the same shape, invisible to extensions.
+ * the same shape.
  */
 export interface Channel {
+  /** Extension's id.  */
   readonly label: string;
-  readonly readyState: string;
+  readonly readyState: ChannelReadyState;
+  /** Bytes queued but not yet sent. Used for backpressure checks */
   readonly bufferedAmount: number;
   send(data: string | ArrayBuffer | ArrayBufferView | Blob): void;
   close(): void;
@@ -17,27 +19,29 @@ export interface Channel {
   /**
    * Bridge a loopback TCP address into this channel.
    *
-   * @param addr The sidecar's loopback address.
+   * @param addr - The native extension's loopback address.
    * @returns A `Disposable` that unbinds the pipe.
    */
   bindPipe?(addr: string): Promise<Disposable>;
 }
 
+export type ChannelReadyState = "connecting" | "closed";
+
 /** Arguments specific to the WebRTC transport. */
-interface WebRtcOpenSpec {
+export interface WebRtcOpenSpec {
   transport: "webrtc";
   /**
    * The other device's id (uuid or temp id).
    */
   target: string;
-  reliable?: boolean;
 }
 
 /**
  * USB transport
  */
-interface UsbOpenSpec {
+export interface UsbOpenSpec {
   transport: "usb";
+  /** The other device's serial. */
   serial?: string;
 }
 
@@ -46,7 +50,7 @@ interface UsbOpenSpec {
  * 
  * TODO: not implemented yet
  */
-interface BleOpenSpec {
+export interface BleOpenSpec {
   transport: "ble";
   // device address, service uuid, ...
 }

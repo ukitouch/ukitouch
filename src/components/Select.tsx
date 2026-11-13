@@ -7,13 +7,18 @@ export interface SelectOption<T extends string> {
 }
 
 export interface SelectProps<T extends string> {
+  /** The currently selected value. */
   value: T;
+  /** The options to choose from. */
   options: readonly SelectOption<T>[];
   onChange: (value: T) => void;
   className?: string;
   ariaLabel?: string;
 }
 
+/**
+ * A select component.
+ */
 export function Select<T extends string>({
   value,
   options,

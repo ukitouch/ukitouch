@@ -1,10 +1,8 @@
 /**
  * Public extension API.
  *
- * Extensions code against this module. Bundled extensions import it directly;
- * installed (zip) extensions use the same surface at runtime through `window.ukitouch`.
+ * Served at `/api.js` behind the import map entry `@ukitouch/api`.
  */
-import * as React from "react";
 import { getHostInfo } from "../core/hostinfo";
 import { setFullscreen } from "../core/utils/ui";
 import { createStore } from "../core/utils/store";
@@ -12,11 +10,7 @@ import { refreshUsbDevices, usbStore } from "../core/transport/usb";
 import { showToast } from "../components/Toast";
 import { nativeCall } from "./extensions";
 import { toDisposable } from "../core/types";
-import type { NetContext, Platform, Layout, Disposable } from "../core/types";
-import type { DeviceRecord } from "../core/db";
-import type { Channel, OpenSpec } from "../core/transport";
 
-export { React };
 export * from "./components";
 export { defineExtension } from "../extensions/registry";
 export type { ExtensionDefinition } from "../extensions/registry";
@@ -37,13 +31,24 @@ export type {
   Platform,
   Layout,
   Disposable,
-  Channel,
-  OpenSpec,
-  DeviceRecord,
-};
+  HostInfo,
+} from "../core/types";
 
-export type { SelectOption } from "../components/Select";
+export type { DeviceRecord, CoreProtocol } from "../core/db";
+export type { Channel, ChannelReadyState, OpenSpec, WebRtcOpenSpec, UsbOpenSpec, BleOpenSpec } from "../core/transport";
+
+export type { SelectOption, SelectProps } from "../components/Select";
 export type { UsbDevice } from "../core/transport/usb";
 export type { Store } from "../core/utils/store";
-export type { ToastKind } from "../components/Toast";
+export type { ToastKind, ToastApi } from "../components/Toast";
+export type { ConfirmOptions, ConfirmFn } from "../components/Confirm";
+export type { EditableFieldProps } from "../components/EditableField";
 export type { PinchTransform, PinchAreaProps } from "../components/PinchArea";
+export type { ButtonProps, ButtonVariant } from "../components/Button";
+export type { ModalProps } from "../components/Modal";
+export type { PageHeaderProps } from "../components/PageHeader";
+export type { PeerDeviceSearchProps } from "../components/PeerDeviceSearch";
+export type { SectionHeaderProps } from "../components/SectionHeader";
+export type { SettingRowProps } from "../components/SettingRow";
+export type { ToggleProps } from "../components/Toggle";
+export type { UsbDeviceSelectProps } from "../components/UsbDeviceSelect";

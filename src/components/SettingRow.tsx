@@ -7,15 +7,11 @@ export interface SettingRowProps {
   action?: ReactNode;
   /** Small helper text below the body. */
   hint?: ReactNode;
-  /** Body content. */
   children?: ReactNode;
 }
 
 /**
- * A labelled setting row: label + trailing action, then body, then optional hint.
- *
- * @param props The row's label, action, hint and body.
- * @returns The rendered row.
+ * A labelled setting row.
  */
 export function SettingRow({ label, action, hint, children }: SettingRowProps) {
   return (

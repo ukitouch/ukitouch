@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 
 export interface SectionHeaderProps {
-  /** Label text. */
   children: ReactNode;
   /** Optional control on the right side of the header. */
   action?: ReactNode;
@@ -11,19 +10,8 @@ export interface SectionHeaderProps {
   open?: boolean;
 }
 
-const LABEL_CLASS =
-  "text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400";
-
 /**
- * Section heading: an uppercase label, optionally collapsible and with a
- * trailing action.
- *
- * @param props.children The label text.
- * @param props.action Optional control rendered on the right of the header.
- * @param props.onClick When provided, the label renders as a collapsible toggle
- *   that calls this on click.
- * @param props.open Whether the collapsible section is open (rotates the chevron).
- * @returns The rendered header.
+ * Section heading, optionally collapsible and with a trailing action.
  */
 export function SectionHeader({
   children,
@@ -37,7 +25,7 @@ export function SectionHeader({
         <button
           type="button"
           onClick={onClick}
-          className={`flex items-center gap-1 ${LABEL_CLASS} interactive-text-1`}
+          className={`flex items-center gap-1 text-xs font-semibold tracking-wider interactive-text-1`}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -56,7 +44,7 @@ export function SectionHeader({
           {children}
         </button>
       ) : (
-        <div className={LABEL_CLASS}>{children}</div>
+        <div className="text-xs font-semibold tracking-wider text-3">{children}</div>
       )}
       {action}
     </div>

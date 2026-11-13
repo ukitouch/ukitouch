@@ -15,10 +15,9 @@ const VARIANTS: Record<ButtonVariant, string> = {
 };
 
 /**
- * Shared button with a small set of variants.
+ * Shared button component.
  *
- * @param props Button props; `className` is appended to the base styles.
- * @returns The rendered button.
+ * @param props - {@link ButtonProps}
  */
 export function Button({
   variant = "primary",

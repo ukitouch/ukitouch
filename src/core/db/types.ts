@@ -26,17 +26,17 @@ export interface DeviceRecord {
   /**
    * User remark, nullable.
    * 
-   * Display priority: remark > name > "Unknown device".
+   * Display priority: remark \> name \> "Unknown device".
    */
   remark: string | null;
   platform: Platform | null;
   /** OS description, e.g. "Windows 11". */
   os: string | null;
-  /** First registration time (epoch ms). */
+  /** First connected time (epoch ms). */
   firstSeen: number;
-  /** Last connection time. */
+  /** Last connection time (epoch ms). */
   lastSeen: number | null;
-  /** Core protocol of the last connection. */
+  /** {@link CoreProtocol} of the last connection. */
   protocol: CoreProtocol | null;
 }
 
