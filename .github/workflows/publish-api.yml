@@ -27,4 +27,3 @@ jobs:
       - run: node .github/workflows/publish-api.mjs
         env:
           TAG: ${{ github.ref_name }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
