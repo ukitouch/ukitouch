@@ -27,6 +27,9 @@ pub enum Kind {
 pub struct Requirement {
     pub publisher: String,
     pub name: String,
+    /// Platforms that need this requirement, empty means every platform.
+    #[serde(default)]
+    pub platforms: Vec<String>,
     #[serde(default)]
     pub url: Option<String>,
 }
@@ -59,7 +62,7 @@ impl ExtensionManifest {
 
     /// `publisher.name`: the extension id and its directory name.
     pub fn id(&self) -> String {
-        return format!("{}.{}", self.publisher, self.name)
+        return format!("{}.{}", self.publisher, self.name);
     }
 
     pub fn is_native(&self) -> bool {
@@ -99,6 +102,16 @@ impl ExtensionManifest {
                     dep.publisher, dep.name
                 ));
             }
+            for platform in &dep.platforms {
+                if !PLATFORMS.contains(&platform.as_str()) {
+                    return Err(format!(
+                        "requires: {}.{} platform {platform:?} is not one of {}",
+                        dep.publisher,
+                        dep.name,
+                        PLATFORMS.join(", ")
+                    ));
+                }
+            }
             if let Some(url) = dep.url.as_deref().filter(|u| !u.is_empty()) {
                 if !url.starts_with("http://") && !url.starts_with("https://") {
                     return Err(format!("requires: url {url:?} must start with http(s)://"));
@@ -109,7 +122,7 @@ impl ExtensionManifest {
     }
 
     /// Whether this package is declared to run on this platform.
-    /// 
+    ///
     /// An empty list means every platform.
     pub fn support(&self) -> bool {
         self.platforms.is_empty() || self.platforms.iter().any(|p| p == std::env::consts::OS)
@@ -128,7 +141,11 @@ pub struct ExtensionMeta {
 
 /// Result of an install attempt: written, blocked
 #[derive(Serialize)]
-#[serde(tag = "status", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "status",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum InstallOutcome {
     Installed {
         meta: ExtensionMeta,

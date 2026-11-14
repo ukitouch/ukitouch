@@ -5,6 +5,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { loadExtensionDir, unloadExtensionDir } from "../extensions/loader";
 import type { ExtensionRequirement } from "../extensions/loader";
+import { getHostInfo } from "../core/hostinfo";
 import { useToast } from "../components/Toast";
 import { useConfirm } from "../components/Confirm";
 import { Button } from "../api";
@@ -25,6 +26,11 @@ type InstallOutcome =
 
 function depStatus(dep: ExtensionRequirement, installed: Map<string, InstalledExt>): DepStatus {
   return installed.has(`${dep.publisher}.${dep.name}`) ? "ok" : "missing";
+}
+
+/** Whether the dep applies to the current host. */
+function depApplies(dep: ExtensionRequirement, platform: string | null): boolean {
+  return !dep.platforms?.length || (platform !== null && dep.platforms.includes(platform));
 }
 
 function toBase64(bytes: Uint8Array): string {
@@ -67,6 +73,7 @@ if (import.meta.hot) {
 
 export function ExtensionsManager() {
   const [list, setList] = useState<InstalledExt[] | null>(null);
+  const [platform, setPlatform] = useState<string | null>(null);
   const [installing, setInstalling] = useState(false);
   const [dragging, setDragging] = useState(false);
   const installingRef = useRef(false);
@@ -83,6 +90,7 @@ export function ExtensionsManager() {
 
   useEffect(() => {
     void refresh();
+    void getHostInfo().then((i) => setPlatform(i.platform));
   }, [refresh]);
 
   const installFromPath = useCallback(async (path: string) => {
@@ -202,6 +210,7 @@ export function ExtensionsManager() {
       <ul className="flex flex-col gap-2">
         {(list ?? []).map((ext) => {
           const deps = (ext.requires ?? [])
+            .filter((dep) => depApplies(dep, platform))
             .map((dep) => ({ dep, status: depStatus(dep, installedById) }))
             .filter(({ status }) => status !== "ok");
 

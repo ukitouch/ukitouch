@@ -24,6 +24,8 @@ export interface ExtensionManifest {
 export interface ExtensionRequirement {
   publisher: string;
   name: string;
+  /** Platforms this requirement applies to, empty or undefined means all. */
+  platforms?: string[];
   url?: string | null;
 }
 
