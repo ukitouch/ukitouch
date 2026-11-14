@@ -5,16 +5,29 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+const npm = (args) => execSync(`npm ${args}`, { encoding: "utf8" }).trim();
+
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const pkgDir = fileURLToPath(new URL("../../dist/api/", import.meta.url));
-const version = process.env.TAG.slice(1);
+const version = process.env.TAG?.startsWith("v")
+  ? process.env.TAG.slice(1)
+  : process.env.TAG;
+
+if (!version) {
+  console.error("TAG env var is required (e.g. TAG=v1.2.3)");
+  process.exit(1);
+}
+
+console.log("building types...");
+fs.rmSync(pkgDir, { recursive: true, force: true });
+npm("run api");
 
 const pkg = {
   name: "@ukitouch/api",
   version,
   description: "Type definitions for ukitouch frontend extensions",
-  exports: { ".": { types: "./api/index.d.ts" } },
-  types: "api/index.d.ts",
+  exports: { ".": { types: "./index.d.ts" } },
+  types: "index.d.ts",
   license: "GPL-3.0-or-later",
   files: ["**/*.d.ts", "LICENSE", "README.md"],
   peerDependencies: { react: "^19" },
@@ -23,13 +36,12 @@ fs.writeFileSync(path.join(pkgDir, "package.json"), JSON.stringify(pkg, null, 2)
 
 fs.copyFileSync(path.join(root, "LICENSE"), path.join(pkgDir, "LICENSE"));
 const readme = path.join(root, "src/api/README.md");
-if (fs.existsSync(readme))
+if (fs.existsSync(readme)) {
   fs.copyFileSync(readme, path.join(pkgDir, "README.md"));
+}
 
-const npm = (args) => execSync(`npm ${args}`, { encoding: "utf8" }).trim();
 const sha = (f) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
 
-// .d.ts -> relative path -> sha256
 const dts = (root) => {
   const out = {};
   const walk = (d) => {
@@ -60,6 +72,7 @@ if (published.length > 0) {
   const local = dts(pkgDir);
   const keys = new Set([...Object.keys(remote), ...Object.keys(local)]);
   const diff = [...keys].filter((k) => remote[k] !== local[k]);
+
   if (diff.length === 0) {
     console.log(`types unchanged vs ${latest}, skip`);
     process.exit(0);
@@ -67,5 +80,5 @@ if (published.length > 0) {
   console.log("changed:", diff.join(", "));
 }
 
-execSync("npm publish --access public", { cwd: pkgDir, stdio: "inherit" });
+npm("publish ./dist/api --access public");
 console.log(`published @ukitouch/api@${version}`);
