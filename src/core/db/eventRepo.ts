@@ -33,6 +33,7 @@ export async function recordConnection(
         os: hostInfo.os ?? existing.os,
         lastSeen: ev.time,
         protocol: ev.protocol,
+        connectCount: (existing.connectCount ?? 0) + 1,
       }
       : {
         uuid: ev.uuid,
@@ -43,6 +44,7 @@ export async function recordConnection(
         firstSeen: ev.time,
         lastSeen: ev.time,
         protocol: ev.protocol,
+        connectCount: 1,
       };
     await req(deviceStore.put(device));
 

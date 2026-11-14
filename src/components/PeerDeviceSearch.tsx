@@ -39,11 +39,17 @@ export function PeerDeviceSearch({
     createLabel = "Connect to new device";
 
   const [open, setOpen] = useState(false);
-  const options = devices.map((d) => ({
-    id: d.uuid,
-    label: d.remark ?? d.name ?? "Unknown device",
-    hint: d.platform ?? undefined,
-  }))
+  const options = [...devices]
+    .sort(
+      (a, b) =>
+        (b.connectCount ?? 0) - (a.connectCount ?? 0) ||
+        (b.lastSeen ?? 0) - (a.lastSeen ?? 0),
+    )
+    .map((d) => ({
+      id: d.uuid,
+      label: d.remark ?? d.name ?? "Unknown device",
+      hint: d.platform ?? undefined,
+    }));
 
   const q = text.trim().toLowerCase();
   const filtered =

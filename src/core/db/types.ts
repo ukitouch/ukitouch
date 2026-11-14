@@ -39,6 +39,8 @@ export interface DeviceRecord {
   firstSeen: number;
   /** Last connection time (epoch ms). */
   lastSeen: number | null;
+  /** Total number of recorded connections. */
+  connectCount: number;
   /** {@link CoreProtocol} of the last connection. */
   protocol: CoreProtocol | null;
 }
