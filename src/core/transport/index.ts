@@ -25,7 +25,7 @@ export interface Channel {
   bindPipe?(addr: string): Promise<Disposable>;
 }
 
-export type ChannelReadyState = "connecting" | "closed";
+export type ChannelReadyState = "connecting" | "open" | "closed";
 
 /** Arguments specific to the WebRTC transport. */
 export interface WebRtcOpenSpec {

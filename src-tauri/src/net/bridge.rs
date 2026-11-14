@@ -56,6 +56,12 @@ pub async fn sig_connect(
                     );
                 }
                 Event::Error(value) => {
+                    // peer is offline, fail the pending connection
+                    if value.get("error").and_then(Value::as_str) == Some("offline") {
+                        if let Some(to) = value.get("to").and_then(Value::as_str) {
+                            let _ = webrtc::abort(&net, to.to_string(), "peer is offline").await;
+                        }
+                    }
                     let _ = app.emit(
                         "sig-error",
                         serde_json::json!({ "name": name, "error": value }),
@@ -178,7 +184,7 @@ pub async fn p2p_bind(
 /// Abort an in-progress connection to `target`.
 #[tauri::command]
 pub async fn p2p_cancel(state: State<'_, Arc<NetState>>, target: String) -> Result<(), String> {
-    webrtc::abort(&state, target.clone()).await?;
+    webrtc::abort(&state, target.clone(), "connection cancelled").await?;
     // Tell the remote to abort as well (ignore if signaling is down).
     let _ = state
         .send_signal(&target, serde_json::json!({ "cancel": true }))

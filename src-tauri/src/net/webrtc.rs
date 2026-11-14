@@ -128,8 +128,8 @@ pub struct Peer {
     pub channels: Mutex<HashMap<u64, Arc<ChannelHandle>>>,
     /// Remote candidates that arrived before the remote description was set.
     pub pending_candidates: Mutex<Vec<RTCIceCandidateInit>>,
-    /// Signals a pending `open_channel` to abort (local cancel / remote abort).
-    pub cancelled: tokio::sync::Notify,
+    /// Wakes pending `open_channel`s, set to `Some(reason)` when the peer is aborted.
+    pub cancelled: tokio::sync::watch::Sender<Option<String>>,
 }
 
 /// Cloneable handle that sends a signaling payload to a fixed peer.
@@ -192,7 +192,11 @@ async fn get_peer(state: &Arc<NetState>, target: String) -> Result<Arc<Peer>, St
         Box::pin(async move {
             if let Ok(offer) = pc.create_offer(None).await {
                 if pc.set_local_description(offer.clone()).await.is_ok() {
-                    let _ = sender.send(json!({ "description": offer })).await;
+                    // offer lost, fail the pending connection
+                    if let Err(e) = sender.send(json!({ "description": offer })).await {
+                        eprintln!("[webrtc] offer send to {} failed: {e}", sender.target);
+                        let _ = abort(&sender.state, sender.target.clone(), "signaling unavailable").await;
+                    }
                 }
             }
         })
@@ -232,6 +236,10 @@ async fn get_peer(state: &Arc<NetState>, target: String) -> Result<Arc<Peer>, St
                 json!({ "target": target, "token": token, "state": s.to_string() }),
             );
             if s == RTCPeerConnectionState::Failed || s == RTCPeerConnectionState::Closed {
+                // Wake any pending open_channel before the peer is gone.
+                if let Some(peer) = net.webrtc.lock().unwrap().peers.get(&target) {
+                    let _ = peer.cancelled.send(Some("peer connection failed".into()));
+                }
                 close_peer_channels(&net, &target).await;
                 remove_peer_by_target(&net, &target);
             }
@@ -247,7 +255,7 @@ async fn get_peer(state: &Arc<NetState>, target: String) -> Result<Arc<Peer>, St
             pc,
             channels: Mutex::new(HashMap::new()),
             pending_candidates: Mutex::new(Vec::new()),
-            cancelled: tokio::sync::Notify::new(),
+            cancelled: tokio::sync::watch::channel(None).0,
         });
         w.peers.insert(target.clone(), peer.clone());
         (token, peer)
@@ -352,18 +360,21 @@ pub async fn open_channel(
         .insert(channel_id, handle.clone());
     wire_channel(state.clone(), peer.clone(), channel_id, handle.clone());
 
+    let mut aborted = peer.cancelled.subscribe();
     if !handle.open.load(std::sync::atomic::Ordering::SeqCst) {
         tokio::select! {
             _ = handle.opened.notified() => {}
-            _ = peer.cancelled.notified() => {
-                remove_peer_by_token(state, &token);
-                return Err("connect cancelled".into());
-            }
+            _ = aborted.changed() => {}
             _ = tokio::time::sleep(Duration::from_secs(10)) => {
                 remove_peer_by_token(state, &token);
                 return Err("channel open timed out".into());
             }
         }
+    }
+    if !handle.open.load(std::sync::atomic::Ordering::SeqCst) {
+        remove_peer_by_token(state, &token);
+        let reason = aborted.borrow().clone().unwrap_or_else(|| "connect cancelled".into());
+        return Err(reason);
     }
     Ok(channel_id)
 }
@@ -443,7 +454,7 @@ pub async fn close_all(state: &Arc<NetState>) -> Result<(), String> {
         .map(|(_, peer)| peer)
         .collect();
     for peer in peers {
-        peer.cancelled.notify_waiters();
+        let _ = peer.cancelled.send(Some("connection closed".into()));
         let channels: Vec<(u64, Arc<ChannelHandle>)> =
             peer.channels.lock().unwrap().drain().collect();
         for (channel_id, handle) in channels {
@@ -460,12 +471,12 @@ pub async fn close_all(state: &Arc<NetState>) -> Result<(), String> {
 
 /// Tear down a pending peer connection locally: wake any waiting `open_channel`,
 /// drop the peer, and close the PeerConnection.
-pub async fn abort(state: &Arc<NetState>, target: String) -> Result<(), String> {
+pub async fn abort(state: &Arc<NetState>, target: String, reason: &str) -> Result<(), String> {
     let peer = state.webrtc.lock().unwrap().peers.remove(&target);
     let Some(peer) = peer else {
         return Ok(()); // nothing pending
     };
-    peer.cancelled.notify_waiters();
+    let _ = peer.cancelled.send(Some(reason.to_string()));
     let _ = peer.pc.close().await;
     Ok(())
 }
@@ -478,7 +489,7 @@ pub async fn handle_signal(
 ) -> Result<(), String> {
     // Remote peer aborted the connection.
     if value.get("cancel").is_some() {
-        return abort(state, from).await;
+        return abort(state, from, "remote aborted").await;
     }
 
     if let Some(desc) = value.get("description") {
@@ -575,10 +586,17 @@ fn wire_channel(
     handle: Arc<ChannelHandle>,
 ) {
     let h = handle.clone();
+    let app = state.app.clone();
+    let token = peer.token.clone();
     handle.dc.on_open(Box::new(move || {
         let handle = h.clone();
+        let app = app.clone();
         Box::pin(async move {
             handle.open.store(true, std::sync::atomic::Ordering::SeqCst);
+            let _ = app.emit(
+                "channel-ready",
+                json!({ "token": token, "channel_id": channel_id }),
+            );
             let queued: Vec<_> = handle.buffer.lock().unwrap().drain(..).collect();
             for (data, text) in queued {
                 let _ = send_now(&handle, data, text).await;

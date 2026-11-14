@@ -334,6 +334,10 @@ interface ChannelOpenEvent {
   label: string;
   target: string;
 }
+interface ChannelReadyEvent {
+  token: string;
+  channel_id: number;
+}
 interface ChannelCloseEvent {
   token: string;
   channel_id: number;
@@ -356,6 +360,9 @@ function ensureChannelListeners(): Promise<void> {
       channels.set(key(e.payload.token, e.payload.channel_id), ch);
       // Route by label (the dialing extension's id), unmatched labels stay inert.
       incomingHandlers.get(e.payload.label)?.forEach((h) => h(ch));
+    }),
+    listen<ChannelReadyEvent>("channel-ready", (e) => {
+      channels.get(key(e.payload.token, e.payload.channel_id))?.handleOpen();
     }),
     listen<ChannelCloseEvent>("channel-close", (e) => {
       const k = key(e.payload.token, e.payload.channel_id);
@@ -470,6 +477,12 @@ class P2PChannel implements Channel {
         data: typeof data === "string" ? data : new Uint8Array(data),
       })
     );
+  }
+
+  handleOpen(): void {
+    if (this.readyState === "closed") return;
+    this.readyState = "open";
+    this.onopen?.(new Event("open"));
   }
 
   handleClose(): void {

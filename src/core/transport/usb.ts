@@ -45,6 +45,8 @@ function ensureListeners(): Promise<void> {
   listenersReady = Promise.all([
     listen<UsbChannelOpenEvent>("usb-channel-open", (e) => {
       const ch = new UsbChannel(e.payload.channel_id, e.payload.label);
+      ch.readyState = "open";
+      ch.onopen?.(new Event("open"));
       channels.set(ch.channelId, ch);
       // Route by label (the dialing extension's id), unmatched labels stay inert.
       incomingHandlers.get(e.payload.label)?.forEach((h) => h(ch));
