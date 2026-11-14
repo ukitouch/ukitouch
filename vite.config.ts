@@ -60,7 +60,12 @@ export default defineConfig({
         "react": r("src/host/react.ts"),
         "jsx-runtime": r("src/host/jsx-runtime.ts"),
       },
-      output: { entryFileNames: "[name].js" },
+      output: {
+        entryFileNames: "[name].js",
+        manualChunks: {
+          api: [r("src/api/index.ts"), r("src/extensions/registry.ts")],
+        },
+      },
     },
   },
 });
