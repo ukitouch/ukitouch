@@ -194,7 +194,7 @@ export default function PingView() {
         </p>
       )}
 
-      <pre className="rounded-md p-3 text-xs h-64 overflow-y-auto whitespace-pre-wrap bg-window">
+      <pre className="rounded-md p-3 text-xs h-64 overflow-y-auto whitespace-pre-wrap bg-window select-text">
         {state.logs.join("\n")}
       </pre>
     </div>
