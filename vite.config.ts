@@ -26,7 +26,7 @@ export default defineConfig({
   plugins: [react(), devRedirect()] as PluginOption[],
   resolve: {
     alias: {
-      "@ukitouch/api": r("src/api/index.ts"),
+      "@ukitouch/extension": r("src/api/index.ts"),
     },
   },
 

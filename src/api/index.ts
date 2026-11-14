@@ -1,8 +1,3 @@
-/**
- * Public extension API.
- *
- * Served at `/api.js` behind the import map entry `@ukitouch/api`.
- */
 import { getHostInfo } from "../core/hostinfo";
 import { setFullscreen } from "../core/utils/ui";
 import { createStore } from "../core/utils/store";

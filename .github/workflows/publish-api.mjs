@@ -23,7 +23,7 @@ fs.rmSync(pkgDir, { recursive: true, force: true });
 npm("run api");
 
 const pkg = {
-  name: "@ukitouch/api",
+  name: "@ukitouch/extension",
   version,
   description: "Type definitions for ukitouch frontend extensions",
   exports: { ".": { types: "./index.d.ts" } },
@@ -57,14 +57,14 @@ const dts = (root) => {
 
 let published = [];
 try {
-  published = JSON.parse(npm("view @ukitouch/api versions --json"));
+  published = JSON.parse(npm("view @ukitouch/extension versions --json"));
 } catch {
   // first publish
 }
 
 if (published.length > 0) {
-  const latest = npm("view @ukitouch/api dist-tags.latest");
-  const tarball = npm(`view @ukitouch/api@${latest} dist.tarball`);
+  const latest = npm("view @ukitouch/extension dist-tags.latest");
+  const tarball = npm(`view @ukitouch/extension@${latest} dist.tarball`);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ukitouch-api-"));
   execSync(`curl -sL ${tarball} | tar xz -C ${dir}`);
 
@@ -81,4 +81,4 @@ if (published.length > 0) {
 }
 
 npm("publish ./dist/api --access public");
-console.log(`published @ukitouch/api@${version}`);
+console.log(`published @ukitouch/extension@${version}`);

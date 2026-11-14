@@ -1,4 +1,4 @@
-name: publish @ukitouch/api
+name: publish @ukitouch/extension
 
 on:
   push:

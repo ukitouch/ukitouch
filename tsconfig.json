@@ -15,7 +15,7 @@
     "moduleResolution": "bundler",
     "baseUrl": ".",
     "paths": {
-      "@ukitouch/api": ["src/api/index.ts"]
+      "@ukitouch/extension": ["src/api/index.ts"]
     },
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,

@@ -2,7 +2,7 @@
  * Built-in example extension.
  */
 
-import { defineExtension } from "@ukitouch/api";
+import { defineExtension } from "@ukitouch/extension";
 import { initPing } from "./api";
 import PingView from "./View";
 

@@ -17,7 +17,7 @@ import {
   UsbDeviceSelect,
   usbStore,
   getHostInfo,
-} from "@ukitouch/api";
+} from "@ukitouch/extension";
 
 type Mode = "webrtc" | "usb" | "ble";
 
