@@ -31,6 +31,10 @@ const pkg = {
   license: "GPL-3.0-or-later",
   files: ["**/*.d.ts", "LICENSE", "README.md"],
   peerDependencies: { react: "^19" },
+  repository: {
+    type: "git",
+    url: "https://github.com/ukitouch/ukitouch",
+  },
 };
 fs.writeFileSync(path.join(pkgDir, "package.json"), JSON.stringify(pkg, null, 2) + "\n");
 
