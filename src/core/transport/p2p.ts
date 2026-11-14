@@ -19,7 +19,7 @@ export interface ServerConfig {
   iceServers: string[];
 }
 
-export const serverConfig = loadServerConfig();
+const serverConfig = loadServerConfig();
 
 function loadServerConfig(): ServerConfig {
   try {

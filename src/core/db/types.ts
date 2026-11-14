@@ -6,6 +6,9 @@
 
 import { Platform } from "../types";
 
+/** Store names that can be operated. */
+export type StoreName = "devices" | "connectionEvents";
+
 /** IndexedDB database name and current schema version. */
 export const DB_NAME = "ukitouch";
 export const DB_VERSION = 1;

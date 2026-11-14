@@ -34,7 +34,7 @@ export type {
   HostInfo,
 } from "../core/types";
 
-export type { DeviceRecord, CoreProtocol } from "../core/db";
+export type { DeviceRecord, CoreProtocol } from "../core/db/types";
 export type { Channel, ChannelReadyState, OpenSpec, WebRtcOpenSpec, UsbOpenSpec, BleOpenSpec } from "../core/transport";
 
 export type { SelectOption, SelectProps } from "../components/Select";

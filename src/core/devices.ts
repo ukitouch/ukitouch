@@ -8,7 +8,7 @@ import {
 import { HostInfo } from "./types";
 
 /** Connection registration input. */
-export interface RecordConnectionInput {
+interface RecordConnectionInput {
   uuid: string;
   direction: "in" | "out";
   protocol: CoreProtocol;
@@ -18,7 +18,7 @@ export interface RecordConnectionInput {
   hostInfo: HostInfo;
 }
 
-export interface DeviceStoreSnapshot {
+interface DeviceStoreSnapshot {
   devices: DeviceRecord[];
   events: ConnectionEvent[];
 }

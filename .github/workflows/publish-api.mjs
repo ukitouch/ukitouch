@@ -67,6 +67,5 @@ if (published.length > 0) {
   console.log("changed:", diff.join(", "));
 }
 
-execSync('npm login --auth-type=oidc', { stdio: 'inherit' });
 execSync("npm publish --access public", { cwd: pkgDir, stdio: "inherit" });
 console.log(`published @ukitouch/api@${version}`);

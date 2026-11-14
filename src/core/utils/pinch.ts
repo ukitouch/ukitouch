@@ -5,7 +5,7 @@
 import { listen } from "@tauri-apps/api/event";
 
 /** One pinch frame forwarded by the native gesture (WebKitGTK). */
-export interface NativePinch {
+interface NativePinch {
   phase: "start" | "move" | "end";
   /** cumulative scale since the gesture began */
   scale: number;

@@ -1,7 +1,4 @@
-import { DB_NAME, DB_VERSION } from "./types";
-
-/** Store names that can be operated. */
-type StoreName = "devices" | "connectionEvents";
+import { DB_NAME, DB_VERSION, StoreName } from "./types";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -10,7 +7,7 @@ let dbPromise: Promise<IDBDatabase> | null = null;
  * 
  * Cached per process.
  */
-export function openDB(): Promise<IDBDatabase> {
+function openDB(): Promise<IDBDatabase> {
   if (!dbPromise) {
     dbPromise = new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -76,33 +73,6 @@ export async function withTx<T>(
       reject(tx.error ?? new Error("indexedDB transaction aborted"));
   });
   return result;
-}
-
-/** Iterate a cursor; return true from visit to stop early. */
-export function eachCursor<T>(
-  source: IDBIndex | IDBObjectStore,
-  range: IDBKeyRange | null,
-  direction: IDBCursorDirection,
-  visit: (value: T) => boolean | void
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const request = source.openCursor(range, direction);
-    request.onsuccess = () => {
-      const cursor = request.result;
-      if (!cursor) {
-        resolve();
-        return;
-      }
-
-      if (visit(cursor.value as T)) {
-        resolve();
-        return;
-      }
-      cursor.continue();
-    };
-    request.onerror = () =>
-      reject(request.error ?? new Error("indexedDB cursor failed"));
-  });
 }
 
 export * from "./types";

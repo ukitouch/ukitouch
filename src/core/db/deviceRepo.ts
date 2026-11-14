@@ -12,15 +12,6 @@ export async function listDevices(): Promise<DeviceRecord[]> {
   );
 }
 
-/** Get a device profile by UUID. */
-export async function getDevice(
-  uuid: string
-): Promise<DeviceRecord | undefined> {
-  return withTx(["devices"], "readonly", async (tx) =>
-    req(tx.objectStore("devices").get(uuid))
-  );
-}
-
 /**
  * Partial update. Returns the updated row or undefined when the device does not exist.
  */

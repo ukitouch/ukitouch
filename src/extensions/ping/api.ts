@@ -5,7 +5,7 @@ import {
   type NetContext,
 } from "@ukitouch/api";
 
-export interface PingState {
+interface PingState {
   logs: string[];
   /** The connection status. */
   connection: Connection;
@@ -13,7 +13,7 @@ export interface PingState {
 }
 
 /** The connection status. */
-export type Connection =
+type Connection =
   | { status: "idle" }
   | { status: "connecting"; peerId: string }
   | { status: "connected"; peerId: string };

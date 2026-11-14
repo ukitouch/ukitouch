@@ -26,7 +26,7 @@ export interface ExtensionDefinition {
 /**
  * A definition with its host-side defaults applied and an id attached.
  */
-export interface RegisteredExtension extends ExtensionDefinition {
+interface RegisteredExtension extends ExtensionDefinition {
   /** publisher.name */
   id: string;
   title: string;
@@ -195,7 +195,7 @@ export function registerStyles(extId: string, css: string): void {
 /**
  * Remove styles registered by an extension.
  */
-export function removeStyles(extId: string): void {
+function removeStyles(extId: string): void {
   const el = styleMap.get(extId);
   if (el) {
     el.remove();

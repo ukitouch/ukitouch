@@ -5,7 +5,7 @@ import { useConfirm } from "../../components/Confirm";
 import { showToast } from "../../components/Toast";
 
 /** Read server config from localStorage. */
-export function readServerConfig(): ServerConfig {
+function readServerConfig(): ServerConfig {
   try {
     const raw = localStorage.getItem(SERVER_CONFIG_KEY);
     if (raw) {
