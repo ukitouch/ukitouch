@@ -1,0 +1,11 @@
+[target.aarch64-linux-android]
+rustflags = ["-Cdebuginfo=0"]
+
+[target.armv7-linux-androideabi]
+rustflags = ["-Cdebuginfo=0"]
+
+[target.i686-linux-android]
+rustflags = ["-Cdebuginfo=0"]
+
+[target.x86_64-linux-android]
+rustflags = ["-Cdebuginfo=0"]

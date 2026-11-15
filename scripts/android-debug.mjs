@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const ABI_TO_TARGET = {
@@ -21,12 +21,14 @@ if (!target) {
   process.exit(1);
 }
 
+const apk = resolve(APK);
+rmSync(apk, { force: true });
+
 const tauri = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 run(tauri, ['tauri', 'android', 'build', '--debug', '--apk', '-t', target]);
 
-const apk = resolve(APK);
 if (!existsSync(apk)) {
-  console.error(`apk not found: ${APK}`);
+  console.error(`apk not found: ${apk}`);
   process.exit(1);
 }
 
