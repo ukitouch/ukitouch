@@ -23,7 +23,8 @@ Each extension is packed into a zip file. There are two types of extensions: `fr
   "kind": "",           // `frontend` or `native`
   "entry": "",          // entry file of this extension, for frontend is usually a js, for native is a binary
   "style": "",          // style file of this extension, frontend only, nullable
-  "platforms": [""],    // platforms this extension supports, currently `windows`, `linux`, `android` are supported
+  "minAppVersion": "",  // minimum app version required, nullable
+  "platforms": [""],    // platforms this extension supports, currently `windows`, `linux`, `android` are supported, empty means all
   "requires": [         // extensions this extension depends on, nullable
     {
         "publisher": "",
