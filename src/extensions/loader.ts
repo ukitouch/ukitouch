@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { clearExtensionIssue, recordExtensionIssue } from "./issues";
 import {
   registerExtension,
   registerStyles,
@@ -8,6 +9,8 @@ import {
 
 interface InstalledExt {
   dir: string;
+  /** Present when the current app version does not meet the extension's minimum. */
+  needsVersion?: string;
 }
 
 export interface ExtensionManifest {
@@ -32,14 +35,21 @@ export interface ExtensionRequirement {
 /** Extension ids registered by each loaded directory. */
 const loadedIds = new Map<string, string[]>();
 
-// TODO: keep load failures per dir in memory and show them in the extensions manager
 export async function loadInstalledExtensions(): Promise<void> {
   const list = await invoke<InstalledExt[]>("list_installed_extensions");
-  for (const { dir } of list) {
+  for (const { dir, needsVersion } of list) {
+    if (needsVersion) {
+      recordExtensionIssue(dir, {
+        level: "warn",
+        message: `needs ukitouch version higher than ${needsVersion}`,
+      });
+      continue;
+    }
     try {
       await loadExtensionDir(dir);
     } catch (e) {
       console.error(`[ext] ${dir}: load failed`, e);
+      recordExtensionIssue(dir, { level: "error", message: `load failed: ${e}` });
     }
   }
 }
@@ -92,6 +102,7 @@ export async function loadExtensionDir(dir: string): Promise<void> {
   registerExtension(def, extId);
 
   loadedIds.set(dir, [extId]);
+  clearExtensionIssue(dir);
 }
 
 /**

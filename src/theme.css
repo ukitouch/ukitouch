@@ -30,6 +30,10 @@
     @apply text-gray-500 dark:text-gray-400;
 }
 
+.text-danger {
+    @apply text-red-500 dark:text-red-400;
+}
+
 .interactive-text-1 {
     @apply text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100;
 }

@@ -1,3 +1,4 @@
+import { clearExtensionIssue, recordExtensionIssue } from "./issues";
 import { defineExtension, registerExtension, takeExtension } from "./registry";
 import type { ExtensionManifest } from "./loader";
 
@@ -21,6 +22,7 @@ export async function loadBundledExtensions(): Promise<void> {
     const manifest = manifests[`./${dir}/manifest.json`];
     if (!manifest) {
       console.error(`[ext] ${dir}: no manifest.json`);
+      recordExtensionIssue(dir, { level: "error", message: "no manifest.json" });
       continue;
     }
     const id = `${manifest.publisher}.${manifest.name}`;
@@ -28,8 +30,10 @@ export async function loadBundledExtensions(): Promise<void> {
     const def = takeExtension();
     if (!def) {
       console.error(`[ext] ${id}: did not define an extension`);
+      recordExtensionIssue(dir, { level: "error", message: "did not define an extension" });
       continue;
     }
     registerExtension(def, id);
+    clearExtensionIssue(dir);
   }
 }

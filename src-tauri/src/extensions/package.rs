@@ -48,6 +48,9 @@ pub struct ExtensionManifest {
     /// Extensions this one depends on.
     #[serde(default)]
     pub requires: Vec<Requirement>,
+    /// Minimum ukitouch version, `x.x.x`.
+    #[serde(default)]
+    pub min_app_version: Option<String>,
     #[serde(default)]
     pub platforms: Vec<String>,
 }
@@ -85,6 +88,13 @@ impl ExtensionManifest {
         }
         if !valid_file(&self.entry) {
             return Err(format!("entry: {:?} must be a plain file name", self.entry));
+        }
+        if let Some(min) = self
+            .min_app_version
+            .as_deref()
+            .filter(|v| parse_version(v).is_none())
+        {
+            return Err(format!("minAppVersion: {:?} must be x.x.x", min));
         }
         for platform in &self.platforms {
             if !PLATFORMS.contains(&platform.as_str()) {
@@ -127,6 +137,13 @@ impl ExtensionManifest {
     pub fn support(&self) -> bool {
         self.platforms.is_empty() || self.platforms.iter().any(|p| p == std::env::consts::OS)
     }
+
+    /// `None` when the host version satisfies `minAppVersion`, otherwise `Some(minAppVersion)`.
+    pub fn incompatibility(&self, host_version: &str) -> Option<&str> {
+        self.min_app_version
+            .as_deref()
+            .filter(|min| version_gt(min, host_version))
+    }
 }
 
 #[derive(Serialize)]
@@ -137,6 +154,8 @@ pub struct ExtensionMeta {
     pub version: String,
     pub dir: String,
     pub requires: Vec<Requirement>,
+    /// `Some(minAppVersion)` when the current app version does not meet it.
+    pub needs_version: Option<String>,
 }
 
 /// Result of an install attempt: written, blocked
@@ -165,7 +184,8 @@ pub fn list_installed_extensions(app: AppHandle) -> Result<Vec<ExtensionMeta>, S
         .app_data_dir()
         .map_err(|e| format!("app data dir: {e}"))?
         .join("extensions");
-    scan_extensions(&dir).map_err(|e| format!("scan {}: {e}", dir.display()))
+    let host_version = app.package_info().version.to_string();
+    scan_extensions(&dir, &host_version).map_err(|e| format!("scan {}: {e}", dir.display()))
 }
 
 /// Read an extension's manifest.json from a directory.
@@ -182,7 +202,7 @@ pub fn read_extension_file(dir: String, file: String) -> Result<String, String> 
 }
 
 /// Scan extensions in given `dir`.
-fn scan_extensions(dir: &Path) -> Result<Vec<ExtensionMeta>, std::io::Error> {
+fn scan_extensions(dir: &Path, app_version: &str) -> Result<Vec<ExtensionMeta>, std::io::Error> {
     let mut out = Vec::new();
     if !dir.is_dir() {
         return Ok(out);
@@ -207,12 +227,14 @@ fn scan_extensions(dir: &Path) -> Result<Vec<ExtensionMeta>, std::io::Error> {
             continue;
         }
 
+        let needs_version = mf.incompatibility(app_version).map(str::to_string);
         out.push(ExtensionMeta {
             id: mf.id(),
             name: mf.name,
             version: mf.version,
             dir: path.to_string_lossy().into_owned(),
             requires: mf.requires,
+            needs_version,
         });
     }
     Ok(out)
@@ -251,15 +273,19 @@ pub async fn install_extension(
         serde_json::from_str(&manifest_text).map_err(|e| format!("bad manifest: {e}"))?;
     mf.validate()
         .map_err(|e| format!("invalid manifest for {}: {e}", mf.id()))?;
+    let id = mf.id();
     if !mf.support() {
+        return Err(format!("{id} does not support {}", std::env::consts::OS));
+    }
+
+    // check current app version if satisfied
+    let host_version = app.package_info().version.to_string();
+    if let Some(min) = mf.incompatibility(&host_version) {
         return Err(format!(
-            "{} does not support {}",
-            mf.id(),
-            std::env::consts::OS
+            "{id} needs ukitouch version higher than {min}, but currently it is {host_version}"
         ));
     }
 
-    let id = mf.id();
     zip.by_name(&mf.entry)
         .map_err(|_| format!("{id}: missing entry file: {}", mf.entry))?;
 
@@ -337,6 +363,7 @@ pub async fn install_extension(
             version: mf.version,
             dir: dest.to_string_lossy().into_owned(),
             requires: mf.requires,
+            needs_version: None,
         },
     })
 }

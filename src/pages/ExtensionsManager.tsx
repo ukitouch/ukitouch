@@ -5,6 +5,11 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { loadExtensionDir, unloadExtensionDir } from "../extensions/loader";
 import type { ExtensionRequirement } from "../extensions/loader";
+import {
+  clearExtensionIssue,
+  getExtensionIssue,
+  recordExtensionIssue,
+} from "../extensions/issues";
 import { getHostInfo } from "../core/hostinfo";
 import { useToast } from "../components/Toast";
 import { useConfirm } from "../components/Confirm";
@@ -123,15 +128,18 @@ export function ExtensionsManager() {
       }
 
       if (outcome.status !== "installed") return;
-      await refresh();
-      show(`installed ${outcome.meta.name} v${outcome.meta.version}`);
-
       // load failure should be shown directly after install
       try {
         await loadExtensionDir(outcome.meta.dir);
       } catch (e) {
+        recordExtensionIssue(outcome.meta.dir, {
+          level: "error",
+          message: `load failed: ${e}`,
+        });
         show(`${outcome.meta.name} load failed: ${e}`, "error");
       }
+      await refresh();
+      show(`installed ${outcome.meta.name} v${outcome.meta.version}`);
     } catch (e) {
       show(`install failed: ${e}`, "error");
     } finally {
@@ -175,6 +183,7 @@ export function ExtensionsManager() {
     try {
       await invoke("uninstall_extension", { id: ext.id });
       unloadExtensionDir(ext.dir);
+      clearExtensionIssue(ext.dir);
       show(`uninstalled ${ext.id}`);
       await refresh();
     } catch (e) {
@@ -213,12 +222,22 @@ export function ExtensionsManager() {
             .filter((dep) => depApplies(dep, platform))
             .map((dep) => ({ dep, status: depStatus(dep, installedById) }))
             .filter(({ status }) => status !== "ok");
+          const issue = getExtensionIssue(ext.dir);
 
           return (
             <li
               key={ext.id}
               className="flex flex-col gap-1 rounded-md px-3 py-2 text-sm bg-box"
             >
+              {issue && (
+                <div
+                  className={
+                    issue.level === "error" ? "text-danger" : "text-3"
+                  }
+                >
+                  {issue.message}
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <span>{ext.name}</span>
                 <span className="flex items-center gap-2">

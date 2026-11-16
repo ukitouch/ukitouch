@@ -125,6 +125,10 @@ impl ExtensionHost {
             if !mf.is_native() || !mf.support() {
                 continue;
             }
+            if let Some(min) = mf.incompatibility(&app.package_info().version.to_string()) {
+                eprintln!("[extensions] {}: needs ukitouch version higher than {min}", mf.id());
+                continue;
+            }
 
             // File stem is the extension id. See `ExtensionHost.sidecars`.
             let ext_id = mf.id();
