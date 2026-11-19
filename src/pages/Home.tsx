@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { disableTempId, enableTempId, tempIdStore } from "../core/transport/p2p";
+import { disableTempId, enableTempId, tempIdStore } from "../core/transport/webrtc";
 import type { Platform } from "../core/types";
 import { Button } from "../components/Button";
 import { PageHeader } from "../components/PageHeader";

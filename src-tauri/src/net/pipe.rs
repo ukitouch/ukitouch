@@ -1,4 +1,4 @@
-//! Generic byte pipe: bridges a local TCP socket to a P2P DataChannel.
+//! Generic byte pipe: bridges a local TCP socket to a WebRTC DataChannel.
 
 use serde::Serialize;
 use std::collections::HashMap;

@@ -23,7 +23,7 @@ export interface PeerDeviceSearchProps {
 const CREATE_ID = "\u0000create";
 
 /**
- * p2p peer picker: searches known devices, optionally dials a temp id.
+ * WebRTC peer picker: searches known devices, optionally dials a temp id.
  */
 export function PeerDeviceSearch({
   devices,

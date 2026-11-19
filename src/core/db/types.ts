@@ -11,12 +11,12 @@ export type StoreName = "devices" | "connectionEvents";
 
 /** IndexedDB database name and current schema version. */
 export const DB_NAME = "ukitouch";
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 /** Bounded event-log cap (FIFO trim). */
 export const MAX_CONNECTION_EVENTS = 500;
 
 /** Core transport protocol. */
-export type CoreProtocol = "p2p" | "usb" | "ble";
+export type CoreProtocol = "webrtc" | "usb" | "ble";
 
 /**
  * Device profile.

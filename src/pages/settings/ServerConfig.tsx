@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { EditableField } from "../../components/EditableField";
-import { reconnectSignaling, SERVER_CONFIG_KEY, type ServerConfig } from "../../core/transport/p2p";
+import { reconnectSignaling, SERVER_CONFIG_KEY, type ServerConfig } from "../../core/transport/webrtc";
 import { useConfirm } from "../../components/Confirm";
 import { showToast } from "../../components/Toast";
 
@@ -59,7 +59,7 @@ export default function ServerConfig() {
     const ok = await confirm({
       title: "Reconnect now?",
       message:
-        "A new server configuration needs a reconnect, but will close all existing p2p connections. You can also apply it by restarting the app.",
+        "A new server configuration needs a reconnect, but will close all existing WebRTC connections. You can also apply it by restarting the app.",
       confirmText: "Reconnect",
       cancelText: "Later",
     });

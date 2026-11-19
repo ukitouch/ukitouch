@@ -31,7 +31,7 @@ function write(key: string, value: string): void {
 /**
  * This device's permanent identity (uuid4). Generated on first run and
  * persisted. It is the registration id on the signaling server and the
- * basis of every P2P connection.
+ * basis of every WebRTC connection.
  */
 export const deviceUuid: string = (() => {
   const existing = read(UUID_KEY);

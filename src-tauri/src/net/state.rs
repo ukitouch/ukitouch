@@ -47,7 +47,7 @@ impl NetState {
         sender.send(to, payload).await.map_err(|e| e.to_string())
     }
 
-    /// Send raw bytes on a P2P data channel.
+    /// Send raw bytes on a WebRTC data channel.
     pub async fn send_bytes(
         &self,
         token: &str,

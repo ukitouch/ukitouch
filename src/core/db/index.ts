@@ -1,4 +1,10 @@
-import { DB_NAME, DB_VERSION, StoreName } from "./types";
+import {
+  DB_NAME,
+  DB_VERSION,
+  StoreName,
+  type ConnectionEvent,
+  type DeviceRecord,
+} from "./types";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -11,7 +17,7 @@ function openDB(): Promise<IDBDatabase> {
   if (!dbPromise) {
     dbPromise = new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
-      request.onupgradeneeded = (ev) => upgrade(request.result, ev.oldVersion);
+      request.onupgradeneeded = (ev) => upgrade(request, ev.oldVersion);
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error ?? new Error("indexedDB open failed"));
     });
@@ -25,7 +31,10 @@ function openDB(): Promise<IDBDatabase> {
  * This is used when a new schema is needed. At the same time {@link DB_VERSION}
  * should be raised.
  */
-function upgrade(db: IDBDatabase, oldVersion: number): void {
+function upgrade(request: IDBOpenDBRequest, oldVersion: number): void {
+  const db = request.result;
+  const tx = request.transaction;
+  if (!tx) return;
   if (oldVersion < 1) {
     db.createObjectStore("devices", { keyPath: "uuid" });
     const events = db.createObjectStore("connectionEvents", {
@@ -34,6 +43,22 @@ function upgrade(db: IDBDatabase, oldVersion: number): void {
     });
     events.createIndex("byDevice", "uuid");
     events.createIndex("byTime", "time");
+  }
+  if (oldVersion < 2) {
+    // V2: rename "p2p" protocol to "webrtc"
+    for (const store of ["devices", "connectionEvents"] as const) {
+      const cursor = tx.objectStore(store).openCursor();
+      cursor.onsuccess = () => {
+        const cur = cursor.result;
+        if (!cur) return;
+        const rec = cur.value as DeviceRecord | ConnectionEvent;
+        if ((rec.protocol as string) === "p2p") {
+          rec.protocol = "webrtc";
+          cur.update(rec);
+        }
+        cur.continue();
+      };
+    }
   }
 }
 

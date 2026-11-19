@@ -187,8 +187,8 @@ export async function reconnectSignaling(next: ServerConfig): Promise<void> {
   const tempIdOn = isTempIdOn();
   Object.assign(serverConfig, next);
 
-  await invoke("p2p_close_all").catch((e) =>
-    console.error("[p2p] close all failed", e)
+  await invoke("webrtc_close_all").catch((e) =>
+    console.error("[webrtc] close all failed", e)
   );
   await disableTempId();
   await signaling.disconnect();
@@ -326,7 +326,7 @@ export async function disableTempId(): Promise<void> {
 }
 
 //#endregion
-//#region P2P data channels
+//#region WebRTC data channels
 
 interface ChannelOpenEvent {
   token: string;
@@ -344,15 +344,15 @@ interface ChannelCloseEvent {
 }
 
 let listenersReady: Promise<void> | null = null;
-const channels = new Map<string, P2PChannel>();
-const incomingHandlers = new Map<string, Set<(ch: P2PChannel) => void>>();
+const channels = new Map<string, WebRtcChannel>();
+const incomingHandlers = new Map<string, Set<(ch: WebRtcChannel) => void>>();
 const key = (token: string, id: number) => `${token}:${id}`;
 
 function ensureChannelListeners(): Promise<void> {
   if (listenersReady) return listenersReady;
   listenersReady = Promise.all([
     listen<ChannelOpenEvent>("channel-open", (e) => {
-      const ch = new P2PChannel(
+      const ch = new WebRtcChannel(
         e.payload.token,
         e.payload.channel_id,
         e.payload.label
@@ -386,7 +386,7 @@ function toBytes(
 }
 
 /** A channel opened over the Rust WebRTC layer. */
-class P2PChannel implements Channel {
+class WebRtcChannel implements Channel {
   readonly label: string;
   readonly token: string;
   readonly channelId: number;
@@ -408,11 +408,11 @@ class P2PChannel implements Channel {
     this.channelId = channelId;
     this.label = label;
     this.ipc.onmessage = (data) => this.deliver(data);
-    void invoke("p2p_bind", {
+    void invoke("webrtc_bind", {
       token,
       channelId,
       onData: this.ipc,
-    }).catch((e) => console.error("[p2p] bind failed", e));
+    }).catch((e) => console.error("[webrtc] bind failed", e));
   }
 
   send(data: string | ArrayBuffer | ArrayBufferView | Blob): void {
@@ -420,14 +420,14 @@ class P2PChannel implements Channel {
     const text = typeof data === "string";
     this.bufferedAmount += bytes.byteLength;
     this.outbox = this.outbox.then(() =>
-      invoke("p2p_send", {
+      invoke("webrtc_send", {
         token: this.token,
         channelId: this.channelId,
         data: bytes,
         text,
       })
         .catch((e) => {
-          console.error("[p2p] send failed", e);
+          console.error("[webrtc] send failed", e);
           this.onerror?.(new Event("error"));
         })
         .finally(() => {
@@ -438,10 +438,10 @@ class P2PChannel implements Channel {
 
   close(): void {
     this.unbindPipes();
-    invoke("p2p_close_channel", {
+    invoke("webrtc_close_channel", {
       token: this.token,
       channelId: this.channelId,
-    }).catch((e) => console.error("[p2p] close failed", e));
+    }).catch((e) => console.error("[webrtc] close failed", e));
     this.readyState = "closed";
   }
 
@@ -459,7 +459,7 @@ class P2PChannel implements Channel {
   private unbindPipe(id: number): void {
     if (!this.pipes.delete(id)) return;
     invoke("pipe_unbind", { id }).catch((e) =>
-      console.error("[p2p] pipe unbind failed", e)
+      console.error("[webrtc] pipe unbind failed", e)
     );
   }
 
@@ -501,9 +501,9 @@ export async function openChannel(
   const uuid = await resolveTarget(target);
   connectingUuid = uuid;
   try {
-    const token = await invoke<string>("p2p_connect", { target: uuid });
-    const channelId = await invoke<number>("p2p_open_channel", { token, label });
-    const ch = new P2PChannel(token, channelId, label);
+    const token = await invoke<string>("webrtc_connect", { target: uuid });
+    const channelId = await invoke<number>("webrtc_open_channel", { token, label });
+    const ch = new WebRtcChannel(token, channelId, label);
     channels.set(key(token, channelId), ch);
     connectingUuid = null;
     return ch;
@@ -524,9 +524,9 @@ export async function cancelConnection(): Promise<void> {
   connectingUuid = null;
   if (!uuid) return;
   try {
-    await invoke("p2p_cancel", { target: uuid });
+    await invoke("webrtc_cancel", { target: uuid });
   } catch (e) {
-    console.error("[p2p] cancel failed", e);
+    console.error("[webrtc] cancel failed", e);
   }
 }
 

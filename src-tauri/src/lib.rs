@@ -16,8 +16,8 @@ use extensions::{
 };
 use host::get_host_info;
 use net::bridge::{
-    net_configure, p2p_bind, p2p_cancel, p2p_close_all, p2p_close_channel, p2p_connect,
-    p2p_open_channel, p2p_send, sig_connect, sig_disconnect, sig_query, sig_send,
+    net_configure, webrtc_bind, webrtc_cancel, webrtc_close_all, webrtc_close_channel, webrtc_connect,
+    webrtc_open_channel, webrtc_send, sig_connect, sig_disconnect, sig_query, sig_send,
 };
 use net::pipe::{pipe_bind, pipe_unbind, PipeState};
 use net::state::NetState;
@@ -105,13 +105,13 @@ pub fn run() {
             sig_disconnect,
             sig_send,
             sig_query,
-            p2p_connect,
-            p2p_open_channel,
-            p2p_send,
-            p2p_bind,
-            p2p_close_channel,
-            p2p_close_all,
-            p2p_cancel,
+            webrtc_connect,
+            webrtc_open_channel,
+            webrtc_send,
+            webrtc_bind,
+            webrtc_close_channel,
+            webrtc_close_all,
+            webrtc_cancel,
             usb_list_devices,
             usb_open_channel,
             usb_send,

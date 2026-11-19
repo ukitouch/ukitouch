@@ -1,4 +1,4 @@
-//! Exposes signaling commands/events and the WebRTC P2P commands/events to the frontend.
+//! Exposes signaling commands/events and the WebRTC commands/events to the frontend.
 
 use std::sync::Arc;
 
@@ -139,9 +139,9 @@ pub async fn net_configure(
     Ok(())
 }
 
-/// Establish a P2P connection to `target`. Returns a connection token.
+/// Establish a WebRTC connection to `target`. Returns a connection token.
 #[tauri::command]
-pub async fn p2p_connect(
+pub async fn webrtc_connect(
     state: State<'_, Arc<NetState>>,
     target: String,
 ) -> Result<String, String> {
@@ -150,7 +150,7 @@ pub async fn p2p_connect(
 
 /// Open a data channel labelled `label` on the connection `token`.
 #[tauri::command]
-pub async fn p2p_open_channel(
+pub async fn webrtc_open_channel(
     state: State<'_, Arc<NetState>>,
     token: String,
     label: String,
@@ -160,7 +160,7 @@ pub async fn p2p_open_channel(
 
 /// Send raw bytes out on a channel.
 #[tauri::command]
-pub async fn p2p_send(
+pub async fn webrtc_send(
     state: State<'_, Arc<NetState>>,
     token: String,
     channel_id: u64,
@@ -172,7 +172,7 @@ pub async fn p2p_send(
 
 /// Bind a channel to the frontend, and send all buffered data to it.
 #[tauri::command]
-pub async fn p2p_bind(
+pub async fn webrtc_bind(
     state: State<'_, Arc<NetState>>,
     token: String,
     channel_id: u64,
@@ -183,7 +183,7 @@ pub async fn p2p_bind(
 
 /// Abort an in-progress connection to `target`.
 #[tauri::command]
-pub async fn p2p_cancel(state: State<'_, Arc<NetState>>, target: String) -> Result<(), String> {
+pub async fn webrtc_cancel(state: State<'_, Arc<NetState>>, target: String) -> Result<(), String> {
     webrtc::abort(&state, target.clone(), "connection cancelled").await?;
     // Tell the remote to abort as well (ignore if signaling is down).
     let _ = state
@@ -194,7 +194,7 @@ pub async fn p2p_cancel(state: State<'_, Arc<NetState>>, target: String) -> Resu
 
 /// Close a data channel.
 #[tauri::command]
-pub async fn p2p_close_channel(
+pub async fn webrtc_close_channel(
     state: State<'_, Arc<NetState>>,
     token: String,
     channel_id: u64,
@@ -202,8 +202,8 @@ pub async fn p2p_close_channel(
     webrtc::close_channel(&state, token, channel_id).await
 }
 
-/// Close every P2P connection.
+/// Close every WebRTC connection.
 #[tauri::command]
-pub async fn p2p_close_all(state: State<'_, Arc<NetState>>) -> Result<(), String> {
+pub async fn webrtc_close_all(state: State<'_, Arc<NetState>>) -> Result<(), String> {
     webrtc::close_all(&state).await
 }

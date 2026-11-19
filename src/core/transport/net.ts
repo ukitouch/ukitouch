@@ -1,7 +1,7 @@
 import { hostCapabilities } from "../utils/ui";
 import { deviceStore } from "../devices";
 import { getHostInfo } from "../hostinfo";
-import { onChannel, openChannel, cancelConnection } from "./p2p";
+import { onChannel, openChannel, cancelConnection } from "./webrtc";
 import { onUsbChannel, openUsbChannel } from "./usb";
 import { deviceUuid } from "../identity";
 import type { CoreProtocol } from "../db";
@@ -105,12 +105,12 @@ export function makeContext(extId: string): NetContext {
       }
       const { target } = request;
       return openChannel(target, extId).then((ch) =>
-        attachHello(ch, "out", extId, "p2p")
+        attachHello(ch, "out", extId, "webrtc")
       );
     },
     onChannel: (handler) => {
       const unsubs = [
-        onChannel(extId, (ch) => handler(attachHello(ch, "in", extId, "p2p"))),
+        onChannel(extId, (ch) => handler(attachHello(ch, "in", extId, "webrtc"))),
         onUsbChannel(extId, (ch) => handler(attachHello(ch, "in", extId, "usb"))),
       ];
       return toDisposable(() => {
