@@ -3,7 +3,7 @@
 
 Remote control, file transfer and more, all as extensions on a thin core!
 
-ukitouch provides webrtc, usb and bluetooth(ongoing) as underlying supports of end-to-end communication, all the other features based on these can be implemented as extensions.
+ukitouch provides webrtc, usb and bluetooth(ongoing) as underlying supports of peer-to-peer communication, all the other features based on these can be implemented as extensions.
 
 Built with Tauri 2.
 
