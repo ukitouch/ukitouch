@@ -1,5 +1,7 @@
+pub mod bridge;
 pub mod channel;
 pub mod peer;
+pub mod pipe;
 pub mod signaling;
 
 use std::collections::HashMap;

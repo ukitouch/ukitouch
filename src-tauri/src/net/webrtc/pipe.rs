@@ -9,7 +9,7 @@ use tokio::net::TcpStream;
 use tokio_util::sync::CancellationToken;
 
 use crate::net::state::NetState;
-use crate::net::webrtc;
+use super::send as webrtc_send;
 
 /// A text message kind payload byte in the pipe header.
 const KIND_TEXT: u8 = 1;
@@ -110,7 +110,7 @@ async fn pipe_pump(
         };
 
         // Forward as a single WebRTC DataChannel message.
-        if let Err(e) = webrtc::send(&net, token.clone(), channel_id, payload, text).await {
+        if let Err(e) = webrtc_send(&net, token.clone(), channel_id, payload, text).await {
             eprintln!("[pipe] send error: {e}");
             break;
         }

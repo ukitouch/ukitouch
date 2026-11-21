@@ -15,11 +15,11 @@ use extensions::{
     },
 };
 use host::get_host_info;
-use net::bridge::{
+use net::webrtc::bridge::{
     net_configure, webrtc_bind, webrtc_cancel, webrtc_close_all, webrtc_close_channel, webrtc_connect,
     webrtc_open_channel, webrtc_send, sig_connect, sig_disconnect, sig_query, sig_send,
 };
-use net::pipe::{pipe_bind, pipe_unbind, PipeState};
+use net::webrtc::pipe::{pipe_bind, pipe_unbind, PipeState};
 use net::state::NetState;
 use net::usb::{
     usb_close_channel, usb_list_devices, usb_listen_start, usb_listen_stop, usb_open_channel,
