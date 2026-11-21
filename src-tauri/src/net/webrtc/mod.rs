@@ -1,15 +1,20 @@
+pub mod signaling;
+
+use signaling::{Event, SignalingReceiver, SignalingSender};
+
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use bytes::Bytes;
-use serde_json::json;
+use serde_json::{json, Value};
 use tauri::ipc::{Channel, InvokeResponseBody};
-use tauri::Emitter;
+use tauri::{AppHandle, Emitter};
 use webrtc::api::APIBuilder;
 use webrtc::data_channel::data_channel_message::DataChannelMessage;
 use webrtc::data_channel::RTCDataChannel;
 use webrtc::ice_transport::ice_candidate::{RTCIceCandidate, RTCIceCandidateInit};
+use webrtc::ice_transport::ice_server::RTCIceServer;
 use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
 use webrtc::peer_connection::sdp::sdp_type::RTCSdpType;
@@ -22,6 +27,12 @@ use super::state::NetState;
 pub struct WebrtcInner {
     /// Target uuid -> peer.
     pub peers: HashMap<String, Arc<Peer>>,
+    /// Named signaling connections ("primary", "temp", ...).
+    pub signaling: Mutex<HashMap<String, SignalingSender>>,
+    /// Routes each signaling connection's events into this module.
+    pub routes: Mutex<HashMap<String, tauri::async_runtime::JoinHandle<()>>>,
+    /// ICE servers for new peer connections.
+    pub ice_servers: Mutex<Vec<RTCIceServer>>,
     next_token: u64,
     next_channel_id: u64,
 }
@@ -141,8 +152,17 @@ struct PeerSender {
 
 impl PeerSender {
     async fn send(&self, payload: serde_json::Value) -> Result<(), String> {
-        self.state.send_signal(&self.target, payload).await
+        send_primary(&self.state, &self.target, payload).await
     }
+}
+
+/// Send `payload` to peer `to` over the primary signaling connection.
+async fn send_primary(
+    state: &Arc<NetState>,
+    to: &str,
+    payload: serde_json::Value,
+) -> Result<(), String> {
+    signal_send(state, "primary", to, payload).await
 }
 
 /// Get or lazily create the peer connection to `target`.
@@ -156,7 +176,14 @@ async fn get_peer(state: &Arc<NetState>, target: String) -> Result<Arc<Peer>, St
 
     let api = APIBuilder::new().build();
     let config = RTCConfiguration {
-        ice_servers: state.ice_servers.lock().unwrap().clone(),
+        ice_servers: state
+            .webrtc
+            .lock()
+            .unwrap()
+            .ice_servers
+            .lock()
+            .unwrap()
+            .clone(),
         ..Default::default()
     };
     let pc = Arc::new(
@@ -195,7 +222,12 @@ async fn get_peer(state: &Arc<NetState>, target: String) -> Result<Arc<Peer>, St
                     // offer lost, fail the pending connection
                     if let Err(e) = sender.send(json!({ "description": offer })).await {
                         eprintln!("[webrtc] offer send to {} failed: {e}", sender.target);
-                        let _ = abort(&sender.state, sender.target.clone(), "signaling unavailable").await;
+                        let _ = abort(
+                            &sender.state,
+                            sender.target.clone(),
+                            "signaling unavailable",
+                        )
+                        .await;
                     }
                 }
             }
@@ -373,7 +405,10 @@ pub async fn open_channel(
     }
     if !handle.open.load(std::sync::atomic::Ordering::SeqCst) {
         remove_peer_by_token(state, &token);
-        let reason = aborted.borrow().clone().unwrap_or_else(|| "connect cancelled".into());
+        let reason = aborted
+            .borrow()
+            .clone()
+            .unwrap_or_else(|| "connect cancelled".into());
         return Err(reason);
     }
     Ok(channel_id)
@@ -510,9 +545,7 @@ pub async fn handle_signal(
                 .set_local_description(answer.clone())
                 .await
                 .map_err(|e| e.to_string())?;
-            state
-                .send_signal(&from, json!({ "description": answer }))
-                .await?;
+            send_primary(state, &from, json!({ "description": answer })).await?;
         } else {
             peer.pc
                 .set_remote_description(desc)
@@ -542,6 +575,115 @@ async fn flush_candidates(peer: &Arc<Peer>) {
     let pending: Vec<_> = peer.pending_candidates.lock().unwrap().drain(..).collect();
     for c in pending {
         let _ = peer.pc.add_ice_candidate(c).await;
+    }
+}
+
+/// Attach a signaling client under `name` and spawn its event router.
+/// Returns the previous connection under the same name, if any.
+pub fn signal_attach(
+    state: Arc<NetState>,
+    name: String,
+    sender: SignalingSender,
+    mut recv: SignalingReceiver,
+) -> Option<SignalingSender> {
+    let w = state.webrtc.lock().unwrap();
+    if let Some(h) = w.routes.lock().unwrap().remove(&name) {
+        h.abort();
+    }
+    let prev = w.signaling.lock().unwrap().insert(name.clone(), sender);
+    let app = state.app.clone();
+    let net = state.clone();
+    let name_task = name.clone();
+    let handle = tauri::async_runtime::spawn(async move {
+        while let Some(ev) = recv.recv().await {
+            route(&app, &net, &name_task, ev).await;
+        }
+    });
+    w.routes.lock().unwrap().insert(name, handle);
+    prev
+}
+
+/// Remove the connection under `name` and stop its router.
+pub fn signal_detach(state: &Arc<NetState>, name: &str) -> Option<SignalingSender> {
+    let w = state.webrtc.lock().unwrap();
+    w.routes.lock().unwrap().remove(name);
+    let prev = w.signaling.lock().unwrap().remove(name);
+    prev
+}
+
+pub async fn signal_send(
+    state: &Arc<NetState>,
+    name: &str,
+    to: &str,
+    payload: Value,
+) -> Result<(), String> {
+    let sender = get_signaling(state, name)?;
+    sender.send(to, payload).await.map_err(|e| e.to_string())
+}
+
+pub async fn signal_query(state: &Arc<NetState>, name: &str, id: &str) -> Result<bool, String> {
+    let sender = get_signaling(state, name)?;
+    sender.query(id).await.map_err(|e| e.to_string())
+}
+
+fn get_signaling(state: &Arc<NetState>, name: &str) -> Result<SignalingSender, String> {
+    state
+        .webrtc
+        .lock()
+        .unwrap()
+        .signaling
+        .lock()
+        .unwrap()
+        .get(name)
+        .cloned()
+        .ok_or("connection not found".into())
+}
+
+/// Set the ICE servers used for new peer connections.
+pub fn set_ice_servers(state: &Arc<NetState>, urls: Vec<String>) {
+    let servers = urls
+        .into_iter()
+        .map(|u| RTCIceServer {
+            urls: vec![u],
+            ..Default::default()
+        })
+        .collect();
+    *state.webrtc.lock().unwrap().ice_servers.lock().unwrap() = servers;
+}
+
+/// Route SDP/ICE to the peer layer, everything else to the frontend.
+async fn route(app: &AppHandle, state: &Arc<NetState>, name: &str, ev: Event) {
+    match ev {
+        Event::Forward { from, value } => {
+            if value.get("description").is_some()
+                || value.get("candidate").is_some()
+                || value.get("cancel").is_some()
+            {
+                if let Err(e) = handle_signal(state, from.clone(), value).await {
+                    eprintln!("[webrtc] handle_signal error from {from}: {e}");
+                }
+            } else {
+                let _ = app.emit(
+                    "sig-forward",
+                    json!({ "name": name, "from": from, "value": value }),
+                );
+            }
+        }
+        Event::Notice(msg) => {
+            let _ = app.emit("sig-notice", json!({ "name": name, "message": msg }));
+        }
+        Event::Error(value) => {
+            // peer is offline, fail the pending connection
+            if value.get("error").and_then(Value::as_str) == Some("offline") {
+                if let Some(to) = value.get("to").and_then(Value::as_str) {
+                    let _ = abort(state, to.to_string(), "peer is offline").await;
+                }
+            }
+            let _ = app.emit("sig-error", json!({ "name": name, "error": value }));
+        }
+        Event::Status(status) => {
+            let _ = app.emit("sig-status", json!({ "name": name, "status": status }));
+        }
     }
 }
 

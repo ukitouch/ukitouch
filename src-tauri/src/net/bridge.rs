@@ -1,89 +1,33 @@
-//! Exposes signaling commands/events and the WebRTC commands/events to the frontend.
+//! Exposes signaling and WebRTC commands/events to the frontend.
 
 use std::sync::Arc;
 
-use serde_json::Value;
-use tauri::{AppHandle, Emitter, State};
+use serde_json::{json, Value};
+use tauri::State;
 
-use super::signaling::{self, Event};
 use super::state::NetState;
 use super::webrtc;
-use ::webrtc::ice_transport::ice_server::RTCIceServer;
 
-/// Connect and register `id` under `name`. Spawns a reader that routes SDP/ICE
-/// to the WebRTC layer and forwards everything else to the frontend.
+/// Connect and register `id` under `name`.
 #[tauri::command]
 pub async fn sig_connect(
-    app: AppHandle,
     state: State<'_, Arc<NetState>>,
     name: String,
     url: String,
     id: String,
     force: bool,
 ) -> Result<(), String> {
-    let (sender, mut recv) = signaling::connect(&url, id, force);
-
-    // Replace any previous connection under the same name.
-    let prev = state.signaling.lock().unwrap().remove(&name);
+    let (sender, recv) = webrtc::signaling::connect(&url, id, force);
+    let prev = webrtc::signal_attach(state.inner().clone(), name, sender, recv);
     if let Some(prev) = prev {
         let _ = prev.disconnect().await;
     }
-    state.signaling.lock().unwrap().insert(name.clone(), sender);
-
-    let net = Arc::clone(state.inner());
-    tauri::async_runtime::spawn(async move {
-        while let Some(ev) = recv.recv().await {
-            match ev {
-                Event::Forward { from, value } => {
-                    if value.get("description").is_some()
-                        || value.get("candidate").is_some()
-                        || value.get("cancel").is_some()
-                    {
-                        if let Err(e) = webrtc::handle_signal(&net, from.clone(), value).await {
-                            eprintln!("[webrtc] handle_signal error from {from}: {e}");
-                        }
-                    } else {
-                        let _ = app.emit(
-                            "sig-forward",
-                            serde_json::json!({ "name": name, "from": from, "value": value }),
-                        );
-                    }
-                }
-                Event::Notice(msg) => {
-                    let _ = app.emit(
-                        "sig-notice",
-                        serde_json::json!({ "name": name, "message": msg }),
-                    );
-                }
-                Event::Error(value) => {
-                    // peer is offline, fail the pending connection
-                    if value.get("error").and_then(Value::as_str) == Some("offline") {
-                        if let Some(to) = value.get("to").and_then(Value::as_str) {
-                            let _ = webrtc::abort(&net, to.to_string(), "peer is offline").await;
-                        }
-                    }
-                    let _ = app.emit(
-                        "sig-error",
-                        serde_json::json!({ "name": name, "error": value }),
-                    );
-                }
-                Event::Status(status) => {
-                    let _ = app.emit(
-                        "sig-status",
-                        serde_json::json!({ "name": name, "status": status }),
-                    );
-                }
-            }
-        }
-    });
-
     Ok(())
 }
 
 #[tauri::command]
 pub async fn sig_disconnect(state: State<'_, Arc<NetState>>, name: String) -> Result<(), String> {
-    let sender = state.signaling.lock().unwrap().remove(&name);
-    if let Some(s) = sender {
+    if let Some(s) = webrtc::signal_detach(state.inner(), &name) {
         s.disconnect().await.map_err(|e| e.to_string())?;
     }
     Ok(())
@@ -96,14 +40,7 @@ pub async fn sig_send(
     to: String,
     payload: Value,
 ) -> Result<(), String> {
-    let s = state
-        .signaling
-        .lock()
-        .unwrap()
-        .get(&name)
-        .cloned()
-        .ok_or("connection not found")?;
-    s.send(&to, payload).await.map_err(|e| e.to_string())
+    webrtc::signal_send(state.inner(), &name, &to, payload).await
 }
 
 #[tauri::command]
@@ -112,14 +49,7 @@ pub async fn sig_query(
     name: String,
     id: String,
 ) -> Result<bool, String> {
-    let s = state
-        .signaling
-        .lock()
-        .unwrap()
-        .get(&name)
-        .cloned()
-        .ok_or("connection not found")?;
-    s.query(&id).await.map_err(|e| e.to_string())
+    webrtc::signal_query(state.inner(), &name, &id).await
 }
 
 /// Set the ICE servers used for new peer connections.
@@ -128,14 +58,7 @@ pub async fn net_configure(
     state: State<'_, Arc<NetState>>,
     ice_servers: Vec<String>,
 ) -> Result<(), String> {
-    let servers = ice_servers
-        .into_iter()
-        .map(|u| RTCIceServer {
-            urls: vec![u],
-            ..Default::default()
-        })
-        .collect();
-    *state.ice_servers.lock().unwrap() = servers;
+    webrtc::set_ice_servers(state.inner(), ice_servers);
     Ok(())
 }
 
@@ -145,7 +68,7 @@ pub async fn webrtc_connect(
     state: State<'_, Arc<NetState>>,
     target: String,
 ) -> Result<String, String> {
-    webrtc::connect(&state, target).await
+    webrtc::connect(state.inner(), target).await
 }
 
 /// Open a data channel labelled `label` on the connection `token`.
@@ -155,7 +78,7 @@ pub async fn webrtc_open_channel(
     token: String,
     label: String,
 ) -> Result<u64, String> {
-    webrtc::open_channel(&state, token, label).await
+    webrtc::open_channel(state.inner(), token, label).await
 }
 
 /// Send raw bytes out on a channel.
@@ -167,7 +90,7 @@ pub async fn webrtc_send(
     data: Vec<u8>,
     text: bool,
 ) -> Result<(), String> {
-    webrtc::send(&state, token, channel_id, data, text).await
+    webrtc::send(state.inner(), token, channel_id, data, text).await
 }
 
 /// Bind a channel to the frontend, and send all buffered data to it.
@@ -178,17 +101,15 @@ pub async fn webrtc_bind(
     channel_id: u64,
     on_data: tauri::ipc::Channel<tauri::ipc::InvokeResponseBody>,
 ) -> Result<(), String> {
-    webrtc::bind(&state, &token, channel_id, on_data)
+    webrtc::bind(state.inner(), &token, channel_id, on_data)
 }
 
 /// Abort an in-progress connection to `target`.
 #[tauri::command]
 pub async fn webrtc_cancel(state: State<'_, Arc<NetState>>, target: String) -> Result<(), String> {
-    webrtc::abort(&state, target.clone(), "connection cancelled").await?;
+    webrtc::abort(state.inner(), target.clone(), "connection cancelled").await?;
     // Tell the remote to abort as well (ignore if signaling is down).
-    let _ = state
-        .send_signal(&target, serde_json::json!({ "cancel": true }))
-        .await;
+    let _ = webrtc::signal_send(state.inner(), "primary", &target, json!({ "cancel": true })).await;
     Ok(())
 }
 
@@ -199,11 +120,11 @@ pub async fn webrtc_close_channel(
     token: String,
     channel_id: u64,
 ) -> Result<(), String> {
-    webrtc::close_channel(&state, token, channel_id).await
+    webrtc::close_channel(state.inner(), token, channel_id).await
 }
 
 /// Close every WebRTC connection.
 #[tauri::command]
 pub async fn webrtc_close_all(state: State<'_, Arc<NetState>>) -> Result<(), String> {
-    webrtc::close_all(&state).await
+    webrtc::close_all(state.inner()).await
 }
