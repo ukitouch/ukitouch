@@ -32,5 +32,25 @@ if (!existsSync(apk)) {
   process.exit(1);
 }
 
+run('adb', ['shell', 'am', 'force-stop', 'com.syome.ukitouch']);
 run('adb', ['install', '-r', apk]);
 run('adb', ['shell', 'am', 'start', '-n', 'com.syome.ukitouch/.MainActivity']);
+
+
+let pid = '';
+for (let i = 0; i < 40; i++) {
+  try {
+    pid = adb('shell', 'pidof', 'com.syome.ukitouch');
+  } catch {
+  }
+
+  if (pid) break;
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250);
+}
+
+if (!pid) {
+  console.error('app process not found');
+  process.exit(1);
+}
+
+run('adb', ['logcat', `--pid=${pid}`]);
