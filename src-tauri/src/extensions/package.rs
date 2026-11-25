@@ -439,3 +439,172 @@ fn version_gt(a: &str, b: &str) -> bool {
         _ => false,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn manifest() -> ExtensionManifest {
+        ExtensionManifest {
+            publisher: "test".into(),
+            name: "ext".into(),
+            version: "1.0.0".into(),
+            kind: Kind::Frontend,
+            entry: "index.js".into(),
+            style: None,
+            requires: vec![],
+            min_app_version: None,
+            platforms: vec![],
+        }
+    }
+
+    fn req(overrides: impl Fn(&mut Requirement)) -> Requirement {
+        let mut r = Requirement {
+            publisher: "ok".into(),
+            name: "dep".into(),
+            platforms: vec![],
+            url: None,
+        };
+        overrides(&mut r);
+        r
+    }
+
+    #[test]
+    fn parse_version_shape() {
+        // `x.x.x` parses, surrounding whitespace is tolerated
+        assert_eq!(parse_version("1.2.3"), Some([1, 2, 3]));
+        assert_eq!(parse_version(" 1.2.3 "), Some([1, 2, 3]));
+        assert_eq!(parse_version(""), None, "empty");
+        assert_eq!(parse_version("1.2"), None, "too few parts");
+        assert_eq!(parse_version("1.2.3.4"), None, "too many parts");
+        assert_eq!(parse_version("a.b.c"), None, "non-numeric parts");
+        assert_eq!(parse_version("1.x.3"), None, "non-numeric part in the middle");
+        assert_eq!(parse_version("1.2."), None, "trailing dot");
+        assert_eq!(parse_version("-1.2.3"), None, "negative number");
+    }
+
+    #[test]
+    fn version_gt_numeric_not_lexical() {
+        assert!(version_gt("1.0.1", "1.0.0"));
+        assert!(!version_gt("1.0.9", "1.0.10"));
+        assert!(version_gt("2.0.0", "1.9.9"));
+        assert!(!version_gt("1.0.0", "1.0.0"));
+
+        // unparseable sides are never "greater"
+        assert!(!version_gt("abc", "1.0.0"));
+        assert!(!version_gt("1.0.0", "1.0"));
+    }
+
+    #[test]
+    fn valid_id_shape() {
+        assert!(valid_id("test.ext"));
+        assert!(!valid_id("test"));
+        assert!(!valid_id("a.b.c"));
+        assert!(!valid_id(""));
+    }
+
+    #[test]
+    fn validate_names() {
+        let mut m = manifest();
+        m.validate().unwrap();
+
+        m.publisher = "a b".into();
+        assert!(m.validate().is_err());
+
+        m = manifest();
+        m.name = "a.b".into();
+        assert!(m.validate().is_err());
+    }
+
+    #[test]
+    fn validate_entry() {
+        // (entry, expected ok): must be a plain file name, no paths
+        for (entry, ok) in [
+            ("index.js", true), // plain file name
+            (".", false), // path element
+            ("..", false), // path element
+            ("../bad.js", false), // traversal attempt
+            ("sub/index.js", false), // nested path
+            ("", false), // empty
+            ("a b.js", false), // disallowed character
+        ] {
+            let mut m = manifest();
+            m.entry = entry.into();
+            assert_eq!(m.validate().is_ok(), ok, "{entry}");
+        }
+    }
+
+    #[test]
+    fn validate_min_app_version() {
+        let mut m = manifest();
+        m.min_app_version = Some("1.2".into());
+        assert!(m.validate().is_err());
+
+        m.min_app_version = Some("1.2.3".into());
+        m.validate().unwrap();
+    }
+
+    #[test]
+    fn validate_platforms() {
+        let mut m = manifest();
+        m.platforms = vec!["myos".into()];
+        assert!(m.validate().is_err());
+
+        m.platforms = vec![std::env::consts::OS.into()];
+        m.validate().unwrap();
+    }
+
+    #[test]
+    fn validate_requires() {
+        let mut m = manifest();
+        m.requires = vec![req(|_| ())];
+        m.validate().unwrap();
+
+        m.requires = vec![req(|r| r.publisher = "bad name".into())];
+        assert!(m.validate().is_err());
+
+        m.requires = vec![req(|r| r.name = "".into())];
+        assert!(m.validate().is_err());
+
+        m.requires = vec![req(|r| r.platforms = vec!["myos".into()])];
+        assert!(m.validate().is_err());
+
+        m.requires = vec![req(|r| r.url = Some("ftp://x".into()))];
+        assert!(m.validate().is_err());
+
+        // empty url is allowed
+        m.requires = vec![req(|r| r.url = Some("".into()))];
+        m.validate().unwrap();
+
+        m.requires = vec![req(|r| r.url = Some("https://x".into()))];
+        m.validate().unwrap();
+    }
+
+    #[test]
+    fn incompatibility() {
+        let mut m = manifest();
+        assert_eq!(m.incompatibility("1.0.0"), None);
+
+        m.min_app_version = Some("1.0.0".into());
+        assert_eq!(m.incompatibility("1.0.0"), None);
+
+        m.min_app_version = Some("1.0.1".into());
+        assert_eq!(m.incompatibility("1.0.0"), Some("1.0.1"));
+    }
+
+    #[test]
+    fn support() {
+        let mut m = manifest();
+        assert!(m.support());
+
+        m.platforms = vec![std::env::consts::OS.into()];
+        assert!(m.support());
+
+        let other = ["linux", "android", "windows"]
+            .into_iter()
+            .find(|p| *p != std::env::consts::OS)
+            .unwrap();
+        m.platforms = vec![other.into()];
+        assert!(!m.support());
+    }
+}
