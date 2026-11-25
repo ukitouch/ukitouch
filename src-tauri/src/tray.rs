@@ -39,7 +39,7 @@ pub fn init<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
 }
 
 /// Bring the main window back from the tray.
-fn show_main<R: Runtime>(app: &AppHandle<R>) {
+pub(crate) fn show_main<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
         let _ = window.unminimize();

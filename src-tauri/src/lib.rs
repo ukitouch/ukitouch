@@ -15,16 +15,16 @@ use extensions::{
     },
 };
 use host::get_host_info;
-use net::webrtc::bridge::{
-    net_configure, webrtc_bind, webrtc_cancel, webrtc_close_all, webrtc_close_channel, webrtc_connect,
-    webrtc_open_channel, webrtc_send, sig_connect, sig_disconnect, sig_query, sig_send,
-};
-use net::webrtc::pipe::{pipe_bind, pipe_unbind, PipeState};
 use net::state::NetState;
 use net::usb::{
     usb_close_channel, usb_list_devices, usb_listen_start, usb_listen_stop, usb_open_channel,
     usb_send,
 };
+use net::webrtc::bridge::{
+    net_configure, sig_connect, sig_disconnect, sig_query, sig_send, webrtc_bind, webrtc_cancel,
+    webrtc_close_all, webrtc_close_channel, webrtc_connect, webrtc_open_channel, webrtc_send,
+};
+use net::webrtc::pipe::{pipe_bind, pipe_unbind, PipeState};
 use orientation::{init as orientation_plugin, set_fullscreen, set_system_theme};
 use std::sync::Arc;
 use tauri::Manager;
@@ -43,7 +43,17 @@ fn open_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    #[cfg(desktop)]
+    let builder =
+        tauri::Builder::default().plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if !args.iter().any(|arg| arg == "--silent") {
+                tray::show_main(app);
+            }
+        }));
+    #[cfg(not(desktop))]
+    let builder = tauri::Builder::default();
+
+    builder
         .plugin(orientation_plugin())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
