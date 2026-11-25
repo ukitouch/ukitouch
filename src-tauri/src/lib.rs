@@ -43,14 +43,14 @@ fn open_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    #[cfg(desktop)]
+    #[cfg(all(desktop, not(debug_assertions)))]
     let builder =
         tauri::Builder::default().plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             if !args.iter().any(|arg| arg == "--silent") {
                 tray::show_main(app);
             }
         }));
-    #[cfg(not(desktop))]
+    #[cfg(any(not(desktop), debug_assertions))]
     let builder = tauri::Builder::default();
 
     builder
@@ -90,6 +90,8 @@ pub fn run() {
             Ok(())
         })
         .on_page_load(|webview, payload| {
+            #[cfg(not(desktop))]
+            let _ = (webview, payload);
             #[cfg(desktop)]
             if webview.label() == "main"
                 && matches!(payload.event(), tauri::webview::PageLoadEvent::Finished)
@@ -101,6 +103,8 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             // Closing the main window drops it to the tray. Quit via the tray menu.
+            #[cfg(not(desktop))]
+            let _ = (window, event);
             #[cfg(desktop)]
             if window.label() == "main" {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
