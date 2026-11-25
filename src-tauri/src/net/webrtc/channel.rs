@@ -13,7 +13,7 @@ use super::peer::{self, Peer};
 use crate::net::state::NetState;
 
 /// The peer's data channel reader takes at most `u16::MAX` bytes per message.
-const MAX_MESSAGE: usize = u16::MAX as usize;
+pub(crate) const MAX_MESSAGE: usize = u16::MAX as usize;
 
 /// Max bytes held before the frontend binds.
 const INBOUND_CAP: usize = 4 * 1024 * 1024;

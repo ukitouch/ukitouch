@@ -9,10 +9,14 @@ use tokio::net::TcpStream;
 use tokio_util::sync::CancellationToken;
 
 use crate::net::state::NetState;
-use crate::net::webrtc::channel::send as webrtc_send;
+use crate::net::webrtc::channel::{send as webrtc_send, MAX_MESSAGE};
 
 /// A text message kind payload byte in the pipe header.
 const KIND_TEXT: u8 = 1;
+/// Max payload bytes a single frame may carry.
+/// 
+/// A frame must be sendable as one DataChannel message, see [`MAX_MESSAGE`].
+const MAX_MSG: usize = MAX_MESSAGE;
 
 #[derive(Default)]
 pub struct PipeState {
@@ -81,7 +85,6 @@ async fn read_message(stream: &mut TcpStream) -> Option<(bool, Vec<u8>)> {
     }
 
     let len = u32::from_le_bytes(head[..4].try_into().unwrap()) as usize;
-    const MAX_MSG: usize = 50 * 1024 * 1024; // 50 MiB
     if len > MAX_MSG {
         eprintln!("[pipe] message too large: {len}");
         return None;
@@ -117,4 +120,81 @@ async fn pipe_pump(
     }
 
     eprintln!("[pipe] ended for {token}/{channel_id}");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+    use tokio::io::AsyncWriteExt;
+    use tokio::net::TcpListener;
+
+    /// One wire frame.
+    fn frame(kind: u8, payload: &[u8]) -> Vec<u8> {
+        let mut v = (payload.len() as u32).to_le_bytes().to_vec();
+        v.push(kind);
+        v.extend_from_slice(payload);
+        v
+    }
+
+    /// A loopback stream whose peer writes `chunks` in order, then closes.
+    async fn loopback_stream(chunks: Vec<Vec<u8>>) -> TcpStream {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let mut client = TcpStream::connect(addr).await.unwrap();
+        let server = listener.accept().await.unwrap().0;
+        tokio::spawn(async move {
+            for chunk in &chunks {
+                client.write_all(chunk).await.unwrap();
+            }
+            client.shutdown().await.unwrap();
+        });
+        server
+    }
+
+    #[tokio::test]
+    async fn reads_binary_and_text_frames() {
+        let mut s = loopback_stream(vec![frame(0, b"hello"), frame(1, b"hi")]).await;
+
+        let (text, data) = read_message(&mut s).await.unwrap();
+        assert!(!text);
+        assert_eq!(data, b"hello");
+
+        let (text, data) = read_message(&mut s).await.unwrap();
+        assert!(text);
+        assert_eq!(data, b"hi");
+
+        // peer closed cleanly
+        assert!(read_message(&mut s).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn truncated_payload_ends_stream() {
+        // header promises 10 bytes, only 4 arrive, then close
+        let mut partial = frame(0, b"1234567890");
+        partial.truncate(9);
+        let mut s = loopback_stream(vec![partial]).await;
+        assert!(read_message(&mut s).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn max_size_boundary() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let mut client = TcpStream::connect(addr).await.unwrap();
+        let mut server = listener.accept().await.unwrap().0;
+        let mut header = (MAX_MSG as u32 + 1).to_le_bytes().to_vec();
+        header.push(0); // kind byte
+        client.write_all(&header).await.unwrap();
+        let r = tokio::time::timeout(Duration::from_secs(2), read_message(&mut server)).await;
+        assert!(r.is_ok_and(|m| m.is_none()));
+        drop(client);
+
+        // exactly MAX_MSG is accepted
+        let payload = vec![0u8; MAX_MSG];
+        let mut s = loopback_stream(vec![frame(1, &payload)]).await;
+        let (text, data) = read_message(&mut s).await.unwrap();
+        assert!(text);
+        assert_eq!(data.len(), MAX_MSG);
+    }
 }
