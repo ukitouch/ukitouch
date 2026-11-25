@@ -1,10 +1,9 @@
 //! Signaling client speaking the `p2psig` server protocol.
 //!
 //! Wire protocol:
-//! - client -> server `{"register":"<id>","force":bool}`  register an id
-//! - client -> server `{"query":"<id>"}`                  server replies `{"id":"..","registered":bool}`
-//! - client -> server `{"from":"<a>","to":"<b>",..}`      server forwards the same text to `b`
-//! - server -> client  bare strings for errors/notices     (`id \`x\` taken`, `b offline`, ...)
+//! - client -> server `{"register": "<id>", "force": bool}`    register an id
+//! - client -> server `{"query": "<id>"}`                      server replies `{"id":"..","registered":bool}`
+//! - client -> server `{"from": "<a>", "to": "<b>", ...}`      server forwards the same text to `b`
 
 use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
@@ -50,7 +49,7 @@ const RETRY: Duration = Duration::from_secs(2);
 type Ws = WebSocketStream<MaybeTlsStream<TcpStream>>;
 type WriteHalf = futures_util::stream::SplitSink<Ws, Message>;
 
-/// Send half of a signaling connection.
+/// `Send` half of a signaling connection.
 #[derive(Clone)]
 pub struct SignalingSender {
     /// Own registration id on the server.
@@ -63,7 +62,7 @@ pub struct SignalingSender {
     closed: Arc<AtomicBool>,
 }
 
-/// Receive half of a signaling connection.
+/// `Receive` half of a signaling connection.
 pub struct SignalingReceiver {
     rx: mpsc::Receiver<Event>,
 }
@@ -206,6 +205,7 @@ pub fn connect(url: &str, id: String, force: bool) -> (SignalingSender, Signalin
             }
             let _ = tx_mgr.send(Event::Status(Status::Connecting)).await;
 
+            // connect
             let (mut write, mut read) = match connect_async(&url).await {
                 Ok((ws, _)) => ws.split(),
                 Err(_) => {
@@ -214,6 +214,7 @@ pub fn connect(url: &str, id: String, force: bool) -> (SignalingSender, Signalin
                 }
             };
 
+            // register
             if write
                 .send(Message::Text(
                     serde_json::json!({ "register": id_mgr, "force": force })
@@ -227,6 +228,7 @@ pub fn connect(url: &str, id: String, force: bool) -> (SignalingSender, Signalin
                 continue;
             }
 
+            // drain
             *write_mgr.lock().await = Some(write);
             let _ = tx_mgr.send(Event::Status(Status::Connected)).await;
             while let Some(msg) = read.next().await {
@@ -238,7 +240,7 @@ pub fn connect(url: &str, id: String, force: bool) -> (SignalingSender, Signalin
                 }
             }
 
-            // Socket is gone: unblock sends, report, then retry (or stop).
+            // retry (or stop)
             *write_mgr.lock().await = None;
             let _ = tx_mgr.send(Event::Status(Status::Disconnected)).await;
             if closed_mgr.load(Ordering::SeqCst) {

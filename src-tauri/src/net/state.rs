@@ -5,11 +5,11 @@ use tauri::AppHandle;
 
 use crate::net::usb::UsbState;
 
-use super::webrtc::WebrtcInner;
+use super::webrtc::WebrtcState;
 
 pub struct NetState {
     /// WebRTC peers and their signaling connections.
-    pub webrtc: Mutex<WebrtcInner>,
+    pub webrtc: Mutex<WebrtcState>,
     /// USB (adb) channels.
     pub usb: Mutex<UsbState>,
     /// Frontend event emitter.
@@ -19,7 +19,7 @@ pub struct NetState {
 impl NetState {
     pub fn new(app: AppHandle) -> Self {
         Self {
-            webrtc: Mutex::new(WebrtcInner::default()),
+            webrtc: Mutex::new(WebrtcState::default()),
             usb: Mutex::new(UsbState::default()),
             app,
         }

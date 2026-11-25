@@ -1,4 +1,4 @@
-//! Generic byte pipe: bridges a local TCP socket to a WebRTC DataChannel.
+//! Bridges a local TCP socket to a WebRTC DataChannel.
 
 use serde::Serialize;
 use std::collections::HashMap;
@@ -9,7 +9,7 @@ use tokio::net::TcpStream;
 use tokio_util::sync::CancellationToken;
 
 use crate::net::state::NetState;
-use super::send as webrtc_send;
+use crate::net::webrtc::channel::send as webrtc_send;
 
 /// A text message kind payload byte in the pipe header.
 const KIND_TEXT: u8 = 1;
@@ -65,9 +65,9 @@ pub fn pipe_unbind(state: State<'_, PipeState>, id: u64) -> Result<(), String> {
     Ok(())
 }
 
-/// Read one length-prefixed message: `(is_text, payload)`.
+/// `(is_text, payload)`
 ///
-/// `None` means the peer closed cleanly or the framing broke.
+/// Return `None` means the peer closed cleanly or the framing broke.
 async fn read_message(stream: &mut TcpStream) -> Option<(bool, Vec<u8>)> {
     // Read 4-byte length prefix and the kind byte.
     let mut head = [0u8; 5];

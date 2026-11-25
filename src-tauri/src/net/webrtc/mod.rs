@@ -15,10 +15,10 @@ use signaling::{SignalingReceiver, SignalingSender};
 use crate::net::state::NetState;
 
 #[derive(Default)]
-pub struct WebrtcInner {
+pub struct WebrtcState {
     /// Target uuid -> peer.
     pub peers: HashMap<String, Arc<peer::Peer>>,
-    /// Named signaling connections ("primary", "temp", ...).
+    /// Named signaling connections ("primary", "temp").
     pub signaling: Mutex<HashMap<String, SignalingSender>>,
     /// Routes each signaling connection's events into this module.
     pub routes: Mutex<HashMap<String, tauri::async_runtime::JoinHandle<()>>>,
@@ -27,9 +27,6 @@ pub struct WebrtcInner {
     next_token: u64,
     next_channel_id: u64,
 }
-
-pub use channel::{bind, close_channel, send};
-pub use peer::{abort, close_all, connect, open_channel};
 
 /// Attach a signaling client under `name` and spawn its event router.
 /// Returns the previous connection under the same name, if any.

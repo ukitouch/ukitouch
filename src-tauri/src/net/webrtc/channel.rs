@@ -1,5 +1,6 @@
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use bytes::Bytes;
 use serde_json::json;
@@ -14,7 +15,7 @@ use crate::net::state::NetState;
 /// The peer's data channel reader takes at most `u16::MAX` bytes per message.
 const MAX_MESSAGE: usize = u16::MAX as usize;
 
-/// Bytes held before the frontend binds.
+/// Max bytes held before the frontend binds.
 const INBOUND_CAP: usize = 4 * 1024 * 1024;
 
 /// A data channel with send buffering until it opens.
@@ -56,7 +57,7 @@ pub fn bind(
     channel_id: u64,
     sink: Channel<InvokeResponseBody>,
 ) -> Result<(), String> {
-    let peer = peer::find_by_token(state, token)?;
+    let peer = peer::find_peer_by_token(state, token)?;
     let handle = peer
         .channels
         .lock()
@@ -120,7 +121,7 @@ pub async fn send(
         return Err(format!("message too large: {} bytes", data.len()));
     }
 
-    let peer = peer::find_by_token(state, &token)?;
+    let peer = peer::find_peer_by_token(state, &token)?;
     let handle = peer
         .channels
         .lock()
@@ -147,14 +148,67 @@ async fn send_now(handle: &ChannelHandle, data: Vec<u8>, text: bool) -> Result<(
     res.map(|_| ()).map_err(|e| e.to_string())
 }
 
-/// Close a single channel, leaving the peer's other channels untouched. The
-/// peer is dropped once its last channel is gone.
+/// Open a data channel on `target`'s connection. Blocks until it opens.
+pub async fn open_channel(
+    state: &Arc<NetState>,
+    token: String,
+    label: String,
+) -> Result<u64, String> {
+    let peer = peer::find_peer_by_token(state, &token)?;
+    let dc: Arc<RTCDataChannel> = peer
+        .pc
+        .create_data_channel(&label, None)
+        .await
+        .map_err(|e| {
+            peer::remove_peer_by_token(state, &token);
+            e.to_string()
+        })?;
+    let handle = Arc::new(ChannelHandle::new(dc));
+
+    let channel_id = {
+        let mut w = state.webrtc.lock().unwrap();
+        let id = w.next_channel_id;
+        w.next_channel_id += 1;
+        id
+    };
+    peer.channels
+        .lock()
+        .unwrap()
+        .insert(channel_id, handle.clone());
+    wire_channel(state.clone(), peer.clone(), channel_id, handle.clone());
+
+    // error handling
+    let mut aborted = peer.cancelled.subscribe();
+    if !handle.open.load(std::sync::atomic::Ordering::SeqCst) {
+        tokio::select! {
+            _ = handle.opened.notified() => {}
+            _ = aborted.changed() => {}
+            _ = tokio::time::sleep(Duration::from_secs(10)) => {
+                peer::remove_peer_by_token(state, &token);
+                return Err("channel open timed out".into());
+            }
+        }
+    }
+    if !handle.open.load(std::sync::atomic::Ordering::SeqCst) {
+        peer::remove_peer_by_token(state, &token);
+        let reason = aborted
+            .borrow()
+            .clone()
+            .unwrap_or_else(|| "connect cancelled".into());
+        return Err(reason);
+    }
+    Ok(channel_id)
+}
+
+/// Close a single channel on a peer.
+///
+/// Will drop the peer once its last channel is gone.
 pub async fn close_channel(
     state: &Arc<NetState>,
     token: String,
     channel_id: u64,
 ) -> Result<(), String> {
-    let peer = peer::find_by_token(state, &token)?;
+    let peer = peer::find_peer_by_token(state, &token)?;
     let handle = peer
         .channels
         .lock()
@@ -169,7 +223,7 @@ pub async fn close_channel(
     Ok(())
 }
 
-/// Register an incoming channel and tell the frontend.
+/// Register an incoming channel.
 pub async fn register_incoming(
     state: Arc<NetState>,
     target: String,
@@ -209,6 +263,7 @@ pub fn wire_channel(
     channel_id: u64,
     handle: Arc<ChannelHandle>,
 ) {
+    // on open
     let h = handle.clone();
     let app = state.app.clone();
     let token = peer.token.clone();
@@ -229,6 +284,7 @@ pub fn wire_channel(
         })
     }));
 
+    // on message
     let h = handle.clone();
     handle
         .dc
@@ -239,6 +295,7 @@ pub fn wire_channel(
             })
         }));
 
+    // on close
     let app = state.app.clone();
     let net = state.clone();
     let token = peer.token.clone();
@@ -251,7 +308,25 @@ pub fn wire_channel(
                 "channel-close",
                 json!({ "token": token, "channel_id": channel_id }),
             );
-            peer::remove_channel_by_token(&net, &token, channel_id);
+
+            // cleanup the channel record
+            let peer = &net
+                .webrtc
+                .lock()
+                .unwrap()
+                .peers
+                .values()
+                .find(|p| p.token == token)
+                .cloned();
+            let Some(peer) = peer else { return };
+            let empty = {
+                let mut channels = peer.channels.lock().unwrap();
+                channels.remove(&channel_id);
+                channels.is_empty()
+            };
+            if empty {
+                peer::remove_peer_by_token(&net, &token);
+            }
         })
     }));
 }
