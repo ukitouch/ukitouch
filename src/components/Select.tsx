@@ -43,7 +43,7 @@ export function Select<T extends string>({
     }
   };
 
-  const { highlight, setHighlight, rootRef, listRef, handleKeyDown } = useListbox({
+  const { highlight, setHighlight, rootRef, listRef, panelRef, handleKeyDown } = useListbox({
     entries,
     open,
     setOpen,
@@ -90,7 +90,9 @@ export function Select<T extends string>({
         onPick={pick}
         selectedId={value}
         emptyText="No options"
+        anchor={rootRef}
         listRef={listRef}
+        panelRef={panelRef}
       />
     </div>
   );

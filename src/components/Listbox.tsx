@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import type { KeyboardEvent, RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import type { CSSProperties, KeyboardEvent, RefObject } from "react";
 
 /** A row rendered by {@link ListboxPanel}. */
 export interface ListboxEntry {
@@ -35,6 +36,7 @@ export function useListbox({
   const [rawHighlight, setHighlight] = useState(0);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLUListElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const initial = useRef(initialHighlight);
   initial.current = initialHighlight;
 
@@ -53,16 +55,27 @@ export function useListbox({
     listRef.current?.children[highlight]?.scrollIntoView({ block: "nearest" });
   }, [open, highlight]);
 
-  // Close on outside pointer-down.
+  // Close on 'blur'
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (e: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const t = e.target as Node;
+      if (rootRef.current?.contains(t) || panelRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+
+    const onMove = (e: Event) => {
+      if (panelRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
     };
     document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
+    window.addEventListener("scroll", onMove, true);
+    window.addEventListener("resize", onMove);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("scroll", onMove, true);
+      window.removeEventListener("resize", onMove);
+    };
   }, [open, setOpen]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLElement>) => {
@@ -94,7 +107,7 @@ export function useListbox({
     }
   };
 
-  return { highlight, setHighlight, rootRef, listRef, handleKeyDown };
+  return { highlight, setHighlight, rootRef, listRef, panelRef, handleKeyDown };
 }
 
 export interface ListboxPanelProps {
@@ -107,7 +120,10 @@ export interface ListboxPanelProps {
   selectedId?: string | null;
   /** Shown when `entries` is empty. */
   emptyText: string;
+  /** The element the panel is anchored to. */
+  anchor: RefObject<HTMLDivElement | null>;
   listRef: RefObject<HTMLUListElement | null>;
+  panelRef: RefObject<HTMLDivElement | null>;
   className?: string;
 }
 
@@ -120,13 +136,51 @@ export function ListboxPanel({
   onPick,
   selectedId = null,
   emptyText,
+  anchor,
   listRef,
+  panelRef,
   className = "",
 }: ListboxPanelProps) {
+  const GAP = 4;
+  const PAD = 8;
+
+  // Hidden off-screen until its real height is measured.
+  const [pos, setPos] = useState<CSSProperties>({
+    position: "fixed",
+    top: -9999,
+    left: -9999,
+  });
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const el = panelRef.current;
+    const a = anchor.current?.getBoundingClientRect();
+    if (!el || !a) return;
+    const h = el.offsetHeight;
+    const below = a.bottom + GAP + h <= window.innerHeight - PAD;
+    setPos({
+      position: "fixed",
+      top: below ? a.bottom + GAP : Math.max(PAD, a.top - GAP - h),
+    });
+  }, [open, entries.length, anchor, panelRef]);
+
   if (!open) return null;
-  return (
+  const a = anchor.current?.getBoundingClientRect();
+  const w = a
+    ? Math.min(Math.max(a.width, 100), window.innerWidth - PAD * 2)
+    : undefined;
+  const style: CSSProperties = a
+    ? {
+      ...pos,
+      width: w,
+      left: Math.max(PAD, Math.min(a.left, window.innerWidth - (w ?? 0) - PAD)),
+    }
+    : pos;
+  return createPortal(
     <div
-      className={`absolute top-full left-0 z-50 mt-1 w-full max-h-48 overflow-y-auto py-1 rounded-md bg-window text-sm shadow-lg ${className}`}
+      ref={panelRef}
+      style={style}
+      className={`z-50 max-h-48 overflow-y-auto py-1 rounded-md bg-window text-sm shadow-lg ${className}`}
     >
       {entries.length === 0 ? (
         <div className="px-3 py-1.5 text-sm text-3">
@@ -144,8 +198,8 @@ export function ListboxPanel({
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => onPick(i)}
                 className={`block w-full text-left px-3 py-1.5 interactive-row ${i === highlight
-                    ? "active"
-                    : ""
+                  ? "active"
+                  : ""
                   }`}
               >
                 <span className="truncate">{o.label}</span>
@@ -160,6 +214,7 @@ export function ListboxPanel({
           ))}
         </ul>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }

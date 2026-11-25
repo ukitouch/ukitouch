@@ -73,7 +73,7 @@ export function PeerDeviceSearch({
     setOpen(false);
   };
 
-  const { highlight, setHighlight, rootRef, listRef, handleKeyDown } = useListbox({
+  const { highlight, setHighlight, rootRef, listRef, panelRef, handleKeyDown } = useListbox({
     entries,
     open,
     setOpen,
@@ -118,7 +118,9 @@ export function PeerDeviceSearch({
         onPick={pick}
         selectedId={selectedUuid}
         emptyText={emptyText}
+        anchor={rootRef}
         listRef={listRef}
+        panelRef={panelRef}
       />
     </div>
   );
