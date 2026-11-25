@@ -1,4 +1,5 @@
 import type { Disposable } from "../types";
+import { UsbDevice } from "./usb";
 
 /**
  * TODO: Current implementation is a WebRTC DataChannel, USB / Bluetooth transports will implement
@@ -41,8 +42,10 @@ export interface WebRtcOpenSpec {
  */
 export interface UsbOpenSpec {
   transport: "usb";
-  /** The other device's serial. */
-  serial?: string;
+  /** 
+   * The device that will dial, not null for desktop, null for Android
+   */
+  device?: UsbDevice;
 }
 
 /**
