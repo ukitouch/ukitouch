@@ -4,10 +4,9 @@ import { createStore } from "../utils/store";
 import { Channel, ChannelReadyState } from ".";
 
 export interface UsbDevice {
-  /** The device's serial. */
-  serial: string;
-  /** "device" | "unauthorized" | "offline" | ... */
-  state: string;
+  vendorId: number,
+  productId: number,
+  description: string,
 }
 
 export const usbStore = createStore<{ devices: UsbDevice[] }>({ devices: [] });
@@ -121,12 +120,16 @@ class UsbChannel implements Channel {
 
 /** Open a USB channel to `serial`, labelled `label`. */
 export async function openUsbChannel(
-  serial: string,
-  label: string
+  label: string,
+  device?: UsbDevice
 ): Promise<Channel> {
   await ensureListeners();
-  const channelId = await invoke<number>("usb_open_channel", { serial, label });
+
+  // TODO: Error handling
+  const channelId = await invoke<number>("usb_open_channel", { vendorId: device?.vendorId, productId: device?.productId, label });
   const ch = new UsbChannel(channelId, label);
+  ch.readyState = "open";
+  ch.onopen?.(new Event("open"));
   channels.set(channelId, ch);
   return ch;
 }

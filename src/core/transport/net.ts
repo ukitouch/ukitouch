@@ -94,7 +94,7 @@ export function makeContext(extId: string): NetContext {
     openChannel: async (request: OpenSpec) => {
       const { transport } = request;
       if (transport === "usb") {
-        return openUsbChannel(request.serial ?? "", extId).then((ch) =>
+        return openUsbChannel(extId, request.device).then((ch) =>
           attachHello(ch, "out", extId, "usb")
         );
       }

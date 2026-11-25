@@ -1,5 +1,6 @@
 import {
   createStore,
+  UsbDevice,
   type Channel,
   type DeviceRecord,
   type NetContext,
@@ -108,20 +109,20 @@ export function openPingChannelByUuid(uuid: string, label: string): Promise<void
 }
 
 /** Dial a USB device by serial. */
-export async function openUsbPingChannel(serial: string): Promise<void> {
-  if (!ctxRef || !serial) return;
+export async function openUsbPingChannel(device?: UsbDevice): Promise<void> {
+  if (!ctxRef) return;
   if (channel) channel.close();
   cancelled = false;
-  pingStore.set({ connection: { status: "connecting", peerId: serial } });
-  log(`connecting to ${serial} (usb)...`);
+  pingStore.set({ connection: { status: "connecting", peerId: device?.vendorId.toString() ?? "Desktop" } });
+  log(`connecting to ${device?.description ?? "Desktop"} (usb)...`);
   try {
-    const ch = await ctxRef.openChannel({ transport: "usb", serial });
+    const ch = await ctxRef.openChannel({ transport: "usb", device });
     if (cancelled) {
       ch.close();
       log("connect cancelled");
       return;
     }
-    bindChannel(ch, serial);
+    bindChannel(ch, device?.vendorId.toString() ?? "Desktop");
     log("connected (usb)");
   } catch (err) {
     if (!cancelled) log(`connect failed: ${String(err)}`);

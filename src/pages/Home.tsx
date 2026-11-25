@@ -1,10 +1,8 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { disableTempId, enableTempId, tempIdStore } from "../core/transport/webrtc";
-import type { Platform } from "../core/types";
 import { Button } from "../components/Button";
 import { PageHeader } from "../components/PageHeader";
 import { SettingRow } from "../components/SettingRow";
-import { getHostInfo } from "../api";
 import { disableUsbListener, enableUsbListener, usbListenerStore } from "../core/transport/usb";
 
 async function copyText(text: string): Promise<void> {
@@ -127,11 +125,6 @@ function HomePage() {
  * Android-only USB listener toggle.
  */
 function UsbListenerSection() {
-  const [platform, setPlatform] = useState<Platform | null>(null);
-  useEffect(() => {
-    void getHostInfo().then((i) => setPlatform(i.platform));
-  }, []);
-
   const enabled = useSyncExternalStore(
     usbListenerStore.subscribe,
     () => usbListenerStore.get().enabled
@@ -151,8 +144,6 @@ function UsbListenerSection() {
     }
   }
 
-  if (platform !== "android") return null;
-
   return (
     <SettingRow
       label="USB Listener"
@@ -164,13 +155,13 @@ function UsbListenerSection() {
           {enabled ? "Disable" : "Enable"}
         </Button>
       }
-      hint="USB debugging must be enabled for a desktop to find this device"
+      hint="USB debugging must be enabled on phone"
     >
       <div className="rounded-md px-3 py-2 bg-box">
         <span className="text-sm text-2">
           {enabled
-            ? "Will accept USB connections from a desktop"
-            : "Connection request from desktop will be rejected"}
+            ? "Will accept USB connections"
+            : "USB connection request will be rejected"}
         </span>
       </div>
     </SettingRow>

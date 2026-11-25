@@ -17,6 +17,7 @@ import {
   UsbDeviceSelect,
   usbStore,
   getHostInfo,
+  UsbDevice,
 } from "@ukitouch/extension";
 
 type Mode = "webrtc" | "usb" | "ble";
@@ -26,7 +27,7 @@ export default function PingView() {
   const [mode, setMode] = useState<Mode>("webrtc");
   const [query, setQuery] = useState("");
   const [selectedUuid, setSelectedUuid] = useState<string | null>(null);
-  const [usbSerial, setUsbSerial] = useState("");
+  const [usbDevice, setUsbDevice] = useState<UsbDevice | null>(null);
   const usbDevices = useSyncExternalStore(
     usbStore.subscribe,
     () => usbStore.get().devices
@@ -60,9 +61,130 @@ export default function PingView() {
     if (status === "connecting") cancelConnect();
     else if (status === "connected") disconnect();
     else {
-      const target = usbSerial || usbDevices[0]?.serial;
-      if (target) void openUsbPingChannel(target);
+      void openUsbPingChannel(usbDevice ?? undefined);
     }
+  }
+
+  function Webrtc() {
+    return (
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <PeerDeviceSearch
+            devices={state.devices}
+            selectedUuid={selectedUuid}
+            text={query}
+            onTextChange={(text) => {
+              setQuery(text);
+              setSelectedUuid(null);
+            }}
+            onSelect={(uuid, label) => {
+              setSelectedUuid(uuid);
+              setQuery(label);
+            }}
+            onCreate={(id) => {
+              setSelectedUuid(null);
+              setQuery(id);
+              onWebrtcConnect();
+            }}
+          />
+          <div className="flex gap-2">
+            <Button
+              onClick={onWebrtcConnect}
+              disabled={status === "idle" && !canConnect}
+            >
+              {status === "connecting"
+                ? "Cancel"
+                : status === "connected"
+                  ? "Disconnect"
+                  : "Connect"}
+            </Button>
+            <Button
+              onClick={sendPing}
+              disabled={status !== "connected"}
+            >
+              Ping
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  function Usb() {
+    function Desktop() {
+      return (
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {usbDevices.length > 0 && (
+              <UsbDeviceSelect
+                devices={usbDevices}
+                value={usbDevice?.vendorId}
+                onChange={setUsbDevice}
+              />
+            )}
+            {usbDevices.length === 0 && (
+              <p className="flex-1 text-xs text-3">
+                No USB devices (plug in with USB debugging on, then refresh)
+              </p>
+            )}
+            <Button
+              onClick={() => void refreshUsbDevices()}
+            >
+              Refresh
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={onUsbConnectClick}
+              disabled={usbDevices.length === 0}
+            >
+              {status === "connecting"
+                ? "Cancel"
+                : status === "connected"
+                  ? "Disconnect"
+                  : "Connect"}
+            </Button>
+            <Button
+              onClick={sendPing}
+              disabled={status !== "connected"}
+            >
+              Ping
+            </Button>
+          </div>
+        </div>
+      )
+    }
+
+    function Android() {
+      return (
+        <>
+          <span className="text-sm text-2">Plug the USB cable into the desktop and make sure its USB listener is enabled.</span>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={onUsbConnectClick}>
+              {status === "connecting"
+                ? "Cancel"
+                : status === "connected"
+                  ? "Disconnect"
+                  : "Connect"}
+            </Button>
+            <Button
+              onClick={sendPing}
+              disabled={status !== "connected"}
+            >
+              Ping
+            </Button>
+          </div>
+        </>
+      )
+    }
+
+    return (
+      isDesktop ? (
+        <Desktop />
+      ) : (
+        <Android />
+      )
+    )
   }
 
   return (
@@ -85,109 +207,9 @@ export default function PingView() {
       </div>
 
       {mode === "webrtc" ? (
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <PeerDeviceSearch
-              devices={state.devices}
-              selectedUuid={selectedUuid}
-              text={query}
-              onTextChange={(text) => {
-                setQuery(text);
-                setSelectedUuid(null);
-              }}
-              onSelect={(uuid, label) => {
-                setSelectedUuid(uuid);
-                setQuery(label);
-              }}
-              onCreate={(id) => {
-                setSelectedUuid(null);
-                setQuery(id);
-                onWebrtcConnect();
-              }}
-            />
-            <div className="flex gap-2">
-              <Button
-                onClick={onWebrtcConnect}
-                disabled={status === "idle" && !canConnect}
-              >
-                {status === "connecting"
-                  ? "Cancel"
-                  : status === "connected"
-                    ? "Disconnect"
-                    : "Connect"}
-              </Button>
-              <Button
-                onClick={sendPing}
-                disabled={status !== "connected"}
-              >
-                Ping
-              </Button>
-            </div>
-          </div>
-        </div>
+        <Webrtc />
       ) : mode === "usb" ? (
-        isDesktop ? (
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              {usbDevices.length > 0 && (
-                <UsbDeviceSelect
-                  devices={usbDevices}
-                  value={usbSerial}
-                  onChange={setUsbSerial}
-                />
-              )}
-              {usbDevices.length === 0 && (
-                <p className="flex-1 text-xs text-3">
-                  No USB devices (plug in with USB debugging on, then refresh)
-                </p>
-              )}
-              <Button
-                onClick={() => void refreshUsbDevices()}
-              >
-                Refresh
-              </Button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                onClick={onUsbConnectClick}
-                disabled={usbDevices.length === 0}
-              >
-                {status === "connecting"
-                  ? "Cancel"
-                  : status === "connected"
-                    ? "Disconnect"
-                    : "Connect"}
-              </Button>
-              <Button
-                onClick={sendPing}
-                disabled={status !== "connected"}
-              >
-                Ping
-              </Button>
-            </div>
-          </div>
-        ) : status === "idle" ? (
-          <p className="text-xs text-3">
-            USB dialing is only available on desktop. Just wait for the host
-          </p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={() => {
-                if (status === "connecting") cancelConnect();
-                else if (status === "connected") disconnect();
-              }}
-            >
-              {status === "connecting" ? "Cancel" : "Disconnect"}
-            </Button>
-            <Button
-              onClick={sendPing}
-              disabled={status !== "connected"}
-            >
-              Ping
-            </Button>
-          </div>
-        )
+        <Usb />
       ) : (
         <p className="text-xs text-3">
           BLE transport is not implemented yet
