@@ -29,6 +29,7 @@ pub fn init() -> TauriPlugin<tauri::Wry> {
 }
 
 /// Window background matching the page background.
+#[cfg(not(target_os = "android"))]
 pub fn window_color(dark: bool) -> tauri::window::Color {
     if dark {
         tauri::window::Color(0, 0, 0, 255)

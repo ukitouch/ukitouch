@@ -26,6 +26,7 @@ const REVERSE_PORT: u16 = 21700;
 const FORWARD_PORT: u16 = 21701;
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
+#[cfg(not(target_os = "android"))]
 const USB_POLL_INTERVAL: Duration = Duration::from_secs(2);
 
 #[cfg(not(target_os = "android"))]
@@ -117,6 +118,8 @@ struct UsbChannel {
 
 /// Remove the forward tunnel of `port`.
 fn remove_forward(ns: &Arc<NetState>, port: u16) {
+    #[cfg(target_os = "android")]
+    let _ = (ns, port);
     #[cfg(not(target_os = "android"))]
     for dev in ns.usb.lock().unwrap().devices.values() {
         let _ = dev.forward_remove(&format!("tcp:{}", port));
@@ -174,7 +177,10 @@ pub async fn usb_open_channel(
         dial_forward(&ns, vendor_id, product_id).await?
     };
     #[cfg(target_os = "android")]
-    let (mut stream, forward_port) = dial_reverse(&ns, &label).await?;
+    let (mut stream, forward_port) = {
+        let _ = (vendor_id, product_id);
+        dial_reverse(&ns, &label).await?
+    };
 
     // send the label, wait for the peer's ack
     if let Err(e) = handshake(&mut stream, &label).await {
