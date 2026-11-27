@@ -17,8 +17,6 @@ use super::signaling::Event;
 use crate::net::state::NetState;
 
 pub struct Peer {
-    /// A token keeps backend and frontend's communication.
-    pub token: String,
     pub pc: Arc<RTCPeerConnection>,
     /// channel_id -> channel.
     pub channels: Mutex<HashMap<u64, Arc<ChannelHandle>>>,
@@ -35,10 +33,7 @@ impl Peer {
         let channels: Vec<(u64, Arc<ChannelHandle>)> =
             self.channels.lock().unwrap().drain().collect();
         for (channel_id, handle) in channels {
-            let _ = app.emit(
-                "channel-close",
-                json!({ "token": self.token, "channel_id": channel_id }),
-            );
+            let _ = app.emit("channel-close", json!({ "channel_id": channel_id }));
             let _ = handle.dc.close().await;
         }
     }
@@ -151,34 +146,25 @@ async fn get_peer(state: &Arc<NetState>, target: String) -> Result<Arc<Peer>, St
     }));
 
     // construct Peer
-    let (_, peer) = {
+    let peer = {
         let mut w = state.webrtc.lock().unwrap();
-        let token = format!("c{}", w.next_token);
-        w.next_token += 1;
         let peer = Arc::new(Peer {
-            token: token.clone(),
             pc,
             channels: Mutex::new(HashMap::new()),
             pending_candidates: Mutex::new(Vec::new()),
             cancelled: tokio::sync::watch::channel(None).0,
         });
         w.peers.insert(target.clone(), peer.clone());
-        (token, peer)
+        peer
     };
 
     Ok(peer)
 }
 
 /// Establish a peer connection to `target`, reusing a live one.
-///
-/// Returns the connection token.
-pub async fn connect(state: &Arc<NetState>, target: String) -> Result<String, String> {
-    if let Some(p) = state.webrtc.lock().unwrap().peers.get(&target) {
-        return Ok(p.token.clone());
-    }
-
-    let peer = get_peer(state, target).await?;
-    Ok(peer.token.clone())
+pub async fn connect(state: &Arc<NetState>, target: String) -> Result<(), String> {
+    get_peer(state, target).await?;
+    Ok(())
 }
 
 /// Handle an incoming signaling message (SDP / ICE) from `from`.
@@ -272,22 +258,8 @@ pub async fn route(app: &AppHandle, state: &Arc<NetState>, name: &str, ev: Event
     }
 }
 
-pub fn find_peer_by_token(state: &Arc<NetState>, token: &str) -> Result<Arc<Peer>, String> {
-    let w = state.webrtc.lock().unwrap();
-    w.peers
-        .values()
-        .find(|p| p.token == token)
-        .cloned()
-        .ok_or_else(|| format!("peer not found: {token}"))
-}
-
-pub fn remove_peer_by_token(state: &Arc<NetState>, token: &str) {
-    state
-        .webrtc
-        .lock()
-        .unwrap()
-        .peers
-        .retain(|_, p| p.token != token);
+pub fn remove_peer(state: &Arc<NetState>, target: &str) {
+    state.webrtc.lock().unwrap().peers.remove(target);
 }
 
 /// Tear down every peer connection.

@@ -5,7 +5,10 @@ use std::sync::Arc;
 use serde_json::{json, Value};
 use tauri::State;
 
-use crate::net::{state::NetState, webrtc::{channel, peer}};
+use crate::net::{
+    state::NetState,
+    webrtc::{channel, peer},
+};
 
 /// Connect and register `id` under `name`.
 #[tauri::command]
@@ -61,46 +64,41 @@ pub async fn net_configure(
     Ok(())
 }
 
-/// Establish a WebRTC connection to `target`. Returns a connection token.
+/// Establish a WebRTC connection to `target`.
 #[tauri::command]
-pub async fn webrtc_connect(
-    state: State<'_, Arc<NetState>>,
-    target: String,
-) -> Result<String, String> {
+pub async fn webrtc_connect(state: State<'_, Arc<NetState>>, target: String) -> Result<(), String> {
     peer::connect(state.inner(), target).await
 }
 
-/// Open a data channel labelled `label` on the connection `token`.
+/// Open a data channel labelled `label` on the connection to `target`.
 #[tauri::command]
 pub async fn webrtc_open_channel(
     state: State<'_, Arc<NetState>>,
-    token: String,
+    target: String,
     label: String,
 ) -> Result<u64, String> {
-    channel::open_channel(state.inner(), token, label).await
+    channel::open_channel(state.inner(), target, label).await
 }
 
 /// Send raw bytes out on a channel.
 #[tauri::command]
 pub async fn webrtc_send(
     state: State<'_, Arc<NetState>>,
-    token: String,
     channel_id: u64,
     data: Vec<u8>,
     text: bool,
 ) -> Result<(), String> {
-    channel::send(state.inner(), token, channel_id, data, text).await
+    channel::send(state.inner(), channel_id, data, text).await
 }
 
 /// Bind a channel to the frontend, and send all buffered data to it.
 #[tauri::command]
 pub async fn webrtc_bind(
     state: State<'_, Arc<NetState>>,
-    token: String,
     channel_id: u64,
     on_data: tauri::ipc::Channel<tauri::ipc::InvokeResponseBody>,
 ) -> Result<(), String> {
-    channel::bind(state.inner(), &token, channel_id, on_data)
+    channel::bind(state.inner(), channel_id, on_data)
 }
 
 /// Abort an in-progress connection to `target`.
@@ -116,10 +114,9 @@ pub async fn webrtc_cancel(state: State<'_, Arc<NetState>>, target: String) -> R
 #[tauri::command]
 pub async fn webrtc_close_channel(
     state: State<'_, Arc<NetState>>,
-    token: String,
     channel_id: u64,
 ) -> Result<(), String> {
-    channel::close_channel(state.inner(), token, channel_id).await
+    channel::close_channel(state.inner(), channel_id).await
 }
 
 /// Close every WebRTC connection.

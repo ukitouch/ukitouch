@@ -24,7 +24,6 @@ pub struct WebrtcState {
     pub routes: Mutex<HashMap<String, tauri::async_runtime::JoinHandle<()>>>,
     /// ICE servers for new peer connections.
     pub ice_servers: Mutex<Vec<RTCIceServer>>,
-    next_token: u64,
     next_channel_id: u64,
 }
 

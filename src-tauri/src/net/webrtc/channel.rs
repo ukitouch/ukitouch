@@ -9,7 +9,7 @@ use tauri::Emitter;
 use webrtc::data_channel::data_channel_message::DataChannelMessage;
 use webrtc::data_channel::RTCDataChannel;
 
-use super::peer::{self, Peer};
+use super::peer;
 use crate::net::state::NetState;
 
 /// The peer's data channel reader takes at most `u16::MAX` bytes per message.
@@ -53,18 +53,10 @@ impl ChannelHandle {
 /// Point a channel at the frontend's sink and flush the backlog.
 pub fn bind(
     state: &Arc<NetState>,
-    token: &str,
     channel_id: u64,
     sink: Channel<InvokeResponseBody>,
 ) -> Result<(), String> {
-    let peer = peer::find_peer_by_token(state, token)?;
-    let handle = peer
-        .channels
-        .lock()
-        .unwrap()
-        .get(&channel_id)
-        .cloned()
-        .ok_or("channel not found")?;
+    let handle = find_channel(state, channel_id)?;
 
     let buffered = {
         let mut inbound = handle.inbound.lock().unwrap();
@@ -112,7 +104,6 @@ fn push_inbound(handle: &Arc<ChannelHandle>, data: &[u8], text: bool) {
 /// Send bytes out on a channel. Buffers until the channel opens.
 pub async fn send(
     state: &Arc<NetState>,
-    token: String,
     channel_id: u64,
     data: Vec<u8>,
     text: bool,
@@ -121,14 +112,7 @@ pub async fn send(
         return Err(format!("message too large: {} bytes", data.len()));
     }
 
-    let peer = peer::find_peer_by_token(state, &token)?;
-    let handle = peer
-        .channels
-        .lock()
-        .unwrap()
-        .get(&channel_id)
-        .cloned()
-        .ok_or("channel not found")?;
+    let handle = find_channel(state, channel_id)?;
     if !handle.open.load(Ordering::SeqCst) {
         handle.buffer.lock().unwrap().push((data, text));
         return Ok(());
@@ -151,16 +135,23 @@ async fn send_now(handle: &ChannelHandle, data: Vec<u8>, text: bool) -> Result<(
 /// Open a data channel on `target`'s connection. Blocks until it opens.
 pub async fn open_channel(
     state: &Arc<NetState>,
-    token: String,
+    target: String,
     label: String,
 ) -> Result<u64, String> {
-    let peer = peer::find_peer_by_token(state, &token)?;
+    let peer = state
+        .webrtc
+        .lock()
+        .unwrap()
+        .peers
+        .get(&target)
+        .cloned()
+        .ok_or_else(|| format!("no connection to {target}"))?;
     let dc: Arc<RTCDataChannel> = peer
         .pc
         .create_data_channel(&label, None)
         .await
         .map_err(|e| {
-            peer::remove_peer_by_token(state, &token);
+            peer::remove_peer(state, &target);
             e.to_string()
         })?;
     let handle = Arc::new(ChannelHandle::new(dc));
@@ -175,7 +166,7 @@ pub async fn open_channel(
         .lock()
         .unwrap()
         .insert(channel_id, handle.clone());
-    wire_channel(state.clone(), peer.clone(), channel_id, handle.clone());
+    wire_channel(state.clone(), channel_id, handle.clone());
 
     // error handling
     let mut aborted = peer.cancelled.subscribe();
@@ -184,13 +175,13 @@ pub async fn open_channel(
             _ = handle.opened.notified() => {}
             _ = aborted.changed() => {}
             _ = tokio::time::sleep(Duration::from_secs(10)) => {
-                peer::remove_peer_by_token(state, &token);
+                peer::remove_peer(state, &target);
                 return Err("channel open timed out".into());
             }
         }
     }
     if !handle.open.load(std::sync::atomic::Ordering::SeqCst) {
-        peer::remove_peer_by_token(state, &token);
+        peer::remove_peer(state, &target);
         let reason = aborted
             .borrow()
             .clone()
@@ -203,24 +194,9 @@ pub async fn open_channel(
 /// Close a single channel on a peer.
 ///
 /// Will drop the peer once its last channel is gone.
-pub async fn close_channel(
-    state: &Arc<NetState>,
-    token: String,
-    channel_id: u64,
-) -> Result<(), String> {
-    let peer = peer::find_peer_by_token(state, &token)?;
-    let handle = peer
-        .channels
-        .lock()
-        .unwrap()
-        .remove(&channel_id)
-        .ok_or("channel not found")?;
-    let last = peer.channels.lock().unwrap().is_empty();
-    handle.dc.close().await.map_err(|e| e.to_string())?;
-    if last {
-        peer::remove_peer_by_token(state, &token);
-    }
-    Ok(())
+pub async fn close_channel(state: &Arc<NetState>, channel_id: u64) -> Result<(), String> {
+    let handle = remove_channel(state, channel_id)?;
+    handle.dc.close().await.map_err(|e| e.to_string())
 }
 
 /// Register an incoming channel.
@@ -229,7 +205,7 @@ pub async fn register_incoming(
     target: String,
     dc: Arc<RTCDataChannel>,
 ) -> Result<(), String> {
-    let (peer, channel_id, handle) = {
+    let (channel_id, handle) = {
         let peer = {
             let w = state.webrtc.lock().unwrap();
             w.peers.get(&target).cloned().ok_or("no peer for target")?
@@ -248,34 +224,25 @@ pub async fn register_incoming(
             .insert(channel_id, handle.clone());
         let _ = state.app.emit(
             "channel-open",
-            json!({ "token": peer.token, "channel_id": channel_id, "label": label, "target": target }),
+            json!({ "channel_id": channel_id, "label": label, "target": target }),
         );
-        (peer, channel_id, handle)
+        (channel_id, handle)
     };
-    wire_channel(state, peer, channel_id, handle);
+    wire_channel(state, channel_id, handle);
     Ok(())
 }
 
 /// Wire a channel's data events (open/close/message) to the frontend.
-pub fn wire_channel(
-    state: Arc<NetState>,
-    peer: Arc<Peer>,
-    channel_id: u64,
-    handle: Arc<ChannelHandle>,
-) {
+pub fn wire_channel(state: Arc<NetState>, channel_id: u64, handle: Arc<ChannelHandle>) {
     // on open
     let h = handle.clone();
     let app = state.app.clone();
-    let token = peer.token.clone();
     handle.dc.on_open(Box::new(move || {
         let handle = h.clone();
         let app = app.clone();
         Box::pin(async move {
             handle.open.store(true, Ordering::SeqCst);
-            let _ = app.emit(
-                "channel-ready",
-                json!({ "token": token, "channel_id": channel_id }),
-            );
+            let _ = app.emit("channel-ready", json!({ "channel_id": channel_id }));
             let queued: Vec<_> = handle.buffer.lock().unwrap().drain(..).collect();
             for (data, text) in queued {
                 let _ = send_now(&handle, data, text).await;
@@ -296,37 +263,41 @@ pub fn wire_channel(
         }));
 
     // on close
-    let app = state.app.clone();
     let net = state.clone();
-    let token = peer.token.clone();
     handle.dc.on_close(Box::new(move || {
-        let app = app.clone();
         let net = net.clone();
-        let token = token.clone();
         Box::pin(async move {
-            let _ = app.emit(
-                "channel-close",
-                json!({ "token": token, "channel_id": channel_id }),
-            );
-
-            // cleanup the channel record
-            let peer = &net
-                .webrtc
-                .lock()
-                .unwrap()
-                .peers
-                .values()
-                .find(|p| p.token == token)
-                .cloned();
-            let Some(peer) = peer else { return };
-            let empty = {
-                let mut channels = peer.channels.lock().unwrap();
-                channels.remove(&channel_id);
-                channels.is_empty()
-            };
-            if empty {
-                peer::remove_peer_by_token(&net, &token);
-            }
+            let _ = net
+                .app
+                .emit("channel-close", json!({ "channel_id": channel_id }));
+            let _ = remove_channel(&net, channel_id);
         })
     }));
+}
+
+/// Find a channel by id.
+fn find_channel(state: &Arc<NetState>, channel_id: u64) -> Result<Arc<ChannelHandle>, String> {
+    let w = state.webrtc.lock().unwrap();
+    for peer in w.peers.values() {
+        if let Some(handle) = peer.channels.lock().unwrap().get(&channel_id) {
+            return Ok(handle.clone());
+        }
+    }
+    Err("channel not found".into())
+}
+
+/// Remove a channel by id, dropping its peer if it was the last one.
+fn remove_channel(state: &Arc<NetState>, channel_id: u64) -> Result<Arc<ChannelHandle>, String> {
+    let mut w = state.webrtc.lock().unwrap();
+    let peer = w
+        .peers
+        .values()
+        .find(|p| p.channels.lock().unwrap().contains_key(&channel_id))
+        .cloned()
+        .ok_or("channel not found")?;
+    let handle = peer.channels.lock().unwrap().remove(&channel_id).unwrap();
+    if peer.channels.lock().unwrap().is_empty() {
+        w.peers.retain(|_, p| !Arc::ptr_eq(p, &peer));
+    }
+    Ok(handle)
 }

@@ -329,46 +329,37 @@ export async function disableTempId(): Promise<void> {
 //#region WebRTC data channels
 
 interface ChannelOpenEvent {
-  token: string;
   channel_id: number;
   label: string;
   target: string;
 }
 interface ChannelReadyEvent {
-  token: string;
   channel_id: number;
 }
 interface ChannelCloseEvent {
-  token: string;
   channel_id: number;
 }
 
 let listenersReady: Promise<void> | null = null;
-const channels = new Map<string, WebRtcChannel>();
+const channels = new Map<number, WebRtcChannel>();
 const incomingHandlers = new Map<string, Set<(ch: WebRtcChannel) => void>>();
-const key = (token: string, id: number) => `${token}:${id}`;
 
 function ensureChannelListeners(): Promise<void> {
   if (listenersReady) return listenersReady;
   listenersReady = Promise.all([
     listen<ChannelOpenEvent>("channel-open", (e) => {
-      const ch = new WebRtcChannel(
-        e.payload.token,
-        e.payload.channel_id,
-        e.payload.label
-      );
-      channels.set(key(e.payload.token, e.payload.channel_id), ch);
+      const ch = new WebRtcChannel(e.payload.channel_id, e.payload.label);
+      channels.set(ch.channelId, ch);
       // Route by label (the dialing extension's id), unmatched labels stay inert.
       incomingHandlers.get(e.payload.label)?.forEach((h) => h(ch));
     }),
     listen<ChannelReadyEvent>("channel-ready", (e) => {
-      channels.get(key(e.payload.token, e.payload.channel_id))?.handleOpen();
+      channels.get(e.payload.channel_id)?.handleOpen();
     }),
     listen<ChannelCloseEvent>("channel-close", (e) => {
-      const k = key(e.payload.token, e.payload.channel_id);
-      const ch = channels.get(k);
+      const ch = channels.get(e.payload.channel_id);
       if (ch) {
-        channels.delete(k);
+        channels.delete(e.payload.channel_id);
         ch.handleClose();
       }
     }),
@@ -388,7 +379,6 @@ function toBytes(
 /** A channel opened over the Rust WebRTC layer. */
 class WebRtcChannel implements Channel {
   readonly label: string;
-  readonly token: string;
   readonly channelId: number;
   readyState: ChannelReadyState = "connecting";
   bufferedAmount: number = 0;
@@ -403,13 +393,11 @@ class WebRtcChannel implements Channel {
   /** Pipes bridged into this channel, to unbind when it closes. */
   private pipes = new Set<number>();
 
-  constructor(token: string, channelId: number, label: string) {
-    this.token = token;
+  constructor(channelId: number, label: string) {
     this.channelId = channelId;
     this.label = label;
     this.ipc.onmessage = (data) => this.deliver(data);
     void invoke("webrtc_bind", {
-      token,
       channelId,
       onData: this.ipc,
     }).catch((e) => console.error("[webrtc] bind failed", e));
@@ -421,7 +409,6 @@ class WebRtcChannel implements Channel {
     this.bufferedAmount += bytes.byteLength;
     this.outbox = this.outbox.then(() =>
       invoke("webrtc_send", {
-        token: this.token,
         channelId: this.channelId,
         data: bytes,
         text,
@@ -439,7 +426,6 @@ class WebRtcChannel implements Channel {
   close(): void {
     this.unbindPipes();
     invoke("webrtc_close_channel", {
-      token: this.token,
       channelId: this.channelId,
     }).catch((e) => console.error("[webrtc] close failed", e));
     this.readyState = "closed";
@@ -447,7 +433,6 @@ class WebRtcChannel implements Channel {
 
   async bindPipe(addr: string): Promise<Disposable> {
     const { id } = await invoke<{ id: number }>("pipe_bind", {
-      token: this.token,
       channelId: this.channelId,
       addr,
     });
@@ -501,10 +486,10 @@ export async function openChannel(
   const uuid = await resolveTarget(target);
   connectingUuid = uuid;
   try {
-    const token = await invoke<string>("webrtc_connect", { target: uuid });
-    const channelId = await invoke<number>("webrtc_open_channel", { token, label });
-    const ch = new WebRtcChannel(token, channelId, label);
-    channels.set(key(token, channelId), ch);
+    await invoke("webrtc_connect", { target: uuid });
+    const channelId = await invoke<number>("webrtc_open_channel", { target: uuid, label });
+    const ch = new WebRtcChannel(channelId, label);
+    channels.set(channelId, ch);
     connectingUuid = null;
     return ch;
   } catch (e) {

@@ -14,7 +14,7 @@ use crate::net::webrtc::channel::{send as webrtc_send, MAX_MESSAGE};
 /// A text message kind payload byte in the pipe header.
 const KIND_TEXT: u8 = 1;
 /// Max payload bytes a single frame may carry.
-/// 
+///
 /// A frame must be sendable as one DataChannel message, see [`MAX_MESSAGE`].
 const MAX_MSG: usize = MAX_MESSAGE;
 
@@ -34,7 +34,6 @@ pub struct PipeHandle {
 pub async fn pipe_bind(
     net: State<'_, Arc<NetState>>,
     state: State<'_, PipeState>,
-    token: String,
     channel_id: u64,
     addr: String,
 ) -> Result<PipeHandle, String> {
@@ -51,7 +50,6 @@ pub async fn pipe_bind(
     tauri::async_runtime::spawn(pipe_pump(
         stream,
         Arc::clone(net.inner()),
-        token,
         channel_id,
         task_cancel,
     ));
@@ -103,7 +101,6 @@ async fn read_message(stream: &mut TcpStream) -> Option<(bool, Vec<u8>)> {
 async fn pipe_pump(
     mut stream: TcpStream,
     net: Arc<NetState>,
-    token: String,
     channel_id: u64,
     cancel: CancellationToken,
 ) {
@@ -113,13 +110,13 @@ async fn pipe_pump(
         };
 
         // Forward as a single WebRTC DataChannel message.
-        if let Err(e) = webrtc_send(&net, token.clone(), channel_id, payload, text).await {
+        if let Err(e) = webrtc_send(&net, channel_id, payload, text).await {
             eprintln!("[pipe] send error: {e}");
             break;
         }
     }
 
-    eprintln!("[pipe] ended for {token}/{channel_id}");
+    eprintln!("[pipe] ended for {channel_id}");
 }
 
 #[cfg(test)]
