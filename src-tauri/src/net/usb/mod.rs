@@ -25,9 +25,9 @@ const FORWARD_PORT: u16 = 21701;
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub struct UsbState {
-    /// (vendor_id, product_id) -> adb connection
+    /// serial -> adb connection
     #[cfg(not(target_os = "android"))]
-    pub devices: HashMap<(u16, u16), Adb>,
+    pub devices: HashMap<String, Adb>,
     /// channel_id -> channel
     channels: HashMap<u64, Arc<UsbChannel>>,
     next_channel_id: u64,

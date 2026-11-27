@@ -5641,6 +5641,7 @@ dependencies = [
  "gtk",
  "hostname",
  "os_info",
+ "rusb",
  "serde",
  "serde_json",
  "tauri",
