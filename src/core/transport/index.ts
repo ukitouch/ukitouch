@@ -2,8 +2,9 @@ import type { Disposable } from "../types";
 import { UsbDevice } from "./usb";
 
 /**
- * TODO: Current implementation is a WebRTC DataChannel, USB / Bluetooth transports will implement
- * the same shape.
+ * A bidirectional message channel between two devices.
+ * 
+ * TODO: Bluetooth transport is still ongoing
  */
 export interface Channel {
   /** Extension's id.  */

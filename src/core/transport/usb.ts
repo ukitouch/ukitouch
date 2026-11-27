@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { createStore } from "../utils/store";
+import { toDisposable, type Disposable } from "../types";
 import { Channel, ChannelReadyState } from ".";
 
 export interface UsbDevice {
@@ -29,6 +30,8 @@ interface UsbChannelOpenEvent {
 interface UsbChannelDataEvent {
   channel_id: number;
   data: string; // base64
+  /** Whether the data is text. */
+  text: boolean;
 }
 interface UsbChannelCloseEvent {
   channel_id: number;
@@ -52,7 +55,7 @@ function ensureListeners(): Promise<void> {
     listen<UsbChannelDataEvent>("usb-channel-data", (e) => {
       const ch = channels.get(e.payload.channel_id);
       const bytes = Uint8Array.from(atob(e.payload.data), (c) => c.charCodeAt(0));
-      ch?.deliver(bytes);
+      ch?.deliver(e.payload.text, bytes);
     }),
     listen<UsbChannelCloseEvent>("usb-channel-close", (e) => {
       const ch = channels.get(e.payload.channel_id);
@@ -84,6 +87,8 @@ class UsbChannel implements Channel {
   onclose: ((ev: Event) => void) | null = null;
   onopen: ((ev: Event) => void) | null = null;
   onerror: ((ev: Event) => void) | null = null;
+  /** Pipes bridged into this channel, to unbind when it closes. */
+  private pipes = new Set<number>();
 
   constructor(channelId: number, label: string) {
     this.channelId = channelId;
@@ -91,7 +96,9 @@ class UsbChannel implements Channel {
   }
 
   send(data: string | ArrayBuffer | ArrayBufferView | Blob): void {
-    invoke("usb_send", { channelId: this.channelId, data: toBytes(data) }).catch(
+    const bytes = toBytes(data);
+    const text = typeof data === "string";
+    invoke("usb_send", { channelId: this.channelId, data: bytes, text }).catch(
       (e) => {
         console.error("[usb] send failed", e);
         this.onerror?.(new Event("error"));
@@ -100,18 +107,52 @@ class UsbChannel implements Channel {
   }
 
   close(): void {
+    this.unbindPipes();
     invoke("usb_close_channel", { channelId: this.channelId }).catch((e) =>
       console.error("[usb] close failed", e)
     );
     this.readyState = "closed";
   }
 
-  deliver(bytes: Uint8Array): void {
+  async bindPipe(addr: string): Promise<Disposable> {
+    const { id } = await invoke<{ id: number }>("pipe_bind", {
+      target: { kind: "usb", channelId: this.channelId },
+      addr,
+    });
+    this.pipes.add(id);
+    return toDisposable(() => this.unbindPipe(id));
+  }
+
+  /** Close one pipe if it is still ours. */
+  private unbindPipe(id: number): void {
+    if (!this.pipes.delete(id)) return;
+    invoke("pipe_unbind", { id }).catch((e) =>
+      console.error("[usb] pipe unbind failed", e)
+    );
+  }
+
+  /** Drop every pipe bridged into this channel. */
+  private unbindPipes(): void {
+    for (const id of this.pipes) void invoke("pipe_unbind", { id }).catch(() => { });
+    this.pipes.clear();
+  }
+
+  /**
+   * Deliver an incoming message.
+   * 
+   * text as a string, bytes as raw
+   */
+  deliver(text: boolean, bytes: Uint8Array): void {
     if (!this.onmessage) return;
-    this.onmessage(new MessageEvent("message", { data: bytes }));
+    this.onmessage(
+      new MessageEvent("message", {
+        data: text ? new TextDecoder().decode(bytes) : bytes,
+      })
+    );
   }
 
   handleClose(): void {
+    this.unbindPipes();
     this.readyState = "closed";
     this.onclose?.(new Event("close"));
   }

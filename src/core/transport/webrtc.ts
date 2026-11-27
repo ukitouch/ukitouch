@@ -433,7 +433,7 @@ class WebRtcChannel implements Channel {
 
   async bindPipe(addr: string): Promise<Disposable> {
     const { id } = await invoke<{ id: number }>("pipe_bind", {
-      channelId: this.channelId,
+      target: { kind: "webrtc", channelId: this.channelId },
       addr,
     });
     this.pipes.add(id);

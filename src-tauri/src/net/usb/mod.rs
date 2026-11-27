@@ -9,7 +9,7 @@ use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
 use serde_json::json;
 use tauri::{AppHandle, Emitter, State};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::TcpStream;
 use tokio::{net::TcpListener, task::JoinHandle, time::timeout};
@@ -21,6 +21,9 @@ use crate::net::state::NetState;
 
 const REVERSE_PORT: u16 = 21700;
 const FORWARD_PORT: u16 = 21701;
+
+/// A text message kind byte in the channel framing, see [`read_frame`].
+const KIND_TEXT: u8 = 1;
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -56,16 +59,6 @@ struct UsbChannel {
     write: tokio::sync::Mutex<OwnedWriteHalf>,
     /// Host port of this channel's forward tunnel, removed on close.
     forward_port: Option<u16>,
-}
-
-/// Remove the forward tunnel of `port`.
-fn remove_forward(ns: &Arc<NetState>, port: u16) {
-    #[cfg(target_os = "android")]
-    let _ = (ns, port);
-    #[cfg(not(target_os = "android"))]
-    for dev in ns.usb.lock().unwrap().devices.values() {
-        let _ = dev.forward_remove(&format!("tcp:{}", port));
-    }
 }
 
 #[derive(serde::Serialize, Clone)]
@@ -253,8 +246,19 @@ pub async fn usb_send(
     state: State<'_, Arc<NetState>>,
     channel_id: u64,
     data: Vec<u8>,
+    text: bool,
 ) -> Result<(), String> {
     let ns: Arc<NetState> = state.inner().clone();
+    send(&ns, channel_id, data, text).await
+}
+
+/// Write `data` to a channel's stream as one framed message.
+pub async fn send(
+    ns: &Arc<NetState>,
+    channel_id: u64,
+    data: Vec<u8>,
+    text: bool,
+) -> Result<(), String> {
     let ch = {
         let usb = ns.usb.lock().map_err(|e| e.to_string())?;
         usb.channels
@@ -263,7 +267,20 @@ pub async fn usb_send(
             .ok_or("channel not found".to_string())?
     };
     let mut write = ch.write.lock().await;
-    write.write_all(&data).await.map_err(|e| e.to_string())
+    let mut frame = (data.len() as u32).to_le_bytes().to_vec();
+    frame.push(if text { KIND_TEXT } else { 0 });
+    frame.extend_from_slice(&data);
+    write.write_all(&frame).await.map_err(|e| e.to_string())
+}
+
+/// Remove the forward tunnel of `port`.
+fn remove_forward(ns: &Arc<NetState>, port: u16) {
+    #[cfg(target_os = "android")]
+    let _ = (ns, port);
+    #[cfg(not(target_os = "android"))]
+    for dev in ns.usb.lock().unwrap().devices.values() {
+        let _ = dev.forward_remove(&format!("tcp:{}", port));
+    }
 }
 
 /// Dial the reverse address.
@@ -357,7 +374,31 @@ async fn read_label(stream: &mut TcpStream) -> Result<String, String> {
     }
 }
 
-/// Loop that emit `usb-channel-data` per chunk, emit `usb-channel-close` on EOF.
+/// Read one `[len][kind][payload]` frame.
+///
+/// Returns `None` when the peer closed cleanly or the framing broke.
+async fn read_frame<R: AsyncRead + Unpin>(read: &mut R) -> Option<(bool, Vec<u8>)> {
+    let mut head = [0u8; 5];
+    match read.read_exact(&mut head).await {
+        Ok(_) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return None,
+        Err(e) => {
+            eprintln!("[usb] frame header error: {e}");
+            return None;
+        }
+    }
+
+    let len = u32::from_le_bytes(head[..4].try_into().unwrap()) as usize;
+    let mut payload = vec![0u8; len];
+    if let Err(e) = read.read_exact(&mut payload).await {
+        eprintln!("[usb] frame payload error: {e}");
+        return None;
+    }
+
+    Some((head[4] == KIND_TEXT, payload))
+}
+
+/// Loop that emit `usb-channel-data` per message, emit `usb-channel-close` on EOF.
 async fn read_loop(
     app: AppHandle,
     ns: Arc<NetState>,
@@ -365,17 +406,11 @@ async fn read_loop(
     mut read: OwnedReadHalf,
     forward_port: Option<u16>,
 ) {
-    let mut buf = [0u8; 8192];
-    loop {
-        match read.read(&mut buf).await {
-            Ok(0) | Err(_) => break,
-            Ok(n) => {
-                let _ = app.emit(
-                    "usb-channel-data",
-                    json!({ "channel_id": channel_id, "data": B64.encode(&buf[..n]) }),
-                );
-            }
-        }
+    while let Some((text, payload)) = read_frame(&mut read).await {
+        let _ = app.emit(
+            "usb-channel-data",
+            json!({ "channel_id": channel_id, "data": B64.encode(&payload), "text": text }),
+        );
     }
 
     if let Some(port) = forward_port {

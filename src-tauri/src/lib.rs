@@ -15,6 +15,7 @@ use extensions::{
     },
 };
 use host::get_host_info;
+use net::pipe::{pipe_bind, pipe_unbind, PipeState};
 use net::state::NetState;
 use net::usb::{
     usb_close_channel, usb_list_devices, usb_listen_start, usb_listen_stop, usb_open_channel,
@@ -24,7 +25,6 @@ use net::webrtc::bridge::{
     net_configure, sig_connect, sig_disconnect, sig_query, sig_send, webrtc_bind, webrtc_cancel,
     webrtc_close_all, webrtc_close_channel, webrtc_connect, webrtc_open_channel, webrtc_send,
 };
-use net::webrtc::pipe::{pipe_bind, pipe_unbind, PipeState};
 use orientation::{init as orientation_plugin, set_fullscreen, set_system_theme};
 use std::sync::Arc;
 use tauri::Manager;

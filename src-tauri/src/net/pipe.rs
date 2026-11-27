@@ -1,6 +1,6 @@
-//! Bridges a local TCP socket to a WebRTC DataChannel.
+//! Bridges a local TCP socket to a channel.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::State;
@@ -10,6 +10,33 @@ use tokio_util::sync::CancellationToken;
 
 use crate::net::state::NetState;
 use crate::net::webrtc::channel::{send as webrtc_send, MAX_MESSAGE};
+
+#[derive(Clone, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum PipeTarget {
+    #[serde(rename_all = "camelCase")]
+    Webrtc { channel_id: u64 },
+    #[serde(rename_all = "camelCase")]
+    Usb { channel_id: u64 },
+}
+
+impl PipeTarget {
+    /// Send one framed message on the target channel.
+    pub async fn send(&self, net: &Arc<NetState>, data: Vec<u8>, text: bool) -> Result<(), String> {
+        match self {
+            Self::Webrtc { channel_id } => webrtc_send(net, *channel_id, data, text).await,
+            Self::Usb { channel_id } => crate::net::usb::send(net, *channel_id, data, text).await,
+        }
+    }
+
+    /// A short name for logs.
+    fn name(&self) -> String {
+        match self {
+            Self::Webrtc { channel_id } => format!("webrtc/{channel_id}"),
+            Self::Usb { channel_id } => format!("usb/{channel_id}"),
+        }
+    }
+}
 
 /// A text message kind payload byte in the pipe header.
 const KIND_TEXT: u8 = 1;
@@ -34,7 +61,7 @@ pub struct PipeHandle {
 pub async fn pipe_bind(
     net: State<'_, Arc<NetState>>,
     state: State<'_, PipeState>,
-    channel_id: u64,
+    target: PipeTarget,
     addr: String,
 ) -> Result<PipeHandle, String> {
     let stream = TcpStream::connect(&addr)
@@ -46,16 +73,17 @@ pub async fn pipe_bind(
         .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let cancel = CancellationToken::new();
 
-    let task_cancel = cancel.clone();
+    let name = target.name();
     tauri::async_runtime::spawn(pipe_pump(
         stream,
         Arc::clone(net.inner()),
-        channel_id,
-        task_cancel,
+        target,
+        cancel.clone(),
     ));
 
     state.pipes.lock().unwrap().insert(id, cancel);
 
+    eprintln!("[pipe] bound {id} to {name} via {addr}");
     Ok(PipeHandle { id })
 }
 
@@ -101,22 +129,23 @@ async fn read_message(stream: &mut TcpStream) -> Option<(bool, Vec<u8>)> {
 async fn pipe_pump(
     mut stream: TcpStream,
     net: Arc<NetState>,
-    channel_id: u64,
+    target: PipeTarget,
     cancel: CancellationToken,
 ) {
+    let name = target.name();
     while !cancel.is_cancelled() {
         let Some((text, payload)) = read_message(&mut stream).await else {
             break;
         };
 
-        // Forward as a single WebRTC DataChannel message.
-        if let Err(e) = webrtc_send(&net, channel_id, payload, text).await {
+        // Forward as a single message.
+        if let Err(e) = target.send(&net, payload, text).await {
             eprintln!("[pipe] send error: {e}");
             break;
         }
     }
 
-    eprintln!("[pipe] ended for {channel_id}");
+    eprintln!("[pipe] ended for {name}");
 }
 
 #[cfg(test)]
