@@ -15,7 +15,7 @@ use tokio::net::TcpStream;
 use tokio::{net::TcpListener, task::JoinHandle, time::timeout};
 
 #[cfg(not(target_os = "android"))]
-use self::adb::{dial_forward, ensure_reverse, usb_poll_loop, Adb};
+use self::adb::{dial_forward, ensure_reverse, list_adb_devices, usb_poll_loop, Adb};
 
 use crate::net::state::NetState;
 
@@ -71,8 +71,7 @@ fn remove_forward(ns: &Arc<NetState>, port: u16) {
 #[derive(serde::Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceInfo {
-    pub vendor_id: u16,
-    pub product_id: u16,
+    pub serial: String,
     pub description: String,
 }
 
@@ -84,14 +83,13 @@ pub fn usb_list_devices() -> Result<Vec<DeviceInfo>, String> {
         return Ok(Vec::new());
     }
     #[cfg(not(target_os = "android"))]
-    adb_client::usb::find_all_connected_adb_devices()
+    list_adb_devices()
         .map(|devices| {
             devices
                 .into_iter()
                 .map(|d| DeviceInfo {
-                    vendor_id: d.vendor_id,
-                    product_id: d.product_id,
-                    description: d.device_description,
+                    serial: d.serial,
+                    description: d.description,
                 })
                 .collect()
         })
@@ -100,27 +98,23 @@ pub fn usb_list_devices() -> Result<Vec<DeviceInfo>, String> {
 
 /// Open a channel, returns the channel id for usb_send and usb_close_channel.
 ///
-/// vendor_id and product_id are not required for Android.
+/// serial is not required for Android.
 #[tauri::command]
 pub async fn usb_open_channel(
     state: State<'_, Arc<NetState>>,
-    vendor_id: Option<u16>,
-    product_id: Option<u16>,
+    serial: Option<String>,
     label: String,
 ) -> Result<u64, String> {
     let ns: Arc<NetState> = state.inner().clone();
 
     #[cfg(not(target_os = "android"))]
     let (mut stream, forward_port) = {
-        let (vendor_id, product_id) = vendor_id
-            .zip(product_id)
-            .ok_or_else(|| "vendor_id and product_id are required".to_string())?;
-
-        dial_forward(&ns, vendor_id, product_id).await?
+        let serial = serial.ok_or_else(|| "serial is required".to_string())?;
+        dial_forward(&ns, &serial).await?
     };
     #[cfg(target_os = "android")]
     let (mut stream, forward_port) = {
-        let _ = (vendor_id, product_id);
+        let _ = serial;
         dial_reverse(&ns, &label).await?
     };
 

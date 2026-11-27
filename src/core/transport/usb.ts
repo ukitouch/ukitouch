@@ -4,8 +4,7 @@ import { createStore } from "../utils/store";
 import { Channel, ChannelReadyState } from ".";
 
 export interface UsbDevice {
-  vendorId: number,
-  productId: number,
+  serial: string,
   description: string,
 }
 
@@ -126,7 +125,7 @@ export async function openUsbChannel(
   await ensureListeners();
 
   // TODO: Error handling
-  const channelId = await invoke<number>("usb_open_channel", { vendorId: device?.vendorId, productId: device?.productId, label });
+  const channelId = await invoke<number>("usb_open_channel", { serial: device?.serial, label });
   const ch = new UsbChannel(channelId, label);
   ch.readyState = "open";
   ch.onopen?.(new Event("open"));

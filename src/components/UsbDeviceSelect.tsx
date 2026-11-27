@@ -4,14 +4,14 @@ import { Select } from "./Select";
 
 export interface UsbDeviceSelectProps {
   devices: readonly UsbDevice[];
-  /** Selected vendor ID. */
-  value?: number;
+  /** Selected serial. */
+  value?: string;
   /** Calls when the user selects a device. */
   onChange: (device: UsbDevice) => void;
   className?: string;
 }
 
-/** USB device picker: selects by vendor ID and reports the full device. */
+/** USB device picker: selects by serial and reports the full device. */
 export function UsbDeviceSelect({
   devices,
   value,
@@ -24,18 +24,16 @@ export function UsbDeviceSelect({
     }
   }, [devices, value, onChange]);
 
-  const handleChange = (vendorId: string) => {
-    const device = devices.find(
-      (device) => device.vendorId.toString() === vendorId
-    );
+  const handleChange = (serial: string) => {
+    const device = devices.find((device) => device.serial === serial);
     if (device) onChange(device);
   };
 
   return (
     <Select
-      value={value?.toString() ?? ""}
+      value={value ?? ""}
       options={devices.map((device) => ({
-        value: device.vendorId.toString(),
+        value: device.serial,
         label: device.description,
       }))}
       onChange={handleChange}

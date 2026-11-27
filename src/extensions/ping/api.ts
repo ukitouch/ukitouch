@@ -113,7 +113,7 @@ export async function openUsbPingChannel(device?: UsbDevice): Promise<void> {
   if (!ctxRef) return;
   if (channel) channel.close();
   cancelled = false;
-  pingStore.set({ connection: { status: "connecting", peerId: device?.vendorId.toString() ?? "Desktop" } });
+  pingStore.set({ connection: { status: "connecting", peerId: device?.serial ?? "Desktop" } });
   log(`connecting to ${device?.description ?? "Desktop"} (usb)...`);
   try {
     const ch = await ctxRef.openChannel({ transport: "usb", device });
@@ -122,7 +122,7 @@ export async function openUsbPingChannel(device?: UsbDevice): Promise<void> {
       log("connect cancelled");
       return;
     }
-    bindChannel(ch, device?.vendorId.toString() ?? "Desktop");
+    bindChannel(ch, device?.serial ?? "Desktop");
     log("connected (usb)");
   } catch (err) {
     if (!cancelled) log(`connect failed: ${String(err)}`);

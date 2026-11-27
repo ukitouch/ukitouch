@@ -118,7 +118,7 @@ export default function PingView() {
             {usbDevices.length > 0 && (
               <UsbDeviceSelect
                 devices={usbDevices}
-                value={usbDevice?.vendorId}
+                value={usbDevice?.serial}
                 onChange={setUsbDevice}
               />
             )}

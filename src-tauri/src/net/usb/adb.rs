@@ -19,16 +19,17 @@ fn adb_server_running() -> bool {
 }
 
 /// A connected adb device.
-struct AdbDevice {
+pub(crate) struct AdbDevice {
     vid: u16,
     pid: u16,
-    serial: String,
+    pub(crate) serial: String,
+    pub(crate) description: String,
 }
 
 /// Enumerate connected adb devices with their serials.
 ///
 /// adb_client only reports vid/pid, the serial is read from the same physical device.
-fn list_adb_devices() -> Result<Vec<AdbDevice>, String> {
+pub(crate) fn list_adb_devices() -> Result<Vec<AdbDevice>, String> {
     let known = adb_client::usb::find_all_connected_adb_devices().map_err(|e| e.to_string())?;
     let context = Context::new().map_err(|e| e.to_string())?;
     let mut devices = vec![];
@@ -36,12 +37,12 @@ fn list_adb_devices() -> Result<Vec<AdbDevice>, String> {
         let Ok(des) = device.device_descriptor() else {
             continue;
         };
-        if !known
+        let Some(known) = known
             .iter()
-            .any(|d| d.vendor_id == des.vendor_id() && d.product_id == des.product_id())
-        {
+            .find(|d| d.vendor_id == des.vendor_id() && d.product_id == des.product_id())
+        else {
             continue;
-        }
+        };
         let handle = device.open().map_err(|e| e.to_string())?;
         let serial = handle
             .read_serial_number_string_ascii(&des)
@@ -57,6 +58,7 @@ fn list_adb_devices() -> Result<Vec<AdbDevice>, String> {
             vid: des.vendor_id(),
             pid: des.product_id(),
             serial,
+            description: known.device_description.clone(),
         });
     }
     Ok(devices)
@@ -132,25 +134,16 @@ pub fn ensure_reverse(ns: &Arc<NetState>) -> Result<(), String> {
 /// Set up the adb tunnels, connect to the forward address.
 pub async fn dial_forward(
     ns: &Arc<NetState>,
-    vendor_id: u16,
-    product_id: u16,
+    serial: &str,
 ) -> Result<(TcpStream, Option<u16>), String> {
     // Reuse or create the adb connection, then set up this channel's tunnels.
     let ns_block = ns.clone();
+    let serial = serial.to_string();
     let forward_port = tokio::task::spawn_blocking(move || {
-        let mut matching = list_adb_devices()?
+        let target = list_adb_devices()?
             .into_iter()
-            .filter(|d| d.vid == vendor_id && d.pid == product_id)
-            .collect::<Vec<_>>();
-        if matching.len() != 1 {
-            return Err(format!(
-                "expected one usb device for {:04x}:{:04x}, found {}",
-                vendor_id,
-                product_id,
-                matching.len()
-            ));
-        }
-        let target = matching.pop().unwrap();
+            .find(|d| d.serial == serial)
+            .ok_or_else(|| format!("no usb device with serial {serial}"))?;
         let mut state = ns_block.usb.lock().map_err(|e| e.to_string())?;
         let device = match state.devices.entry(target.serial.clone()) {
             std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
