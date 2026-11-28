@@ -5,6 +5,7 @@ import { refreshUsbDevices, usbStore } from "../core/transport/usb";
 import { showToast } from "../components/Toast";
 import { nativeCall } from "./extensions";
 import { toDisposable } from "../core/types";
+import { useBack } from "../core/back";
 
 export * from "./components";
 export { defineExtension } from "../extensions/registry";
@@ -19,6 +20,7 @@ export {
   showToast,
   nativeCall,
   toDisposable,
+  useBack,
 };
 
 export type {

@@ -8,6 +8,7 @@ import { deviceStore } from "./core/devices";
 import { activateExtensions } from "./extensions/registry";
 import { loadInstalledExtensions } from "./extensions/loader";
 import { loadBundledExtensions } from "./extensions";
+import { invokeBack } from "./core/back";
 import "./index.css";
 import "./theme.css";
 
@@ -18,6 +19,9 @@ loadBundledExtensions()
   .catch((e) => console.error("[ext] load failed", e));
 
 startSignaling().catch((e) => console.error("[sig] start failed", e));
+
+// Android hardware back button.
+(window as { __ukitouch_back?: () => boolean }).__ukitouch_back = invokeBack;
 void deviceStore
   .init()
   .catch((err) => console.error("[devices] init failed:", err));

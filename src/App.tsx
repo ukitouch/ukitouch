@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
+import { setBackFallback } from "./core/back";
 import { bindLayout } from "./core/utils/ui";
 import { listExtensions, subscribeExtensions } from "./extensions/registry";
 import type { Layout } from "./core/types";
@@ -19,6 +20,17 @@ function App() {
   const [layout, setLayout] = useState<Layout>("withSidebar");
 
   useEffect(() => bindLayout({ setLayout }), [setLayout]);
+
+  // Unhandled back: leave the current page, or quit on Home.
+  useEffect(
+    () =>
+      setBackFallback(() => {
+        if (activeId === "home" || activeId === null) return false;
+        setActiveId("home");
+        return true;
+      }),
+    [activeId]
+  );
 
   // Switching pages always show sidebar at first.
   useEffect(() => setLayout("withSidebar"), [activeId]);

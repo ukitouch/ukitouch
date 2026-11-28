@@ -6,12 +6,15 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.webkit.WebView
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 
 /** Shared with the `theme` plugin command. */
 internal const val THEME_PREFS = "ukitouch.theme"
 
 class MainActivity : TauriActivity() {
+  private lateinit var mWebView: WebView
+
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
 
@@ -29,7 +32,26 @@ class MainActivity : TauriActivity() {
   }
 
   override fun onWebViewCreate(webView: WebView) {
+    mWebView = webView
     webView.settings.setSupportZoom(false)
     webView.setBackgroundColor(Color.TRANSPARENT)
+
+    // Hand the hardware back press to the page, exit when it returns false.
+    onBackPressedDispatcher.addCallback(
+      this,
+      object : OnBackPressedCallback(true) {
+        override fun handleOnBackPressed() {
+          mWebView.evaluateJavascript(
+            "(() => { try { return window.__ukitouch_back?.() === true } catch { return false } })()"
+          ) { result ->
+            if (result != "true") {
+              isEnabled = false
+              onBackPressed()
+              isEnabled = true
+            }
+          }
+        }
+      }
+    )
   }
 }
